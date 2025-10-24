@@ -1,0 +1,23 @@
+[
+  {
+    "date": "2025-01-10",
+    "headline": "Fed minutes signal patience on rate cuts; 2025 outlook cautious",
+    "category": "monetary_policy",
+    "market_impact": "SPY -0.8%, VIX +2.1",
+    "significance": "high"
+  },
+  {
+    "date": "2025-01-08",
+    "headline": "December jobs report beats: 250k vs 180k expected; wage growth 4.2%",
+    "category": "employment",
+    "market_impact": "10Y yield +8bps, SPY -0.3%",
+    "significance": "high"
+  },
+  {
+    "date": "2024-12-18",
+    "headline": "NVDA Q4 earnings beat but guidance cautious on China export restrictions",
+    "category": "earnings",
+    "market_impact": "NVDA -3%, XLK -1.2%",
+    "significance": "medium"
+  }
+]

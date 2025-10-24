@@ -1,0 +1,128 @@
+[
+  {
+    "date": "2025-09-26",
+    "headline": "BEA releases August PCE: headline PCE +2.7% YoY, core PCE +2.9% YoY",
+    "category": "inflation",
+    "market_impact": "SPY -0.2% (intraday), 10Y yield -1bps",
+    "significance": "medium"
+  },
+  {
+    "date": "2025-09-30",
+    "headline": "RBA holds cash rate at 3.60% and maintains restrictive stance",
+    "category": "monetary_policy",
+    "market_impact": "EWA +0.3% (session), AUDUSD -0.2%",
+    "significance": "low"
+  },
+  {
+    "date": "2025-10-01",
+    "headline": "U.S. government shutdown begins; federal statistical releases widely paused",
+    "category": "geopolitical",
+    "market_impact": "SPY -0.4%, VIX +0.6 to 16.9",
+    "significance": "high"
+  },
+  {
+    "date": "2025-10-01",
+    "headline": "ADP: U.S. private payrolls decline by 32,000 in September; annual pay +4.5% YoY",
+    "category": "employment",
+    "market_impact": "SPY -0.4%, 2Y yield +3bps",
+    "significance": "medium"
+  },
+  {
+    "date": "2025-10-02",
+    "headline": "Challenger report: U.S. employers announce 54,064 job cuts in September (–37% MoM); YTD 946,426",
+    "category": "employment",
+    "market_impact": "SPY -0.3%, XLI -0.4%",
+    "significance": "medium"
+  },
+  {
+    "date": "2025-10-08",
+    "headline": "FOMC releases September meeting minutes",
+    "category": "monetary_policy",
+    "market_impact": "10Y yield +16bps to 4.15%, VIX -0.68 to 16.24",
+    "significance": "high"
+  },
+  {
+    "date": "2025-10-08",
+    "headline": "Bank of England FPC leaves UK countercyclical capital buffer at 2%",
+    "category": "monetary_policy",
+    "market_impact": "FTSE 100 +0.2%, GBPUSD -0.1%",
+    "significance": "low"
+  },
+  {
+    "date": "2025-10-09",
+    "headline": "Delta Air Lines Q3: revenue $15.72B; GAAP EPS $1.72; operating margin 11.4%",
+    "category": "earnings",
+    "market_impact": "DAL +2.1%, JETS +0.8%",
+    "significance": "medium"
+  },
+  {
+    "date": "2025-10-10",
+    "headline": "BLS reschedules September CPI publication to October 24 due to shutdown",
+    "category": "inflation",
+    "market_impact": "SPY +0.1%, 10Y yield -2bps",
+    "significance": "medium"
+  },
+  {
+    "date": "2025-10-14",
+    "headline": "JPMorgan Chase Q3: revenue $43.2B, net income $11.3B",
+    "category": "earnings",
+    "market_impact": "JPM +1.6%, XLF +0.9%",
+    "significance": "medium"
+  },
+  {
+    "date": "2025-10-15",
+    "headline": "United Airlines Q3: operating revenue $15.88B; GAAP EPS $4.05",
+    "category": "earnings",
+    "market_impact": "UAL +3.4%, JETS +1.1%",
+    "significance": "medium"
+  },
+  {
+    "date": "2025-10-15",
+    "headline": "Bank of America Q3: total revenue (FTE) $25.0B; net income $6.7B",
+    "category": "earnings",
+    "market_impact": "BAC +1.2%, XLF +0.7%",
+    "significance": "medium"
+  },
+  {
+    "date": "2025-10-16",
+    "headline": "Brent crude settles above $100; daily gain ~1.6%",
+    "category": "sector_specific",
+    "market_impact": "Brent +1.6%, XLE +0.9%",
+    "significance": "medium"
+  },
+  {
+    "date": "2025-10-21",
+    "headline": "Netflix Q3: revenue $9.41B vs $9.52B est; net adds 7.2M vs 8.0M est",
+    "category": "earnings",
+    "market_impact": "NFLX -11.0% afterhours; XLC -0.5%",
+    "significance": "high"
+  },
+  {
+    "date": "2025-10-22",
+    "headline": "Tesla Q3: revenue $28.10B vs $28.30B est; non-GAAP EPS $0.50 vs $0.55 est",
+    "category": "earnings",
+    "market_impact": "TSLA -7.0% afterhours; SPY -0.5% (session)",
+    "significance": "high"
+  },
+  {
+    "date": "2025-01-10",
+    "headline": "Fed minutes signal patience on rate cuts; 2025 outlook cautious",
+    "category": "monetary_policy",
+    "market_impact": "SPY -0.8%, VIX +2.1",
+    "significance": "high"
+  },
+  {
+    "date": "2025-01-08",
+    "headline": "December jobs report beats: 250k vs 180k expected; wage growth 4.2%",
+    "category": "employment",
+    "market_impact": "10Y yield +8bps, SPY -0.3%",
+    "significance": "high"
+  },
+  {
+    "date": "2024-12-18",
+    "headline": "NVDA Q4 earnings beat but guidance cautious on China export restrictions",
+    "category": "earnings",
+    "market_impact": "NVDA -3%, XLK -1.2%",
+    "significance": "medium"
+  }
+]
