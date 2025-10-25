@@ -146,10 +146,13 @@ async def create_agent(
     if 'yfinance' in servers:
         toolsets.append(servers['yfinance'])
 
+    if 'composer' in servers:
+        toolsets.append(servers['composer'])
+
     if not toolsets:
         await stack.aclose()  # Clean up before raising
         raise RuntimeError(
-            "No MCP servers available. Ensure FRED and/or yfinance are installed."
+            "No MCP servers available. Ensure FRED, yfinance, and/or Composer are configured."
         )
 
     # Create agent with Pydantic AI
