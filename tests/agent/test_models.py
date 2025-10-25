@@ -458,12 +458,10 @@ class TestWorkflowResultModel:
             all_candidates=candidates,
             scorecards=scorecards,
             backtests=backtests,
-            selection_reasoning=reasoning,
-            total_cost=3.50
+            selection_reasoning=reasoning
         )
 
         assert len(result.all_candidates) == 5
-        assert result.total_cost == 3.50
 
     def test_exactly_five_candidates_enforced(self):
         """Must have exactly 5 candidates"""
@@ -501,63 +499,6 @@ class TestWorkflowResultModel:
                 all_candidates=candidates,  # Only 3
                 scorecards=[],
                 backtests=[],
-                selection_reasoning=reasoning,
-                total_cost=1.0
+                selection_reasoning=reasoning
             )
 
-    def test_negative_cost_rejected(self):
-        """Total cost cannot be negative"""
-        from src.agent.models import WorkflowResult, Strategy, Charter, EdgeScorecard, BacktestResult, SelectionReasoning
-
-        candidates = [
-            Strategy(
-                name=f"Strategy {i+1}",
-                assets=["SPY"],
-                weights={"SPY": 1.0},
-                rebalance_frequency="monthly"
-            )
-            for i in range(5)
-        ]
-
-        charter = Charter(
-            market_thesis="Test thesis",
-            strategy_selection="Test selection",
-            expected_behavior="Test behavior",
-            failure_modes=["Test failure mode"],
-            outlook_90d="Test outlook"
-        )
-
-        scorecards = [
-            EdgeScorecard(
-                specificity=3, structural_basis=3, regime_alignment=3,
-                differentiation=3, failure_clarity=3, mental_model_coherence=3
-            )
-            for _ in range(5)
-        ]
-
-        backtests = [
-            BacktestResult(
-                sharpe_ratio=1.0,
-                max_drawdown=-0.10,
-                total_return=0.15,
-                volatility_annualized=0.12
-            )
-            for _ in range(5)
-        ]
-
-        reasoning = SelectionReasoning(
-            winner_index=0,
-            why_selected="This is test reasoning with enough characters to pass validation requirements for the minimum length of 100 characters.",
-            alternatives_compared=["Strategy 2", "Strategy 3", "Strategy 4", "Strategy 5"]
-        )
-
-        with pytest.raises(ValidationError):
-            WorkflowResult(
-                strategy=candidates[0],
-                charter=charter,
-                all_candidates=candidates,
-                scorecards=scorecards,
-                backtests=backtests,
-                selection_reasoning=reasoning,
-                total_cost=-5.0  # Negative cost invalid
-            )

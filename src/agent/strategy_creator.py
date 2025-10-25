@@ -11,12 +11,16 @@ This module provides:
 from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Type, TypeVar
+import os
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from src.agent.mcp_config import get_mcp_servers
 
 
-T = TypeVar('T', bound=BaseModel)
+T = TypeVar("T", bound=BaseModel)
+
+# Default model from environment variable
+DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "openai:gpt-4o")
 
 
 class AgentContext:
@@ -48,8 +52,9 @@ class AgentContext:
         """Delegate attribute access to the underlying agent"""
         return getattr(self._agent, name)
 
+
 # Prompt directory
-PROMPT_DIR = Path(__file__).parent / 'prompts'
+PROMPT_DIR = Path(__file__).parent / "prompts"
 
 
 def load_prompt(filename: str) -> str:
@@ -77,9 +82,7 @@ def load_prompt(filename: str) -> str:
 
 
 async def create_agent(
-    model: str,
-    output_type: Type[T],
-    system_prompt: str | None = None
+    model: str, output_type: Type[T], system_prompt: str | None = None
 ) -> AgentContext:
     """
     Create AI agent with multi-provider support and MCP tools.
@@ -121,7 +124,7 @@ async def create_agent(
         '60/40 Portfolio'
     """
     # Validate model format
-    if ':' not in model:
+    if ":" not in model:
         raise ValueError(
             f"Invalid model format: '{model}'. "
             f"Expected 'provider:model-name' (e.g., 'anthropic:claude-3-5-sonnet-20241022')"
@@ -129,7 +132,7 @@ async def create_agent(
 
     # Load system prompt if not provided
     if system_prompt is None:
-        system_prompt = load_prompt('system_prompt.md')
+        system_prompt = load_prompt("system_prompt.md")
 
     # Create AsyncExitStack to manage MCP server lifecycle
     stack = AsyncExitStack()
@@ -140,14 +143,14 @@ async def create_agent(
     # Create toolsets list from available servers
     toolsets = []
 
-    if 'fred' in servers:
-        toolsets.append(servers['fred'])
+    if "fred" in servers:
+        toolsets.append(servers["fred"])
 
-    if 'yfinance' in servers:
-        toolsets.append(servers['yfinance'])
+    if "yfinance" in servers:
+        toolsets.append(servers["yfinance"])
 
-    if 'composer' in servers:
-        toolsets.append(servers['composer'])
+    if "composer" in servers:
+        toolsets.append(servers["composer"])
 
     if not toolsets:
         await stack.aclose()  # Clean up before raising
@@ -160,14 +163,16 @@ async def create_agent(
         model=model,
         output_type=output_type,
         system_prompt=system_prompt,
-        toolsets=toolsets
+        toolsets=toolsets,
     )
 
     # Return wrapped agent with lifecycle management
     return AgentContext(agent, stack)
 
 
-async def create_strategy_agent(model: str = 'anthropic:claude-3-5-sonnet-20241022') -> AgentContext:
+async def create_strategy_agent(
+    model: str = DEFAULT_MODEL,
+) -> AgentContext:
     """
     Create agent configured for strategy creation workflow.
 
@@ -196,19 +201,19 @@ async def create_strategy_agent(model: str = 'anthropic:claude-3-5-sonnet-202410
     from src.agent.models import Strategy
 
     # Load combined prompt (system + workflow)
-    system_prompt = load_prompt('system_prompt.md')
-    workflow_prompt = load_prompt('strategy_creation.md')
+    system_prompt = load_prompt("system_prompt.md")
+    workflow_prompt = load_prompt("strategy_creation.md")
 
     combined_prompt = f"{system_prompt}\n\n{workflow_prompt}"
 
     return await create_agent(
-        model=model,
-        output_type=Strategy,
-        system_prompt=combined_prompt
+        model=model, output_type=Strategy, system_prompt=combined_prompt
     )
 
 
-async def create_charter_agent(model: str = 'anthropic:claude-3-5-sonnet-20241022') -> AgentContext:
+async def create_charter_agent(
+    model: str = DEFAULT_MODEL,
+) -> AgentContext:
     """
     Create agent configured for charter generation.
 
@@ -237,13 +242,11 @@ async def create_charter_agent(model: str = 'anthropic:claude-3-5-sonnet-2024102
     from src.agent.models import Charter
 
     # Load combined prompt (system + charter workflow)
-    system_prompt = load_prompt('system_prompt.md')
-    charter_prompt = load_prompt('charter_creation.md')
+    system_prompt = load_prompt("system_prompt.md")
+    charter_prompt = load_prompt("charter_creation.md")
 
     combined_prompt = f"{system_prompt}\n\n{charter_prompt}"
 
     return await create_agent(
-        model=model,
-        output_type=Charter,
-        system_prompt=combined_prompt
+        model=model, output_type=Charter, system_prompt=combined_prompt
     )

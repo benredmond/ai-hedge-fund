@@ -238,7 +238,6 @@ class WorkflowResult(BaseModel):
         scorecards: Edge Scorecard evaluations for all candidates
         backtests: Backtest results for all candidates
         selection_reasoning: Why winner was chosen
-        total_cost: Total API cost in USD
     """
     strategy: Strategy
     charter: Charter
@@ -246,7 +245,6 @@ class WorkflowResult(BaseModel):
     scorecards: List[EdgeScorecard] = Field(min_length=5, max_length=5)
     backtests: List[BacktestResult] = Field(min_length=5, max_length=5)
     selection_reasoning: SelectionReasoning
-    total_cost: float = Field(ge=0)
 
     @field_validator('all_candidates')
     @classmethod

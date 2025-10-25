@@ -22,8 +22,17 @@ pip install -r requirements.txt
 # Configure environment variables
 # Create .env file with:
 #   FRED_API_KEY=your_key_here
+#   DEFAULT_MODEL=openai:gpt-4o  # Optional: LLM model for strategy creation (default: openai:gpt-4o)
 # Get free key at: https://fred.stlouisfed.org/docs/api/api_key.html
 ```
+
+### Environment Variables
+
+- **FRED_API_KEY** (required): Federal Reserve Economic Data API key. Get free key at https://fred.stlouisfed.org/docs/api/api_key.html
+- **DEFAULT_MODEL** (optional): LLM model identifier for strategy creation workflow. Default: `openai:gpt-4o`
+  - Format: `<provider>:<model>` (e.g., `openai:gpt-4o`, `anthropic:claude-3-opus-20240229`)
+  - Used by `create_strategy_workflow()` when model parameter not specified
+- **OPENAI_API_KEY**, **COMPOSER_API_KEY**, **COMPOSER_API_SECRET**: Required for full integration tests
 
 ### Testing
 ```bash

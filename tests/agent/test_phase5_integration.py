@@ -69,7 +69,6 @@ class TestPhase5EndToEnd:
         - Diverse backtest results (not mocked)
         - Winner selection with detailed reasoning
         - Complete charter with all 5 sections
-        - Cost tracking within $10 budget
         """
         # Validate environment
         required_vars = ['OPENAI_API_KEY', 'FRED_API_KEY', 'COMPOSER_API_KEY', 'COMPOSER_API_SECRET']
@@ -97,8 +96,7 @@ class TestPhase5EndToEnd:
         try:
             result = await create_strategy_workflow(
                 market_context=market_context,
-                model='openai:gpt-4o',
-                max_cost=10.0
+                model='openai:gpt-4o'
             )
         except (BaseExceptionGroup, ExceptionGroup) as eg:
             # Check if it's a Composer authentication error (handle ExceptionGroup)
@@ -221,14 +219,7 @@ class TestPhase5EndToEnd:
         assert len(result.charter.outlook_90d) > 100, "90-day outlook too short"
 
         # ===================================================================
-        # VALIDATION 6: Cost Tracking
-        # ===================================================================
-
-        assert result.total_cost > 0, "Total cost should be > 0"
-        assert result.total_cost < 10.0, "Total cost should not exceed budget"
-
-        # ===================================================================
-        # VALIDATION 7: MCP Usage Validation (Not Mocked)
+        # VALIDATION 6: MCP Usage Validation (Not Mocked)
         # ===================================================================
 
         # This is implicitly validated by:
@@ -260,8 +251,6 @@ class TestPhase5EndToEnd:
         print(f"Winner Assets: {', '.join(result.strategy.assets)}")
         print(f"Winner Sharpe: {result.backtests[result.selection_reasoning.winner_index].sharpe_ratio:.2f}")
         print(f"Winner Edge Score: {result.scorecards[result.selection_reasoning.winner_index].total_score:.1f}/5")
-        print(f"\nTotal Cost: ${result.total_cost:.2f}")
-        print(f"Budget Remaining: ${10.0 - result.total_cost:.2f}")
         print("=" * 80)
 
 
