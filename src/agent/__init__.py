@@ -10,8 +10,6 @@ This module provides:
 from src.agent.models import Strategy, Charter, RebalanceFrequency
 from src.agent.strategy_creator import (
     create_agent,
-    create_strategy_agent,
-    create_charter_agent,
     load_prompt
 )
 from src.agent.mcp_config import get_mcp_servers
@@ -23,8 +21,6 @@ __all__ = [
     "RebalanceFrequency",
     # Agent factory
     "create_agent",
-    "create_strategy_agent",
-    "create_charter_agent",
     # Utilities
     "load_prompt",
     "get_mcp_servers"
