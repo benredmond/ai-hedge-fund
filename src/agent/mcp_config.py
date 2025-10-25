@@ -35,7 +35,7 @@ YFINANCE_VENV_PYTHON = os.getenv(
 )
 COMPOSER_MCP_URL = os.getenv(
     'COMPOSER_MCP_URL',
-    'https://ai.composer.trade/mcp'
+    'https://mcp.composer.trade/mcp/'
 )
 
 
@@ -99,7 +99,7 @@ def create_composer_server() -> MCPServerStreamableHTTP:
         COMPOSER_API_SECRET: API secret from Composer dashboard
 
     Optional environment variables:
-        COMPOSER_MCP_URL: HTTP endpoint (default: https://ai.composer.trade/mcp)
+        COMPOSER_MCP_URL: HTTP endpoint (default: https://mcp.composer.trade/mcp/)
 
     Returns:
         MCPServerStreamableHTTP configured for Composer Trade API

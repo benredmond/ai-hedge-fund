@@ -5,7 +5,7 @@ import httpx
 @pytest.mark.asyncio
 async def test_composer_endpoint_reachable():
     """Composer HTTP endpoint is reachable (health check)."""
-    url = "https://ai.composer.trade/mcp"
+    url = "https://mcp.composer.trade/mcp/"
 
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:

@@ -52,7 +52,7 @@ class TestComposerServerCreation:
         server = create_composer_server()
 
         # Verify default URL is used (module-level variable set at import time)
-        assert server.url == 'https://ai.composer.trade/mcp'
+        assert server.url == 'https://mcp.composer.trade/mcp/'
 
     def test_composer_server_base64_encoding(self, monkeypatch):
         """Composer server correctly encodes credentials in Base64"""
@@ -174,7 +174,7 @@ class TestComposerHTTPConnectivity:
         Requires:
         - COMPOSER_API_KEY set in environment
         - COMPOSER_API_SECRET set in environment
-        - Network access to https://ai.composer.trade/mcp
+        - Network access to https://mcp.composer.trade/mcp/
         """
         # Skip if credentials not available
         if not os.getenv('COMPOSER_API_KEY') or not os.getenv('COMPOSER_API_SECRET'):
@@ -187,6 +187,43 @@ class TestComposerHTTPConnectivity:
         server = create_composer_server()
 
         # Verify server configuration
-        assert server.url.startswith('https://ai.composer.trade')
+        assert server.url.startswith('https://mcp.composer.trade')
         assert 'Authorization' in server.headers
         assert server.headers['Authorization'].startswith('Basic ')
+
+    @pytest.mark.asyncio
+    async def test_agent_includes_composer_toolset(self):
+        """
+        Test that create_agent() includes Composer in toolsets.
+
+        This validates the fix for strategy_creator.py to include Composer.
+        """
+        # Skip if credentials not available
+        if not os.getenv('COMPOSER_API_KEY') or not os.getenv('COMPOSER_API_SECRET'):
+            pytest.skip("COMPOSER_API_KEY and COMPOSER_API_SECRET required")
+
+        from src.agent.strategy_creator import create_agent
+        from src.agent.models import Strategy
+
+        agent_ctx = await create_agent(
+            model='openai:gpt-4o',
+            output_type=Strategy
+        )
+
+        async with agent_ctx as agent:
+            # Agent should have toolsets
+            assert agent.toolsets is not None, "Agent should have toolsets"
+
+            # Should have at least 3 toolsets: FRED, yfinance, Composer
+            toolset_count = len(agent.toolsets)
+            assert toolset_count >= 3, (
+                f"Agent should have at least 3 toolsets (FRED, yfinance, Composer), "
+                f"got {toolset_count}"
+            )
+
+            # Verify Composer is included by checking for HTTP toolset (Composer uses HTTP)
+            has_http_toolset = any(
+                hasattr(toolset, 'url') and 'composer.trade' in getattr(toolset, 'url', '')
+                for toolset in agent.toolsets
+            )
+            assert has_http_toolset, "Agent should include Composer HTTP toolset"
