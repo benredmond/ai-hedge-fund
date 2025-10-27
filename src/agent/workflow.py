@@ -5,6 +5,7 @@ This module implements the multi-stage workflow for generating,
 evaluating, and selecting trading strategies.
 """
 
+import asyncio
 import json
 from typing import List
 from src.agent.strategy_creator import create_agent, DEFAULT_MODEL
@@ -13,9 +14,9 @@ from src.agent.models import (
     BacktestResult,
     WorkflowResult,
 )
-from src.agent.scoring import evaluate_edge_scorecard
 from src.agent.stages import (
     CandidateGenerator,
+    EdgeScorer,
     WinnerSelector,
     CharterGenerator,
 )
@@ -154,6 +155,7 @@ async def create_strategy_workflow(
 
     # Instantiate stage classes
     candidate_gen = CandidateGenerator()
+    edge_scorer = EdgeScorer()
     selector = WinnerSelector()
     charter_gen = CharterGenerator()
 
@@ -162,11 +164,16 @@ async def create_strategy_workflow(
     candidates = await candidate_gen.generate(market_context, model)
     print(f"✓ Generated {len(candidates)} candidates")
 
-    # Stage 2: Evaluate Edge Scorecard
+    # Stage 2: Evaluate Edge Scorecard (parallel scoring)
     print("Stage 2/5: Evaluating Edge Scorecard...")
-    scorecards = [evaluate_edge_scorecard(c, market_context) for c in candidates]
+    scoring_tasks = [
+        edge_scorer.score(candidate, market_context, model)
+        for candidate in candidates
+    ]
+    scorecards = await asyncio.gather(*scoring_tasks)
 
-    # Validate all scores ≥3
+    # Validate all scores ≥3 (EdgeScorecard model validates this automatically)
+    # But check total_score for reporting
     for i, scorecard in enumerate(scorecards):
         if scorecard.total_score < 3.0:
             raise ValueError(
