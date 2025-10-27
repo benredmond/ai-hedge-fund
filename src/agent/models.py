@@ -167,49 +167,46 @@ class BacktestResult(BaseModel):
 
 class EdgeScorecard(BaseModel):
     """
-    6-dimension strategy evaluation scorecard.
+    5-dimension strategy evaluation scorecard.
 
     All dimensions scored 1-5:
-    - 1-2: Weak (fails threshold)
-    - 3: Acceptable minimum
-    - 4: Strong
-    - 5: Excellent
+    - 1: Inadequate (severe deficiencies)
+    - 2: Weak (below threshold, likely to fail)
+    - 3: Acceptable (minimum viable quality)
+    - 4: Strong (above average, well-executed)
+    - 5: Institutional Grade (best-in-class, clear competitive advantage)
 
     Attributes:
-        specificity: Edge specificity (vague vs specific)
-        structural_basis: Structural reasoning quality
-        regime_alignment: Alignment with current market regime
-        differentiation: Strategy novelty vs generic approaches
-        failure_clarity: Number and quality of identified failure modes
-        mental_model_coherence: Internal consistency across frameworks
+        thesis_quality: Does the strategy articulate a clear, falsifiable investment thesis with causal reasoning?
+        edge_economics: Why does this edge exist, and why hasn't it been arbitraged away?
+        risk_framework: Does the strategist understand the risk profile, failure modes, and risk-adjusted expectations?
+        regime_awareness: Does the strategy fit current market conditions with adaptation logic?
+        strategic_coherence: Do all strategy elements support a unified thesis with feasible execution?
     """
 
-    specificity: int = Field(ge=1, le=5)
-    structural_basis: int = Field(ge=1, le=5)
-    regime_alignment: int = Field(ge=1, le=5)
-    differentiation: int = Field(ge=1, le=5)
-    failure_clarity: int = Field(ge=1, le=5)
-    mental_model_coherence: int = Field(ge=1, le=5)
+    thesis_quality: int = Field(ge=1, le=5)
+    edge_economics: int = Field(ge=1, le=5)
+    risk_framework: int = Field(ge=1, le=5)
+    regime_awareness: int = Field(ge=1, le=5)
+    strategic_coherence: int = Field(ge=1, le=5)
 
     @property
     def total_score(self) -> float:
-        """Average score across all 6 dimensions"""
+        """Average score across all 5 dimensions"""
         return (
-            self.specificity
-            + self.structural_basis
-            + self.regime_alignment
-            + self.differentiation
-            + self.failure_clarity
-            + self.mental_model_coherence
-        ) / 6
+            self.thesis_quality
+            + self.edge_economics
+            + self.risk_framework
+            + self.regime_awareness
+            + self.strategic_coherence
+        ) / 5
 
     @field_validator(
-        "specificity",
-        "structural_basis",
-        "regime_alignment",
-        "differentiation",
-        "failure_clarity",
-        "mental_model_coherence",
+        "thesis_quality",
+        "edge_economics",
+        "risk_framework",
+        "regime_awareness",
+        "strategic_coherence",
     )
     @classmethod
     def dimension_above_threshold(cls, v: int) -> int:

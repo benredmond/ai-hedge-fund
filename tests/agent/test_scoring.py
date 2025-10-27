@@ -35,12 +35,11 @@ class TestEdgeScorer:
 
         # Verify structure
         assert isinstance(scorecard, EdgeScorecard)
-        assert scorecard.specificity >= 3
-        assert scorecard.structural_basis >= 3
-        assert scorecard.regime_alignment >= 3
-        assert scorecard.differentiation >= 3
-        assert scorecard.failure_clarity >= 3
-        assert scorecard.mental_model_coherence >= 3
+        assert scorecard.thesis_quality >= 3
+        assert scorecard.edge_economics >= 3
+        assert scorecard.risk_framework >= 3
+        assert scorecard.regime_awareness >= 3
+        assert scorecard.strategic_coherence >= 3
         assert scorecard.total_score >= 3.0
 
     @pytest.mark.asyncio
@@ -68,8 +67,8 @@ class TestEdgeScorer:
         # Generic strategy should pass but not score high
         assert scorecard.total_score >= 3.0
         assert scorecard.total_score < 4.5  # Shouldn't be excellent
-        # Differentiation should be low for generic 60/40
-        assert scorecard.differentiation <= 3
+        # Edge economics should be low for generic 60/40 (no edge)
+        assert scorecard.edge_economics <= 3
 
     @pytest.mark.asyncio
     async def test_handles_complex_strategy(self):
@@ -98,10 +97,9 @@ class TestEdgeScorer:
         # AI agents may score conservatively, so we verify minimum standards
         assert scorecard.total_score >= 3.0
         assert all([
-            scorecard.specificity >= 3,
-            scorecard.structural_basis >= 3,
-            scorecard.regime_alignment >= 3,
-            scorecard.differentiation >= 3,
-            scorecard.failure_clarity >= 3,
-            scorecard.mental_model_coherence >= 3
+            scorecard.thesis_quality >= 3,
+            scorecard.edge_economics >= 3,
+            scorecard.risk_framework >= 3,
+            scorecard.regime_awareness >= 3,
+            scorecard.strategic_coherence >= 3
         ])

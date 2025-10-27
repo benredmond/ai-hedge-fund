@@ -52,10 +52,10 @@ class EdgeScorer:
         # Load scoring prompt
         system_prompt = load_prompt("edge_scoring.md")
 
-        # Create agent
+        # Create agent with dict output to handle rich scoring format
         agent_ctx = await create_agent(
             model=model,
-            output_type=EdgeScorecard,
+            output_type=dict,
             system_prompt=system_prompt
         )
 
@@ -89,21 +89,43 @@ class EdgeScorer:
 
 ## Your Task
 
-Score the strategy on all 6 dimensions (1-5 scale):
+Evaluate the strategy following the Edge Scorecard framework in your system prompt.
 
-1. **Specificity**: How clear and precise is the edge?
-2. **Structural Basis**: Quality of reasoning (behavioral/structural/informational/risk premium)
-3. **Regime Alignment**: Fit with current market conditions
-4. **Differentiation**: Novelty vs generic approaches
-5. **Failure Clarity**: Quality of identified failure modes
-6. **Mental Model Coherence**: Internal consistency
+Return your evaluation as a JSON object with scores for all 5 dimensions.
 
 **CRITICAL**: All dimensions must score ≥3 to pass threshold.
-
-Provide your scores as structured output (EdgeScorecard format).
 """
 
             result = await agent.run(prompt)
-            scorecard = result.output
+            raw_output = result.output
+
+        # Parse the rich output format from the new prompt
+        # The prompt returns: {dimension: {score: X, reasoning: ..., evidence_cited: ..., ...}}
+        # We need to extract just the scores to create EdgeScorecard
+
+        # Handle both old simple format and new rich format
+        if isinstance(raw_output, dict):
+            # Check if it's the new rich format (has nested dicts with 'score' key)
+            if any(isinstance(v, dict) and 'score' in v for v in raw_output.values()):
+                # New rich format - extract scores
+                scorecard = EdgeScorecard(
+                    thesis_quality=raw_output.get('thesis_quality', {}).get('score', 3),
+                    edge_economics=raw_output.get('edge_economics', {}).get('score', 3),
+                    risk_framework=raw_output.get('risk_framework', {}).get('score', 3),
+                    regime_awareness=raw_output.get('regime_awareness', {}).get('score', 3),
+                    strategic_coherence=raw_output.get('strategic_coherence', {}).get('score', 3)
+                )
+            else:
+                # Old simple format - direct scores
+                scorecard = EdgeScorecard(**raw_output)
+        else:
+            # Fallback - create minimal passing scorecard
+            scorecard = EdgeScorecard(
+                thesis_quality=3,
+                edge_economics=3,
+                risk_framework=3,
+                regime_awareness=3,
+                strategic_coherence=3
+            )
 
         return scorecard

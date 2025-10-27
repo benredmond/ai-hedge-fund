@@ -27,46 +27,76 @@ class WinnerSelector:
         model: str = DEFAULT_MODEL
     ) -> Tuple[Strategy, SelectionReasoning]:
         """
-        Select best candidate using composite ranking.
+        Select best candidate using composite ranking and AI reasoning.
 
-        Ranking Formula:
-            score = 0.4 × Sharpe + 0.3 × EdgeScore + 0.2 × RegimeFit + 0.1 × (1 - abs(Drawdown))
+        Composite Ranking Formula (for initial ordering):
+            score = 0.35 × Sharpe + 0.30 × (Thesis + Edge + Risk)/3 + 0.20 × Regime + 0.15 × Coherence
+
+        Note: AI may override composite ranking if strategic reasoning justifies it
+        (e.g., lower Sharpe but superior thesis quality)
 
         Args:
             candidates: 5 strategies
-            scorecards: 5 edge scorecards
+            scorecards: 5 edge scorecards (with new 5-dimension rubric)
             backtests: 5 backtest results
-            market_context: Current market regime
+            market_context: Current market conditions
             model: LLM for reasoning generation
 
         Returns:
             (winner, reasoning) tuple
+
+        Example:
+            >>> selector = WinnerSelector()
+            >>> winner, reasoning = await selector.select(candidates, scorecards, backtests, context)
+            >>> print(f"Selected: {winner.name} - {reasoning.why_selected[:100]}...")
         """
-        # Compute composite scores
+        # Extract regime tags for context
+        regime_tags = market_context.get("regime_tags", [])
+
+        # Compute composite scores for initial ranking
         composite_scores = []
 
         for i in range(5):
             # Normalize each component to 0-1 range
-            sharpe_norm = (backtests[i].sharpe_ratio + 1) / 4  # -1 to 3 → 0 to 1
-            edge_norm = scorecards[i].total_score / 5  # 1-5 → 0.2-1.0
-            regime_norm = scorecards[i].regime_alignment / 5
-            drawdown_norm = 1 - abs(backtests[i].max_drawdown)
+            sharpe_norm = min(1.0, max(0.0, (backtests[i].sharpe_ratio + 1) / 4))  # -1 to 3 → 0 to 1
 
+            # Strategic reasoning quality (average of thesis, edge, risk)
+            # Note: Current EdgeScorecard has old dimension names; will work with both old and new
+            if hasattr(scorecards[i], 'thesis_quality'):
+                # New 5-dimension rubric
+                reasoning_norm = (
+                    scorecards[i].thesis_quality +
+                    scorecards[i].edge_economics +
+                    scorecards[i].risk_framework
+                ) / 15.0  # Average of 3 dimensions, each 1-5
+                regime_norm = scorecards[i].regime_awareness / 5.0
+                coherence_norm = scorecards[i].strategic_coherence / 5.0
+            else:
+                # Old 6-dimension rubric (backwards compatibility)
+                reasoning_norm = (
+                    scorecards[i].specificity +
+                    scorecards[i].structural_basis +
+                    scorecards[i].failure_clarity
+                ) / 15.0
+                regime_norm = scorecards[i].regime_alignment / 5.0
+                coherence_norm = scorecards[i].mental_model_coherence / 5.0
+
+            drawdown_norm = min(1.0, 1 - abs(backtests[i].max_drawdown))
+
+            # Weighted composite score
             composite = (
-                0.4 * sharpe_norm +
-                0.3 * edge_norm +
-                0.2 * regime_norm +
-                0.1 * drawdown_norm
+                0.35 * sharpe_norm +
+                0.30 * reasoning_norm +
+                0.20 * regime_norm +
+                0.15 * coherence_norm
             )
 
             composite_scores.append((i, composite))
 
         # Rank candidates by composite score
         ranked = sorted(composite_scores, key=lambda x: x[1], reverse=True)
-        winner_index = ranked[0][0]
-        winner = candidates[winner_index]
 
-        # Generate selection reasoning via AI
+        # Build rich context for AI selection
         agent_ctx = await create_agent(
             model=model,
             output_type=SelectionReasoning,
@@ -74,27 +104,94 @@ class WinnerSelector:
         )
 
         async with agent_ctx as agent:
-            prompt = f"""Explain why we selected candidate {winner_index + 1} over the other 4 alternatives.
+            # Build comprehensive evaluation prompt
+            prompt = f"""Select the best trading strategy from these 5 candidates for 90-day deployment.
 
-**Winner**: {winner.name}
-- Sharpe: {backtests[winner_index].sharpe_ratio:.2f}
-- Edge Score: {scorecards[winner_index].total_score:.1f}/5
-- Composite Score: {ranked[0][1]:.3f}
+## Market Context
 
-**Other Candidates**:
+**Regime Tags**: {", ".join(regime_tags)}
+**Current Conditions**: {market_context.get("regime_snapshot", {}).get("trend_classification", "unknown")} trend, {market_context.get("regime_snapshot", {}).get("volatility_regime", "unknown")} volatility
+
+## Candidate Evaluation Data
+
 """
-            for rank, (idx, score) in enumerate(ranked[1:], start=2):
-                prompt += f"\n{rank}. {candidates[idx].name} (Composite: {score:.3f}, Sharpe: {backtests[idx].sharpe_ratio:.2f})"
+            # Add detailed data for each candidate
+            for idx in range(5):
+                rank_position = next((rank + 1 for rank, (i, _) in enumerate(ranked) if i == idx), 0)
+                composite = composite_scores[idx][1]
 
-            prompt += "\n\nProvide clear reasoning focusing on: risk-adjusted returns, regime fit, robustness, implementation."
+                prompt += f"""
+### Candidate {idx + 1}: {candidates[idx].name} (Rank: #{rank_position}, Composite: {composite:.3f})
+
+**Strategy Overview:**
+- Assets: {", ".join(candidates[idx].assets[:5])}{"..." if len(candidates[idx].assets) > 5 else ""}
+- Weights: {dict(list(candidates[idx].weights.items())[:3])}{"..." if len(candidates[idx].weights) > 3 else ""}
+- Rebalancing: {candidates[idx].rebalance_frequency.value}
+
+**Backtest Results:**
+- Sharpe Ratio: {backtests[idx].sharpe_ratio:.2f}
+- Max Drawdown: {backtests[idx].max_drawdown:.1%}
+- Total Return: {backtests[idx].total_return:.1%}
+- Volatility: {backtests[idx].volatility_annualized:.1%}
+
+**Edge Scorecard:**
+"""
+                # Add scores (works with both old and new rubric)
+                if hasattr(scorecards[idx], 'thesis_quality'):
+                    # New 5-dimension rubric
+                    prompt += f"""- Thesis Quality: {scorecards[idx].thesis_quality}/5
+- Edge Economics: {scorecards[idx].edge_economics}/5
+- Risk Framework: {scorecards[idx].risk_framework}/5
+- Regime Awareness: {scorecards[idx].regime_awareness}/5
+- Strategic Coherence: {scorecards[idx].strategic_coherence}/5
+- **Total Score**: {scorecards[idx].total_score:.1f}/5
+
+"""
+                else:
+                    # Old 6-dimension rubric
+                    prompt += f"""- Specificity: {scorecards[idx].specificity}/5
+- Structural Basis: {scorecards[idx].structural_basis}/5
+- Regime Alignment: {scorecards[idx].regime_alignment}/5
+- Differentiation: {scorecards[idx].differentiation}/5
+- Failure Clarity: {scorecards[idx].failure_clarity}/5
+- Mental Model Coherence: {scorecards[idx].mental_model_coherence}/5
+- **Total Score**: {scorecards[idx].total_score:.1f}/5
+
+"""
+
+            prompt += """
+## Your Task
+
+Select the winner and provide comprehensive selection reasoning following the framework in your system prompt.
+
+**Key Reminders:**
+1. **Process over past performance**: Favor strategies with strong thesis/edge/risk reasoning over pure backtest Sharpe
+2. **Tradeoffs matter**: Make explicit what you're optimizing for vs sacrificing
+3. **Regime context**: Match strategy to current market conditions
+4. **Risk awareness**: Enumerate failure scenarios and monitoring priorities
+
+**Output Requirements:**
+- winner_index: 0-4 (index in candidates list)
+- why_selected: Detailed explanation (100-5000 chars) citing specific scores and metrics
+- alternatives_compared: List of 4 rejected candidate names
+
+Return structured SelectionReasoning output.
+"""
 
             result = await agent.run(prompt)
             reasoning = result.output
 
-        # Set reasoning fields
-        reasoning.winner_index = winner_index
-        reasoning.alternatives_compared = [
-            c.name for i, c in enumerate(candidates) if i != winner_index
-        ]
+        # Validate and set index if not set by AI
+        if reasoning.winner_index < 0 or reasoning.winner_index > 4:
+            # Fallback to composite ranking if AI provided invalid index
+            reasoning.winner_index = ranked[0][0]
+
+        winner = candidates[reasoning.winner_index]
+
+        # Set alternatives if not set
+        if not reasoning.alternatives_compared or len(reasoning.alternatives_compared) < 4:
+            reasoning.alternatives_compared = [
+                c.name for i, c in enumerate(candidates) if i != reasoning.winner_index
+            ]
 
         return winner, reasoning
