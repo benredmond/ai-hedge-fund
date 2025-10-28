@@ -225,23 +225,27 @@ class SelectionReasoning(BaseModel):
     Attributes:
         winner_index: Index (0-4) of selected strategy in candidates list
         why_selected: Detailed explanation of selection (min 100 chars)
-        alternatives_compared: Names of 4 rejected alternatives
+        tradeoffs_accepted: Key tradeoffs accepted in choosing this strategy (50-2000 chars)
+        alternatives_rejected: List of 4 rejected alternatives with brief rejection reasons
+        conviction_level: Confidence in selection (0.0-1.0), based on score delta and consistency
     """
 
     winner_index: int = Field(ge=0, le=4)
     why_selected: str = Field(min_length=100, max_length=5000)
-    alternatives_compared: List[str] = Field(min_length=4, max_length=4)
+    tradeoffs_accepted: str = Field(min_length=50, max_length=2000)
+    alternatives_rejected: List[str] = Field(min_length=4, max_length=4)
+    conviction_level: float = Field(ge=0.0, le=1.0)
 
-    @field_validator("alternatives_compared")
+    @field_validator("alternatives_rejected")
     @classmethod
     def alternatives_not_empty(cls, v: List[str]) -> List[str]:
         """Ensure all alternative names are meaningful"""
         if not v:
-            raise ValueError("Must compare against 4 alternatives")
+            raise ValueError("Must have 4 rejected alternatives")
 
         for alt in v:
             if len(alt) < 1:
-                raise ValueError("Alternative name cannot be empty")
+                raise ValueError("Alternative description cannot be empty")
 
         return v
 

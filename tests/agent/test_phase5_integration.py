@@ -146,9 +146,11 @@ class TestPhase5EndToEnd:
             assert scorecard.total_score >= 3.0, (
                 f"Candidate {i} failed Edge Scorecard: {scorecard.total_score:.1f}/5 (minimum: 3.0)"
             )
-            assert 1 <= scorecard.regime_alignment <= 5, "Regime alignment out of range"
-            assert 1 <= scorecard.edge_robustness <= 5, "Edge robustness out of range"
-            assert 1 <= scorecard.implementation_feasibility <= 5, "Implementation feasibility out of range"
+            assert 1 <= scorecard.thesis_quality <= 5, "Thesis quality out of range"
+            assert 1 <= scorecard.edge_economics <= 5, "Edge economics out of range"
+            assert 1 <= scorecard.risk_framework <= 5, "Risk framework out of range"
+            assert 1 <= scorecard.regime_awareness <= 5, "Regime awareness out of range"
+            assert 1 <= scorecard.strategic_coherence <= 5, "Strategic coherence out of range"
 
         # ===================================================================
         # VALIDATION 3: Backtest Results (Real Composer MCP)
@@ -190,8 +192,8 @@ class TestPhase5EndToEnd:
         assert 0 <= result.selection_reasoning.winner_index < 5, "Winner index out of range"
 
         # Should compare against alternatives
-        assert len(result.selection_reasoning.alternatives_compared) == 4, (
-            "Should compare against 4 alternatives"
+        assert len(result.selection_reasoning.alternatives_rejected) == 4, (
+            "Should reject 4 alternatives"
         )
 
         # ===================================================================

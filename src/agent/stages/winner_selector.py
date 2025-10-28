@@ -173,7 +173,9 @@ Select the winner and provide comprehensive selection reasoning following the fr
 **Output Requirements:**
 - winner_index: 0-4 (index in candidates list)
 - why_selected: Detailed explanation (100-5000 chars) citing specific scores and metrics
-- alternatives_compared: List of 4 rejected candidate names
+- tradeoffs_accepted: Key tradeoffs in choosing this strategy (50-2000 chars)
+- alternatives_rejected: List of 4 rejected candidate names with brief reasons
+- conviction_level: Confidence in selection (0.0-1.0) based on score delta and consistency
 
 Return structured SelectionReasoning output.
 """
@@ -188,10 +190,21 @@ Return structured SelectionReasoning output.
 
         winner = candidates[reasoning.winner_index]
 
-        # Set alternatives if not set
-        if not reasoning.alternatives_compared or len(reasoning.alternatives_compared) < 4:
-            reasoning.alternatives_compared = [
+        # Set alternatives_rejected if not properly set
+        if not reasoning.alternatives_rejected or len(reasoning.alternatives_rejected) < 4:
+            reasoning.alternatives_rejected = [
                 c.name for i, c in enumerate(candidates) if i != reasoning.winner_index
             ]
+
+        # Set tradeoffs_accepted if empty (fallback)
+        if not reasoning.tradeoffs_accepted or len(reasoning.tradeoffs_accepted) < 50:
+            reasoning.tradeoffs_accepted = "Accepting the documented risks in favor of expected returns under current market regime."
+
+        # Set conviction_level if not set (calculate from score delta)
+        if reasoning.conviction_level is None or reasoning.conviction_level < 0 or reasoning.conviction_level > 1:
+            winner_composite = composite_scores[reasoning.winner_index][1]
+            runner_up_composite = ranked[1][1] if len(ranked) > 1 else 0.0
+            score_delta = winner_composite - runner_up_composite
+            reasoning.conviction_level = min(1.0, max(0.0, 0.5 + score_delta))
 
         return winner, reasoning

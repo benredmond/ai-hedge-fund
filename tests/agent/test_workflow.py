@@ -183,7 +183,9 @@ class TestCreateStrategyWorkflow:
                 SelectionReasoning(
                     winner_index=0,
                     why_selected="3-Month Tech Momentum in Low-VIX selected for superior risk-adjusted returns with Sharpe ratio of 1.5, significantly outperforming alternatives on both backtest metrics and edge scorecard dimensions including regime alignment.",
-                    alternatives_compared=["Quality Defensive 60-40 Portfolio", "4-Asset Global Growth Allocation", "Value Factor 3-Asset Rotation", "Gold-Tilted 3-Asset Inflation Play"]
+                    tradeoffs_accepted="Accepting higher volatility for better expected returns under current market regime.",
+                    alternatives_rejected=["Quality Defensive 60-40 Portfolio", "4-Asset Global Growth Allocation", "Value Factor 3-Asset Rotation", "Gold-Tilted 3-Asset Inflation Play"],
+                    conviction_level=0.85
                 )
             )
 

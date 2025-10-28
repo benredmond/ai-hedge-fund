@@ -63,45 +63,40 @@ def sample_scorecards():
     """5 sample edge scorecards with different scores (all >= 3 per dimension)."""
     return [
         EdgeScorecard(
-            specificity=4,
-            structural_basis=3,
-            regime_alignment=4,
-            differentiation=4,
-            failure_clarity=3,
-            mental_model_coherence=4
-        ),  # total_score = 3.67
+            thesis_quality=4,
+            edge_economics=3,
+            risk_framework=4,
+            regime_awareness=4,
+            strategic_coherence=4
+        ),  # total_score = 3.8
         EdgeScorecard(
-            specificity=5,
-            structural_basis=5,
-            regime_alignment=5,
-            differentiation=4,
-            failure_clarity=5,
-            mental_model_coherence=5
-        ),  # total_score = 4.83 (highest)
+            thesis_quality=5,
+            edge_economics=5,
+            risk_framework=5,
+            regime_awareness=5,
+            strategic_coherence=5
+        ),  # total_score = 5.0 (highest)
         EdgeScorecard(
-            specificity=3,
-            structural_basis=3,
-            regime_alignment=3,
-            differentiation=3,
-            failure_clarity=3,
-            mental_model_coherence=3
+            thesis_quality=3,
+            edge_economics=3,
+            risk_framework=3,
+            regime_awareness=3,
+            strategic_coherence=3
         ),  # total_score = 3.0 (minimum)
         EdgeScorecard(
-            specificity=4,
-            structural_basis=4,
-            regime_alignment=4,
-            differentiation=3,
-            failure_clarity=4,
-            mental_model_coherence=3
-        ),  # total_score = 3.67
+            thesis_quality=4,
+            edge_economics=4,
+            risk_framework=4,
+            regime_awareness=4,
+            strategic_coherence=3
+        ),  # total_score = 3.8
         EdgeScorecard(
-            specificity=3,
-            structural_basis=4,
-            regime_alignment=3,
-            differentiation=4,
-            failure_clarity=4,
-            mental_model_coherence=4
-        ),  # total_score = 3.67
+            thesis_quality=3,
+            edge_economics=4,
+            risk_framework=4,
+            regime_awareness=3,
+            strategic_coherence=4
+        ),  # total_score = 3.6
     ]
 
 
@@ -134,11 +129,23 @@ class TestCandidateGenerator:
         """
         generator = CandidateGenerator()
 
-        # Mock the agent to return wrong count
+        # Mock the agent for phased prompting
         with patch('src.agent.stages.candidate_generator.create_agent') as mock_create:
-            mock_agent = AsyncMock()
-            mock_result = AsyncMock()
-            mock_result.output = [
+            # Phase 1 mock (research): returns dict
+            mock_research_agent = AsyncMock()
+            mock_research_result = AsyncMock()
+            mock_research_result.output = {
+                "macro_regime": {"classification": "expansion"},
+                "market_regime": {"trend": "bull"}
+            }
+            mock_research_agent.run.return_value = mock_research_result
+            mock_research_context = AsyncMock()
+            mock_research_context.__aenter__.return_value = mock_research_agent
+
+            # Phase 2 mock (generate): returns list of strategies (wrong count)
+            mock_generate_agent = AsyncMock()
+            mock_generate_result = AsyncMock()
+            mock_generate_result.output = [
                 Strategy(
                     name="Only Strategy",
                     assets=["SPY"],
@@ -147,11 +154,12 @@ class TestCandidateGenerator:
                     logic_tree={}
                 )
             ]  # Only 1 strategy instead of 5
+            mock_generate_agent.run.return_value = mock_generate_result
+            mock_generate_context = AsyncMock()
+            mock_generate_context.__aenter__.return_value = mock_generate_agent
 
-            mock_agent.run.return_value = mock_result
-            mock_context = AsyncMock()
-            mock_context.__aenter__.return_value = mock_agent
-            mock_create.return_value = mock_context
+            # Return different contexts for each call
+            mock_create.side_effect = [mock_research_context, mock_generate_context]
 
             with pytest.raises(ValueError, match="Expected 5 candidates, got 1"):
                 await generator.generate(sample_market_context, model="openai:gpt-4o")
@@ -166,10 +174,22 @@ class TestCandidateGenerator:
         """
         generator = CandidateGenerator()
 
-        # Mock the agent to return duplicates
+        # Mock the agent for phased prompting
         with patch('src.agent.stages.candidate_generator.create_agent') as mock_create:
-            mock_agent = AsyncMock()
-            mock_result = AsyncMock()
+            # Phase 1 mock (research): returns dict
+            mock_research_agent = AsyncMock()
+            mock_research_result = AsyncMock()
+            mock_research_result.output = {
+                "macro_regime": {"classification": "expansion"},
+                "market_regime": {"trend": "bull"}
+            }
+            mock_research_agent.run.return_value = mock_research_result
+            mock_research_context = AsyncMock()
+            mock_research_context.__aenter__.return_value = mock_research_agent
+
+            # Phase 2 mock (generate): returns list with duplicates
+            mock_generate_agent = AsyncMock()
+            mock_generate_result = AsyncMock()
 
             # Create 5 candidates, but 2 have same ticker set
             duplicate_candidates = []
@@ -187,11 +207,13 @@ class TestCandidateGenerator:
                     )
                 )
 
-            mock_result.output = duplicate_candidates
-            mock_agent.run.return_value = mock_result
-            mock_context = AsyncMock()
-            mock_context.__aenter__.return_value = mock_agent
-            mock_create.return_value = mock_context
+            mock_generate_result.output = duplicate_candidates
+            mock_generate_agent.run.return_value = mock_generate_result
+            mock_generate_context = AsyncMock()
+            mock_generate_context.__aenter__.return_value = mock_generate_agent
+
+            # Return different contexts for each call
+            mock_create.side_effect = [mock_research_context, mock_generate_context]
 
             with pytest.raises(ValueError, match="Duplicate candidates detected"):
                 await generator.generate(sample_market_context, model="openai:gpt-4o")
@@ -230,8 +252,10 @@ class TestWinnerSelector:
             mock_result = AsyncMock()
             mock_result.output = SelectionReasoning(
                 why_selected="Mock reasoning for testing purposes that meets the minimum length requirement of 100 characters for this field.",
-                winner_index=0,  # Will be overwritten by selector
-                alternatives_compared=["Alt1", "Alt2", "Alt3", "Alt4"]  # Will be overwritten by selector
+                winner_index=1,  # Candidate 1 has highest composite score
+                tradeoffs_accepted="Accepting higher volatility for better returns under current conditions.",
+                alternatives_rejected=[c.name for i, c in enumerate(sample_candidates) if i != 1],
+                conviction_level=0.85
             )
             mock_agent.run.return_value = mock_result
             mock_context = AsyncMock()
@@ -279,7 +303,9 @@ class TestWinnerSelector:
             mock_result.output = SelectionReasoning(
                 why_selected="Mock reasoning for testing purposes that meets the minimum length requirement of 100 characters for this field.",
                 winner_index=0,
-                alternatives_compared=["Alt1", "Alt2", "Alt3", "Alt4"]
+                tradeoffs_accepted="Accepting higher volatility for better returns under current conditions.",
+                alternatives_rejected=[c.name for i, c in enumerate(sample_candidates) if i != 0],
+                conviction_level=0.85
             )
             mock_agent.run.return_value = mock_result
             mock_context = AsyncMock()
@@ -295,14 +321,14 @@ class TestWinnerSelector:
             )
 
             # Should have 4 alternatives (all except winner)
-            assert len(reasoning.alternatives_compared) == 4, "Should have 4 alternatives"
+            assert len(reasoning.alternatives_rejected) == 4, "Should have 4 alternatives"
 
             # Winner's name should not be in alternatives
-            assert winner.name not in reasoning.alternatives_compared, "Winner should not be in alternatives"
+            assert winner.name not in reasoning.alternatives_rejected, "Winner should not be in alternatives"
 
             # All other names should be in alternatives
             other_names = [c.name for c in sample_candidates if c.name != winner.name]
-            assert set(reasoning.alternatives_compared) == set(other_names), "Alternatives should match non-winners"
+            assert set(reasoning.alternatives_rejected) == set(other_names), "Alternatives should match non-winners"
 
     @pytest.mark.asyncio
     async def test_composite_score_normalization(
@@ -323,16 +349,16 @@ class TestWinnerSelector:
 
         # Create extreme test cases (minimum 3 per dimension due to validation)
         extreme_scorecards = [
-            EdgeScorecard(specificity=3, structural_basis=3, regime_alignment=3,
-                         differentiation=3, failure_clarity=3, mental_model_coherence=3),  # Minimum: 3.0
-            EdgeScorecard(specificity=5, structural_basis=5, regime_alignment=5,
-                         differentiation=5, failure_clarity=5, mental_model_coherence=5),  # Maximum: 5.0
-            EdgeScorecard(specificity=3, structural_basis=3, regime_alignment=3,
-                         differentiation=3, failure_clarity=3, mental_model_coherence=3),
-            EdgeScorecard(specificity=3, structural_basis=3, regime_alignment=3,
-                         differentiation=3, failure_clarity=3, mental_model_coherence=3),
-            EdgeScorecard(specificity=3, structural_basis=3, regime_alignment=3,
-                         differentiation=3, failure_clarity=3, mental_model_coherence=3),
+            EdgeScorecard(thesis_quality=3, edge_economics=3, risk_framework=3,
+                         regime_awareness=3, strategic_coherence=3),  # Minimum: 3.0
+            EdgeScorecard(thesis_quality=5, edge_economics=5, risk_framework=5,
+                         regime_awareness=5, strategic_coherence=5),  # Maximum: 5.0
+            EdgeScorecard(thesis_quality=3, edge_economics=3, risk_framework=3,
+                         regime_awareness=3, strategic_coherence=3),
+            EdgeScorecard(thesis_quality=3, edge_economics=3, risk_framework=3,
+                         regime_awareness=3, strategic_coherence=3),
+            EdgeScorecard(thesis_quality=3, edge_economics=3, risk_framework=3,
+                         regime_awareness=3, strategic_coherence=3),
         ]
 
         extreme_backtests = [
@@ -349,8 +375,10 @@ class TestWinnerSelector:
             mock_result = AsyncMock()
             mock_result.output = SelectionReasoning(
                 why_selected="Mock reasoning for testing purposes that meets the minimum length requirement of 100 characters for this field.",
-                winner_index=0,
-                alternatives_compared=["Alt1", "Alt2", "Alt3", "Alt4"]
+                winner_index=1,  # Candidate 1 has best extreme metrics
+                tradeoffs_accepted="Accepting higher volatility for better returns under current conditions.",
+                alternatives_rejected=[c.name for i, c in enumerate(sample_candidates) if i != 1],
+                conviction_level=0.85
             )
             mock_agent.run.return_value = mock_result
             mock_context = AsyncMock()
@@ -381,6 +409,7 @@ class TestCharterGenerator:
         self,
         sample_candidates,
         sample_backtests,
+        sample_scorecards,
         sample_market_context
     ):
         """
@@ -399,7 +428,9 @@ class TestCharterGenerator:
         reasoning = SelectionReasoning(
             why_selected="Selected for best risk-adjusted returns in the current market regime, with superior Sharpe ratio and drawdown control compared to alternatives.",
             winner_index=0,
-            alternatives_compared=["Strategy 2", "Strategy 3", "Strategy 4", "Strategy 5"]
+            tradeoffs_accepted="Accepting slightly higher volatility for better long-term returns.",
+            alternatives_rejected=["Strategy 2", "Strategy 3", "Strategy 4", "Strategy 5"],
+            conviction_level=0.85
         )
 
         # Mock the charter generation (AI call)
@@ -425,6 +456,7 @@ class TestCharterGenerator:
                 sample_candidates[0],
                 reasoning,
                 sample_candidates,
+                sample_scorecards,
                 sample_backtests,
                 sample_market_context,
                 model="openai:gpt-4o"
@@ -453,6 +485,7 @@ class TestCharterGenerator:
         self,
         sample_candidates,
         sample_backtests,
+        sample_scorecards,
         sample_market_context
     ):
         """
@@ -470,7 +503,9 @@ class TestCharterGenerator:
         reasoning = SelectionReasoning(
             why_selected="Selected for best risk-adjusted returns in the current market regime, with superior Sharpe ratio and drawdown control compared to alternatives.",
             winner_index=1,
-            alternatives_compared=["Strategy 1", "Strategy 3", "Strategy 4", "Strategy 5"]
+            tradeoffs_accepted="Accepting slightly higher volatility for better long-term returns.",
+            alternatives_rejected=["Strategy 1", "Strategy 3", "Strategy 4", "Strategy 5"],
+            conviction_level=0.85
         )
 
         # Mock and capture the prompt
@@ -502,6 +537,7 @@ class TestCharterGenerator:
                 sample_candidates[1],
                 reasoning,
                 sample_candidates,
+                sample_scorecards,
                 sample_backtests,
                 sample_market_context,
                 model="openai:gpt-4o"
@@ -510,7 +546,7 @@ class TestCharterGenerator:
             # Validate prompt includes key elements
             assert captured_prompt is not None, "Prompt should have been captured"
             assert sample_candidates[1].name in captured_prompt, "Prompt should include winner name"
-            assert "Sharpe Ratio" in captured_prompt, "Prompt should include backtest metrics"
+            assert "sharpe_ratio" in captured_prompt, "Prompt should include backtest metrics"
             assert reasoning.why_selected in captured_prompt, "Prompt should include selection reasoning"
             assert sample_market_context["metadata"]["anchor_date"] in captured_prompt, "Prompt should include market context date"
-            assert "regime_tags" in sample_market_context or "bull_market" in captured_prompt, "Prompt should reference regime"
+            assert "regime_tags" in captured_prompt, "Prompt should reference regime"
