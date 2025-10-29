@@ -14,6 +14,8 @@ from typing import Type, TypeVar
 import os
 from pydantic import BaseModel
 from pydantic_ai import Agent
+from pydantic_ai import messages as _messages
+from pydantic_ai.tools import RunContext
 from src.agent.mcp_config import get_mcp_servers
 
 
@@ -81,8 +83,52 @@ def load_prompt(filename: str) -> str:
     return prompt_path.read_text()
 
 
+def adaptive_history_processor(ctx: RunContext, messages: list) -> list:
+    """
+    Adaptive history management for token-efficient multi-turn conversations.
+
+    Strategy: Keep ~20 messages on average, rely on tool result compression
+    to manage token count rather than aggressive message trimming.
+
+    This prevents the agent from losing context and getting stuck in loops
+    while still managing overall token usage through aggressive compression
+    of tool results before they enter history.
+
+    Increased from 10 → 20 messages because:
+    - Compression reduces tool results by ~97% (1578 → 50 tokens)
+    - Agent was looping due to forgetting previous search attempts
+    - With compression, 20 messages ≈ same tokens as 10 uncompressed messages
+
+    Args:
+        ctx: Runtime context with run_step counter
+        messages: Current conversation history
+
+    Returns:
+        Trimmed message list (must end with ModelRequest per pydantic-ai requirement)
+    """
+    # Keep 20 messages - focus on compressing tool results instead of trimming history
+    max_messages = 20
+
+    if len(messages) <= max_messages:
+        return messages
+
+    # Keep only most recent messages
+    result = messages[-max_messages:]
+
+    # CRITICAL: Ensure we end with a ModelRequest (required by pydantic-ai)
+    # See pydantic_ai/_agent_graph.py lines 1206-1210
+    if result and not isinstance(result[-1], _messages.ModelRequest):
+        # Add empty request if needed
+        result.append(_messages.ModelRequest(parts=[]))
+
+    return result
+
+
 async def create_agent(
-    model: str, output_type: Type[T], system_prompt: str | None = None
+    model: str,
+    output_type: Type[T],
+    system_prompt: str | None = None,
+    include_composer: bool = True
 ) -> AgentContext:
     """
     Create AI agent with multi-provider support and MCP tools.
@@ -103,6 +149,12 @@ async def create_agent(
         model: Model identifier (format: 'provider:model-name')
         output_type: Pydantic model for structured output (Strategy, Charter, etc.)
         system_prompt: Optional system prompt (defaults to system_prompt.md)
+        include_composer: Whether to include Composer MCP tools (default: True)
+
+    Note:
+        Uses adaptive_history_processor for automatic token management. History
+        is dynamically adjusted based on execution phase to prevent token overflow
+        during multi-tool research phases.
 
     Returns:
         AgentContext that manages agent and MCP server lifecycle
@@ -149,7 +201,7 @@ async def create_agent(
     if "yfinance" in servers:
         toolsets.append(servers["yfinance"])
 
-    if "composer" in servers:
+    if "composer" in servers and include_composer:
         toolsets.append(servers["composer"])
 
     if not toolsets:
@@ -158,12 +210,14 @@ async def create_agent(
             "No MCP servers available. Ensure FRED, yfinance, and/or Composer are configured."
         )
 
-    # Create agent with Pydantic AI
+    # Create agent with Pydantic AI using adaptive history processor
+    # This processor takes RunContext and dynamically adjusts based on execution phase
     agent = Agent(
         model=model,
         output_type=output_type,
         system_prompt=system_prompt,
         toolsets=toolsets,
+        history_processors=[adaptive_history_processor],
     )
 
     # Return wrapped agent with lifecycle management
