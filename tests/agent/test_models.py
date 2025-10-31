@@ -274,16 +274,15 @@ class TestEdgeScorecardModel:
         from src.agent.models import EdgeScorecard
 
         scorecard = EdgeScorecard(
-            specificity=4,
-            structural_basis=3,
-            regime_alignment=5,
-            differentiation=4,
-            failure_clarity=3,
-            mental_model_coherence=4
+            thesis_quality=4,
+            edge_economics=3,
+            risk_framework=3,
+            regime_awareness=5,
+            strategic_coherence=4
         )
 
-        assert scorecard.specificity == 4
-        assert scorecard.total_score == pytest.approx(3.83, abs=0.01)
+        assert scorecard.thesis_quality == 4
+        assert scorecard.total_score == pytest.approx(3.8, abs=0.01)
 
     def test_dimension_below_threshold_rejected(self):
         """Any dimension below 3 fails validation"""
@@ -291,12 +290,11 @@ class TestEdgeScorecardModel:
 
         with pytest.raises(ValidationError, match="minimum threshold is 3"):
             EdgeScorecard(
-                specificity=2,  # Below threshold
-                structural_basis=3,
-                regime_alignment=4,
-                differentiation=3,
-                failure_clarity=4,
-                mental_model_coherence=3
+                thesis_quality=2,  # Below threshold
+                edge_economics=3,
+                risk_framework=4,
+                regime_awareness=3,
+                strategic_coherence=3
             )
 
     def test_dimension_above_max_rejected(self):
@@ -305,12 +303,11 @@ class TestEdgeScorecardModel:
 
         with pytest.raises(ValidationError):
             EdgeScorecard(
-                specificity=6,  # Above maximum
-                structural_basis=4,
-                regime_alignment=4,
-                differentiation=3,
-                failure_clarity=4,
-                mental_model_coherence=3
+                thesis_quality=6,  # Above maximum
+                edge_economics=4,
+                risk_framework=4,
+                regime_awareness=3,
+                strategic_coherence=3
             )
 
     def test_total_score_calculation(self):
@@ -318,22 +315,20 @@ class TestEdgeScorecardModel:
         from src.agent.models import EdgeScorecard
 
         scorecard = EdgeScorecard(
-            specificity=3,
-            structural_basis=3,
-            regime_alignment=3,
-            differentiation=3,
-            failure_clarity=3,
-            mental_model_coherence=3
+            thesis_quality=3,
+            edge_economics=3,
+            risk_framework=3,
+            regime_awareness=3,
+            strategic_coherence=3
         )
         assert scorecard.total_score == 3.0
 
         scorecard2 = EdgeScorecard(
-            specificity=5,
-            structural_basis=5,
-            regime_alignment=5,
-            differentiation=5,
-            failure_clarity=5,
-            mental_model_coherence=5
+            thesis_quality=5,
+            edge_economics=5,
+            risk_framework=5,
+            regime_awareness=5,
+            strategic_coherence=5
         )
         assert scorecard2.total_score == 5.0
 
@@ -348,11 +343,13 @@ class TestSelectionReasoningModel:
         reasoning = SelectionReasoning(
             winner_index=2,
             why_selected="This strategy was selected because it has the highest Sharpe ratio (2.1) combined with excellent regime alignment and low drawdown risk.",
-            alternatives_compared=["Strategy A", "Strategy B", "Strategy C", "Strategy D"]
+            tradeoffs_accepted="Accepting higher short-term volatility for superior risk-adjusted returns over the full evaluation period",
+            alternatives_rejected=["Strategy A", "Strategy B", "Strategy C", "Strategy D"],
+            conviction_level=0.85
         )
 
         assert reasoning.winner_index == 2
-        assert len(reasoning.alternatives_compared) == 4
+        assert len(reasoning.alternatives_rejected) == 4
 
     def test_winner_index_out_of_range_rejected(self):
         """Winner index must be 0-4"""
@@ -362,7 +359,9 @@ class TestSelectionReasoningModel:
             SelectionReasoning(
                 winner_index=5,  # Out of range
                 why_selected="This strategy was selected for its superior risk-adjusted returns and alignment with current market regime.",
-                alternatives_compared=["A", "B", "C", "D"]
+                tradeoffs_accepted="Minimal tradeoffs given strong alignment across all dimensions",
+                alternatives_rejected=["A", "B", "C", "D"],
+                conviction_level=0.9
             )
 
     def test_why_selected_too_short_rejected(self):
@@ -373,7 +372,9 @@ class TestSelectionReasoningModel:
             SelectionReasoning(
                 winner_index=0,
                 why_selected="Good strategy.",  # Too short
-                alternatives_compared=["A", "B", "C", "D"]
+                tradeoffs_accepted="Accepting standard market beta exposure for simplicity",
+                alternatives_rejected=["A", "B", "C", "D"],
+                conviction_level=0.7
             )
 
     def test_alternatives_wrong_count_rejected(self):
@@ -385,7 +386,9 @@ class TestSelectionReasoningModel:
             SelectionReasoning(
                 winner_index=0,
                 why_selected="This strategy was selected because it has the highest Sharpe ratio combined with excellent regime alignment.",
-                alternatives_compared=["A", "B"]  # Only 2
+                tradeoffs_accepted="Standard tradeoffs between return and risk apply here",
+                alternatives_rejected=["A", "B"],  # Only 2
+                conviction_level=0.8
             )
 
         # Too many
@@ -393,7 +396,9 @@ class TestSelectionReasoningModel:
             SelectionReasoning(
                 winner_index=0,
                 why_selected="This strategy was selected because it has the highest Sharpe ratio combined with excellent regime alignment.",
-                alternatives_compared=["A", "B", "C", "D", "E"]  # 5 is too many
+                tradeoffs_accepted="Standard tradeoffs between return and risk apply here",
+                alternatives_rejected=["A", "B", "C", "D", "E"],  # 5 is too many
+                conviction_level=0.8
             )
 
 
@@ -418,8 +423,11 @@ class TestWorkflowResultModel:
         # Create scorecards
         scorecards = [
             EdgeScorecard(
-                specificity=3, structural_basis=4, regime_alignment=3,
-                differentiation=4, failure_clarity=3, mental_model_coherence=3
+                thesis_quality=3,
+                edge_economics=4,
+                risk_framework=3,
+                regime_awareness=3,
+                strategic_coherence=4
             )
             for _ in range(5)
         ]
@@ -448,7 +456,9 @@ class TestWorkflowResultModel:
         reasoning = SelectionReasoning(
             winner_index=0,
             why_selected="This strategy achieved the best composite score combining Sharpe ratio, edge evaluation, and regime fit.",
-            alternatives_compared=["Strategy 2", "Strategy 3", "Strategy 4", "Strategy 5"]
+            tradeoffs_accepted="Accepting moderate sector concentration for stronger momentum exposure",
+            alternatives_rejected=["Strategy 2", "Strategy 3", "Strategy 4", "Strategy 5"],
+            conviction_level=0.82
         )
 
         # Create workflow result
@@ -489,7 +499,9 @@ class TestWorkflowResultModel:
         reasoning = SelectionReasoning(
             winner_index=0,
             why_selected="This is test reasoning with enough characters to pass validation requirements for the minimum length of 100 characters.",
-            alternatives_compared=["A", "B", "C", "D"]
+            tradeoffs_accepted="Minimal tradeoffs for this test case scenario validation",
+            alternatives_rejected=["A", "B", "C", "D"],
+            conviction_level=0.75
         )
 
         with pytest.raises(ValidationError, match="at least 5 items"):
