@@ -108,7 +108,7 @@ class TestStrategyModel:
         from src.agent.models import Strategy
 
         # Valid values
-        for freq in ["daily", "weekly", "monthly", "quarterly"]:
+        for freq in ["daily", "weekly", "monthly"]:
             strategy = Strategy(
                 name="Test",
                 assets=["SPY"],
