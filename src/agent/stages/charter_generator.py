@@ -61,10 +61,12 @@ class CharterGenerator:
         recipe_prompt = load_prompt("charter_creation.md")
 
         # Create agent
+        # Use 20 message history limit (complex synthesis with tools)
         agent_ctx = await create_agent(
             model=model,
             output_type=Charter,
-            system_prompt=system_prompt
+            system_prompt=system_prompt,
+            history_limit=20
         )
 
         # Build selection context

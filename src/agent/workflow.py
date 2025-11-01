@@ -56,10 +56,12 @@ async def backtest_all_candidates(
 
             # Create agent for calling Composer backtest tool
             # Using a simple dict output since we'll parse the response
+            # Use 5 message history limit (single tool call wrapper)
             agent_ctx = await create_agent(
                 model="openai:gpt-4o",
                 output_type=dict,
                 system_prompt="You are a backtesting assistant. Call the composer_backtest_symphony tool with the provided configuration and return the results.",
+                history_limit=5
             )
 
             async with agent_ctx as agent:
@@ -108,17 +110,19 @@ Return the backtest results including sharpe_ratio, max_drawdown, total_return, 
                 backtests.append(backtest)
 
         except Exception as e:
-            # Graceful degradation - return neutral backtest if anything fails
-            print(f"Warning: Backtest failed for candidate {i} ({candidate.name}): {e}")
-            print("Using neutral backtest values as fallback")
-            backtests.append(
-                BacktestResult(
-                    sharpe_ratio=1.0,
-                    max_drawdown=-0.10,
-                    total_return=0.0,
-                    volatility_annualized=0.15,
-                )
-            )
+            # Backtest failure is critical - do not fabricate data
+            print(f"ERROR: Backtest failed for candidate {i} ({candidate.name})")
+            print(f"Error type: {e.__class__.__name__}")
+            print(f"Error details: {e}")
+
+            raise RuntimeError(
+                f"Backtest failed for candidate {i} ({candidate.name}): {e}\n\n"
+                f"Possible causes:\n"
+                f"1. Composer API unavailable (check network/credentials)\n"
+                f"2. Invalid strategy configuration: {candidate.assets}\n"
+                f"3. API rate limit exceeded\n\n"
+                f"To diagnose: Check COMPOSER_API_KEY and COMPOSER_API_SECRET env vars"
+            ) from e
 
     return backtests
 
@@ -130,14 +134,16 @@ async def create_strategy_workflow(
     Execute complete strategy creation workflow.
 
     Workflow Stages:
-    1. Generate 5 candidate strategies (AI)
-    2. Evaluate Edge Scorecard (code)
+    1. Generate 5 candidate strategies (AI with optional tool usage)
+    2. Evaluate Edge Scorecard (AI scoring)
     3. Backtest all candidates (Composer MCP)
     4. Select winner (composite ranking + AI reasoning)
     5. Generate charter (AI with full context)
 
     Args:
         market_context: Market context pack (from src.market_context.assembler)
+            Should include comprehensive regime analysis, sector data, and
+            optional manual Composer pattern examples for pattern inspiration.
         model: LLM model identifier (default: from DEFAULT_MODEL env var or 'openai:gpt-4o')
 
     Returns:
@@ -145,6 +151,11 @@ async def create_strategy_workflow(
 
     Raises:
         ValueError: If validation fails (count, scores, etc.)
+
+    Note:
+        Stage 1 uses market context pack as primary data source. MCP tools
+        (FRED, yfinance, Composer) are available but usage is optional - AI
+        calls them only for data gaps not covered by context pack.
 
     Example:
         >>> from src.market_context.assembler import assemble_market_context_pack
@@ -159,7 +170,7 @@ async def create_strategy_workflow(
     selector = WinnerSelector()
     charter_gen = CharterGenerator()
 
-    # Stage 1: Generate 5 candidates
+    # Stage 1: Generate 5 candidates (single-phase with optional tool usage)
     print("Stage 1/5: Generating candidates...")
     candidates = await candidate_gen.generate(market_context, model)
     print(f"✓ Generated {len(candidates)} candidates")
@@ -204,6 +215,7 @@ async def create_strategy_workflow(
         winner,
         reasoning,
         candidates,
+        scorecards,
         backtests,
         market_context,
         model,

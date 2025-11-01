@@ -97,10 +97,12 @@ class WinnerSelector:
         ranked = sorted(composite_scores, key=lambda x: x[1], reverse=True)
 
         # Build rich context for AI selection
+        # Use 10 message history limit (single-pass reasoning, no tool usage)
         agent_ctx = await create_agent(
             model=model,
             output_type=SelectionReasoning,
-            system_prompt=load_prompt("winner_selection.md")
+            system_prompt=load_prompt("winner_selection.md"),
+            history_limit=10
         )
 
         async with agent_ctx as agent:

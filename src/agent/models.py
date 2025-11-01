@@ -250,6 +250,77 @@ class SelectionReasoning(BaseModel):
         return v
 
 
+class MacroRegime(BaseModel):
+    """
+    Macro regime classification and key indicators.
+
+    Attributes:
+        classification: Economic regime (expansion/slowdown/recession/recovery)
+        key_indicators: Core macro data (rates, inflation, employment, growth) - optional
+        sources: Data sources cited (e.g., "fred:FEDFUNDS")
+    """
+
+    classification: str = Field(..., pattern="^(expansion|slowdown|recession|recovery)$")
+    key_indicators: Dict[str, str] | None = None
+    sources: List[str] = Field(min_length=1)
+
+
+class MarketRegime(BaseModel):
+    """
+    Market regime classification and leadership.
+
+    Attributes:
+        trend: Market trend direction (bull/bear)
+        volatility: Volatility regime (low/normal/elevated/high)
+        breadth: Market breadth description - optional
+        sector_leadership: Top performing sectors - optional
+        sector_weakness: Underperforming sectors - optional
+        factor_premiums: Factor performance (momentum, quality, size, value vs growth) - optional
+        sources: Data sources cited (e.g., "yfinance:SPY")
+    """
+
+    trend: str = Field(..., pattern="^(bull|bear)$")
+    volatility: str = Field(..., pattern="^(low|normal|elevated|high)$")
+    breadth: str | None = None
+    sector_leadership: List[str] | None = None
+    sector_weakness: List[str] | None = None
+    factor_premiums: Dict[str, str] | None = None
+    sources: List[str] = Field(min_length=1)
+
+
+class ComposerPattern(BaseModel):
+    """
+    Relevant Composer symphony pattern.
+
+    Attributes:
+        name: Pattern/symphony name
+        key_insight: Main insight or approach
+        relevance: Why relevant to current regime
+    """
+
+    name: str
+    key_insight: str
+    relevance: str
+
+
+class ResearchSynthesis(BaseModel):
+    """
+    Phase 1 research output with macro/market regime analysis.
+
+    This structured output ensures the agent produces a complete market analysis
+    before proceeding to candidate generation.
+
+    Attributes:
+        macro_regime: Economic regime classification and indicators
+        market_regime: Market trend, volatility, breadth, and leadership
+        composer_patterns: 3-5 relevant symphony patterns from Composer
+    """
+
+    macro_regime: MacroRegime
+    market_regime: MarketRegime
+    composer_patterns: List[ComposerPattern] = Field(min_length=3, max_length=5)
+
+
 class WorkflowResult(BaseModel):
     """
     Complete workflow output from strategy creation process.

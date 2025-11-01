@@ -11,15 +11,14 @@ from src.agent.models import Strategy, EdgeScorecard
 
 class EdgeScorer:
     """
-    Stage 2: Evaluate strategy on 6 Edge Scorecard dimensions.
+    Stage 2: Evaluate strategy on 5 Edge Scorecard dimensions.
 
     Uses AI agent to score strategies on:
-    - Specificity: Edge clarity and precision
-    - Structural Basis: Reasoning quality
-    - Regime Alignment: Fit with current market conditions
-    - Differentiation: Novelty vs generic approaches
-    - Failure Clarity: Quality of identified failure modes
-    - Mental Model Coherence: Internal consistency
+    - Thesis Quality: Clear, falsifiable investment thesis with causal reasoning
+    - Edge Economics: Why edge exists and why it hasn't been arbitraged away
+    - Risk Framework: Understanding of risk profile and failure modes
+    - Regime Awareness: Fit with current market conditions and adaptation logic
+    - Strategic Coherence: Unified thesis with feasible execution
     """
 
     async def score(
@@ -29,7 +28,7 @@ class EdgeScorer:
         model: str = DEFAULT_MODEL
     ) -> EdgeScorecard:
         """
-        Evaluate strategy on 6 Edge Scorecard dimensions.
+        Evaluate strategy on 5 Edge Scorecard dimensions.
 
         Args:
             strategy: Strategy to evaluate
@@ -37,7 +36,7 @@ class EdgeScorer:
             model: LLM model identifier
 
         Returns:
-            EdgeScorecard with all 6 dimensions scored 1-5
+            EdgeScorecard with all 5 dimensions scored 1-5
 
         Raises:
             ValueError: If any dimension scores below 3 (via EdgeScorecard validation)
@@ -53,10 +52,12 @@ class EdgeScorer:
         system_prompt = load_prompt("edge_scoring.md")
 
         # Create agent with dict output to handle rich scoring format
+        # Use 10 message history limit (single evaluation, no tool usage)
         agent_ctx = await create_agent(
             model=model,
             output_type=dict,
-            system_prompt=system_prompt
+            system_prompt=system_prompt,
+            history_limit=10
         )
 
         # Build evaluation prompt
@@ -117,15 +118,18 @@ Return your evaluation as a JSON object with scores for all 5 dimensions.
                 )
             else:
                 # Old simple format - direct scores
-                scorecard = EdgeScorecard(**raw_output)
+                try:
+                    scorecard = EdgeScorecard(**raw_output)
+                except Exception as e:
+                    raise ValueError(
+                        f"Edge scoring returned invalid format: {e}\n"
+                        f"Expected dict with 'score' keys or flat score dict\n"
+                        f"Got: {raw_output}"
+                    ) from e
         else:
-            # Fallback - create minimal passing scorecard
-            scorecard = EdgeScorecard(
-                thesis_quality=3,
-                edge_economics=3,
-                risk_framework=3,
-                regime_awareness=3,
-                strategic_coherence=3
+            raise ValueError(
+                f"Edge scoring failed - LLM returned non-dict output: {type(raw_output)}\n"
+                f"Output: {raw_output}"
             )
 
         return scorecard
