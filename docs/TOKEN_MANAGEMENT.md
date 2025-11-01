@@ -4,7 +4,7 @@ This document explains token optimization strategies used in the AI trading work
 
 ## Overview
 
-The 5-stage workflow (candidate generation, edge scoring, backtesting, winner selection, charter generation) can generate 70-80k tokens with proper management, or exceed 200k+ tokens without optimization. Two key strategies manage token usage:
+The 4-stage workflow (candidate generation, edge scoring, winner selection, charter generation) can generate 52-57k tokens with proper management, or exceed 200k+ tokens without optimization. Two key strategies manage token usage:
 
 1. **Adaptive History Limiting** - Controls conversation length
 2. **Tool Result Compression** - Reduces large API responses (FRED, yfinance)
@@ -174,10 +174,9 @@ agent_ctx = await create_agent(...)
 |-------|--------|---------|
 | 1. Candidate Generation | 12-15k | Context pack provided; tools optional |
 | 2. Edge Scoring (×5) | 15k | 3k per candidate × 5 (parallel) |
-| 3. Backtesting (×5) | 10k | 2k per candidate × 5 (sequential) |
-| 4. Winner Selection | 5k | Composite ranking + reasoning |
-| 5. Charter Generation | 10-12k | Full context synthesis |
-| **Total** | **52-57k** | **~30% reduction from Phase 1 elimination** |
+| 3. Winner Selection | 5k | Composite ranking + reasoning |
+| 4. Charter Generation | 10-12k | Full context synthesis |
+| **Total** | **42-47k** | **~40% reduction from removing backtest stage** |
 
 **Previous architecture (2-phase candidate generation):**
 - Total: ~70-80k tokens
@@ -201,7 +200,6 @@ agent_ctx = await create_agent(...)
 
 3. **Use parallel execution where possible**
    - Edge scoring: 5 agents in parallel (not sequential)
-   - Backtesting: Sequential due to Composer API constraints
 
 4. **Monitor token usage in production**
    - Enable `TRACK_TOKENS=true` for detailed reports

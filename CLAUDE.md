@@ -201,7 +201,7 @@ See `docs/market_context_schema.md` for complete schema documentation.
 ### Evaluation Flow (4 Phases)
 
 **Phase 1: Strategy Creation**
-- AI receives: comprehensive market context pack (pre-analyzed regime data), historical data access, Composer tools, backtesting capability
+- AI receives: comprehensive market context pack (pre-analyzed regime data), historical data access, Composer tools
 - Market context pack includes: macro indicators, market regime, sector leadership, factor premiums, benchmark performance, recent events, optional manual Composer pattern examples
 - AI generates: 5 candidate strategies (tools available but optional - use only for data gaps)
 - AI outputs: 1 selected "symphony" + charter document
