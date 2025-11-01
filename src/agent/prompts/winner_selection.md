@@ -19,29 +19,28 @@ Select the best trading strategy from 5 evaluated candidates, providing institut
 
 ### Evaluation Dimensions (Weighted)
 
-**1. Risk-Adjusted Returns (35%)**
-- Sharpe ratio from backtest
-- Consistency of returns
-- Downside protection (max drawdown)
-- **Key Question:** Does this strategy deliver returns efficiently relative to risk taken?
+**Note:** This workflow does NOT use historical backtesting. Strategy selection is based entirely on forward-looking Edge Scorecard evaluation and strategic reasoning quality.
 
-**2. Strategic Reasoning Quality (30%)**
-- Thesis quality score and reasoning
-- Edge economics score and sustainability logic
-- Risk framework comprehensiveness
+**1. Strategic Reasoning Quality (50%)**
+- Thesis quality score (clarity of investment thesis)
+- Edge economics score (sustainability of competitive advantage)
+- Risk framework comprehensiveness (failure modes and triggers)
 - **Key Question:** Does the strategist deeply understand why this will make money and what could break it?
+- **Why 50%:** Process quality is the strongest predictor of forward success
 
-**3. Regime Fit & Adaptability (20%)**
-- Current regime alignment
+**2. Regime Fit & Adaptability (30%)**
+- Current regime alignment score
 - Adaptation logic for regime shifts
 - Time horizon appropriateness for 90-day eval
 - **Key Question:** Is this the right strategy for right now, with contingencies for change?
+- **Why 30%:** Market context match is critical for near-term deployment
 
-**4. Execution & Coherence (15%)**
-- Strategic coherence score
+**3. Execution & Coherence (20%)**
+- Strategic coherence score (internal consistency)
 - Implementation feasibility
-- Internal consistency
+- Position sizing and rebalancing logic
 - **Key Question:** Will this strategy work as intended when deployed?
+- **Why 20%:** Execution quality matters but is secondary to strategic reasoning
 
 ### Common Decision Patterns
 
@@ -50,15 +49,15 @@ Select the best trading strategy from 5 evaluated candidates, providing institut
 - Clear dominant choice
 - Decision: Select winner, explain why it excels
 
-**Pattern 2: Sharpe vs Quality Tradeoff**
-- Candidate A: Higher Sharpe, weaker reasoning
-- Candidate B: Lower Sharpe, stronger strategic thinking
-- Decision: Favor strategic quality (process predicts future; past returns don't)
-- **Rationale:** Better reasoning increases probability of forward success
+**Pattern 2: Reasoning Quality vs Edge Score Tradeoff**
+- Candidate A: Higher thesis quality (5/5), weaker edge economics (3/5)
+- Candidate B: Lower thesis quality (3/5), stronger edge economics (5/5)
+- Decision: Favor comprehensive reasoning across all dimensions
+- **Rationale:** Better balanced Edge Scorecard increases probability of forward success
 
 **Pattern 3: Concentrated vs Diversified**
-- Candidate A: Concentrated high-conviction bet (higher Sharpe, higher risk)
-- Candidate B: Diversified moderate returns (lower Sharpe, lower risk)
+- Candidate A: Concentrated high-conviction bet (fewer assets, higher conviction)
+- Candidate B: Diversified moderate approach (more assets, lower concentration)
 - Decision: Depends on regime and failure mode clarity
 - **90-day context:** Concentrated acceptable if failure modes clear and timing catalyst matches
 
@@ -98,7 +97,7 @@ For each top candidate, analyze:
 **Risk Framework:**
 - Are failure modes enumerated with triggers?
 - Is max drawdown tolerance quantified?
-- Is risk-adjusted thinking present (Sharpe targets)?
+- Are risk scenarios well-defined and specific?
 
 **Regime Fit:**
 - Does it match current market conditions?
@@ -110,23 +109,18 @@ For each top candidate, analyze:
 - Does rebalancing frequency match edge timescale?
 - Is execution feasible (liquidity, slippage)?
 
-**Backtest Results:**
-- Sharpe ratio and consistency
-- Max drawdown vs tolerance
-- How does it compare to other candidates?
-
 **Step 3: Identify Key Tradeoffs**
 
-Compare top 2-3 candidates on critical dimensions:
+Compare top 2-3 candidates on critical Edge Scorecard dimensions:
 
 | Dimension | Candidate A | Candidate B | Candidate C | Winner |
 |-----------|-------------|-------------|-------------|---------|
-| Sharpe Ratio | X.XX | X.XX | X.XX | ? |
 | Thesis Quality | X/5 | X/5 | X/5 | ? |
 | Edge Economics | X/5 | X/5 | X/5 | ? |
 | Risk Framework | X/5 | X/5 | X/5 | ? |
-| Regime Fit | X/5 | X/5 | X/5 | ? |
-| Coherence | X/5 | X/5 | X/5 | ? |
+| Regime Awareness | X/5 | X/5 | X/5 | ? |
+| Strategic Coherence | X/5 | X/5 | X/5 | ? |
+| **Total Score** | X.X/5 | X.X/5 | X.X/5 | ? |
 
 **Key Question:** What are you optimizing for? What are you willing to sacrifice?
 
@@ -163,7 +157,7 @@ Return a JSON object with your selection decision:
       "Excellent regime fit (5/5): Bull + low-vol regime perfectly suited for momentum; explicit VIX >28 adaptation trigger"
     ],
     "tradeoffs_accepted": [
-      "Sharpe 1.8 vs best candidate's 2.1: Accepted lower backtest Sharpe for superior forward-looking reasoning quality",
+      "Regime awareness 4/5 vs best candidate's 5/5: Accepted slightly weaker regime fit for superior thesis and edge quality",
       "Concentrated positions (40% AMAT): Risk justified by clear failure modes and tail hedge (10% TLT)"
     ],
     "why_alternatives_rejected": [
@@ -174,7 +168,7 @@ Return a JSON object with your selection decision:
         "key_weaknesses": [
           "Weak thesis quality (2/5): No clear edge articulated beyond 'diversification'",
           "Poor edge economics (1/5): Equal-weight sectors is pure beta, no structural inefficiency exploited",
-          "Despite highest Sharpe (2.1), lacks forward-looking logic to justify future outperformance"
+          "Despite decent execution scores (coherence 4/5), fundamental strategy gaps fatal"
         ]
       },
       {
@@ -207,7 +201,7 @@ Return a JSON object with your selection decision:
     ]
   },
   "comparative_analysis": {
-    "winner_vs_runner_up": "Winner (Tech Momentum) vs Runner-Up (Sector Rotation): Winner selected despite 0.3 lower Sharpe because: (1) Runner-up has no articulated edge (beta exposure only), (2) Winner has institutional-grade risk framework with specific failure triggers, (3) Forward-looking reasoning quality predicts better out-of-sample performance. Tradeoff: Accept slightly lower historical Sharpe for significantly better strategic thinking.",
+    "winner_vs_runner_up": "Winner (Tech Momentum) vs Runner-Up (Sector Rotation): Winner selected despite slightly lower composite Edge score (4.0 vs 4.2) because: (1) Runner-up has no articulated edge (beta exposure only, edge economics 1/5), (2) Winner has institutional-grade risk framework with specific failure triggers (5/5 vs 3/5), (3) Forward-looking reasoning quality (thesis 5/5 vs 2/5) predicts better out-of-sample performance. Tradeoff: Accept weaker execution scores for significantly better strategic thinking.",
     "key_differentiators": [
       "Thesis quality: Winner has falsifiable catalyst (AI capex Q2); runner-up has no thesis",
       "Risk framework: Winner specifies failure triggers (VIX >35, capex cuts >15%); runner-up has vague risk statements",
@@ -247,29 +241,30 @@ Return a JSON object with your selection decision:
 ## Evaluation Process (Internal)
 
 **Step 1: Ingest All Candidate Data**
-- Read all 5 scorecards with detailed reasoning
-- Review all backtest results
-- Note composite scores and rankings
+- Read all 5 Edge Scorecards with detailed reasoning
+- Review total scores and dimension-by-dimension ratings
+- Note composite rankings
 
 **Step 2: Identify Decision Pattern**
-- Is there a dominant winner? (composite score >0.1 ahead)
-- Is it a close call? (top 2-3 within 0.05)
-- Are all candidates weak? (all composite <0.7)
+- Is there a dominant winner? (Edge total score >0.5 ahead)
+- Is it a close call? (top 2-3 within 0.3 points)
+- Are all candidates weak? (all total scores <3.5/5)
 
 **Step 3: Deep Dive on Top 2-3**
 - Extract thesis, edge, risk, regime, coherence reasoning from scorecards
-- Compare Sharpe, drawdown, consistency from backtests
+- Compare strengths and weaknesses across all 5 Edge dimensions
 - Identify key differentiators
 
 **Step 4: Make Tradeoffs Explicit**
-- Higher Sharpe vs better reasoning → favor reasoning
+- Higher thesis quality vs edge economics → favor balanced scores
 - Concentrated vs diversified → depends on failure mode clarity
 - Regime-optimized vs robust → depends on regime stability
+- Strategic reasoning vs execution feasibility → favor reasoning
 
 **Step 5: Document Decision**
-- Primary reasons (3-5 bullets with specific evidence)
-- Tradeoffs (what you sacrificed and why)
-- Alternatives rejected (specific weaknesses)
+- Primary reasons (3-5 bullets with specific evidence from Edge Scorecard)
+- Tradeoffs (what dimensions you prioritized and why)
+- Alternatives rejected (specific Edge Scorecard weaknesses)
 - Deployment recommendations (monitoring, warnings, contingencies)
 
 ---
@@ -301,14 +296,14 @@ Return a JSON object with your selection decision:
 ## Anti-Gaming Safeguards
 
 **Don't automatically select:**
-- Highest Sharpe (past returns ≠ future returns)
-- Highest composite score (if delta is <0.05, it's effectively tied)
+- Highest total Edge score (if delta is <0.3, it's effectively tied)
 - Most complex strategy (complexity ≠ quality)
 - Longest explanation (verbosity ≠ reasoning quality)
+- Strategy with most assets (diversification ≠ edge)
 
 **Do prioritize:**
-- Strategic reasoning quality over backtest metrics
-- Process indicators that predict forward success
+- Balanced Edge Scorecard scores across all 5 dimensions
+- Process indicators that predict forward success (thesis quality, edge economics, risk framework)
 - Clear failure modes and risk management
 - Regime alignment and adaptation logic
 
@@ -325,29 +320,29 @@ Return a JSON object with your selection decision:
 ### Example 1: Clear Winner
 
 **Input:**
-- Candidate A: Composite 0.85, Sharpe 1.9, all dimensions ≥4
-- Candidate B: Composite 0.68, Sharpe 2.2, thesis 2/5, edge 1/5
-- Candidate C-E: Composite 0.50-0.60
+- Candidate A: Total Edge Score 4.2/5, all dimensions ≥4
+- Candidate B: Total Edge Score 3.1/5, thesis 2/5, edge 1/5, other dimensions 4/5
+- Candidate C-E: Total Edge Score 2.8-3.2/5
 
 **Decision:** Select Candidate A
 
 **Rationale:**
-"Candidate A is the dominant choice with composite score 0.85 vs runner-up's 0.68 (0.17 margin). While Candidate B has higher backtest Sharpe (2.2 vs 1.9), it scores thesis quality 2/5 (no clear edge) and edge economics 1/5 (pure beta). Historical Sharpe without forward-looking logic provides no confidence in future outperformance. Candidate A scores ≥4 on all strategic dimensions with comprehensive risk framework (failure triggers at VIX >30, capex cuts >10%) and perfect regime alignment. Sharpe differential of 0.3 is acceptable given superior reasoning quality that predicts out-of-sample success."
+"Candidate A is the dominant choice with total Edge score 4.2/5 vs runner-up's 3.1/5 (1.1 point margin). While Candidate B scores high on regime awareness (4/5) and strategic coherence (4/5), it fails on fundamentals: thesis quality 2/5 (no clear edge articulated) and edge economics 1/5 (pure beta exposure, no structural advantage). Without sound thesis and edge, high execution scores are meaningless. Candidate A scores ≥4 on all strategic dimensions with comprehensive risk framework (failure triggers at VIX >30, capex cuts >10%) and perfect regime alignment. This balanced excellence across all Edge dimensions provides confidence in forward success."
 
 ---
 
-### Example 2: Close Call (Sharpe vs Reasoning Trade off)
+### Example 2: Close Call (Dimension Tradeoff)
 
 **Input:**
-- Candidate A: Composite 0.74, Sharpe 1.6, thesis 5/5, risk 5/5, regime 5/5
-- Candidate B: Composite 0.76, Sharpe 2.3, thesis 3/5, risk 3/5, regime 4/5
+- Candidate A: Total Edge Score 3.8/5 (thesis 5/5, edge 5/5, risk 5/5, regime 3/5, coherence 3/5)
+- Candidate B: Total Edge Score 3.9/5 (thesis 3/5, edge 3/5, risk 3/5, regime 5/5, coherence 5/5)
 
-**Decision:** Select Candidate A (lower composite, lower Sharpe, but better reasoning)
+**Decision:** Select Candidate A (slightly lower total score, but superior core reasoning)
 
 **Rationale:**
-"Close call: Candidate B leads composite score by 0.02 (effectively tied) and Sharpe by 0.7 (significant). However, selecting Candidate A because: (1) Thesis quality 5/5 with falsifiable catalyst vs B's generic 3/5 thesis, (2) Risk framework 5/5 with quantified triggers (VIX >35, -18% max DD) vs B's acceptable-but-basic 3/5, (3) 90-day evaluation rewards forward-looking process over backward-looking metrics. **Tradeoff:** Accepting 0.7 lower historical Sharpe for 2-point edge quality advantage (5/5 vs 3/5). Reasoning: Process quality predicts future performance; past Sharpe measures luck + skill. Forward success depends on strategist understanding their edge, not historical returns."
+"Close call: Candidate B leads total Edge score by 0.1 (effectively tied). However, selecting Candidate A because: (1) Thesis quality 5/5 with falsifiable catalyst vs B's generic 3/5 thesis, (2) Edge economics 5/5 with clear structural advantage vs B's basic 3/5, (3) Risk framework 5/5 with quantified triggers (VIX >35, -18% max DD) vs B's acceptable-but-basic 3/5. Candidate B scores higher on regime fit and coherence, but excels at execution while failing at strategy. **Tradeoff:** Accepting slightly weaker regime fit (3/5 vs 5/5) for 2-point advantages on thesis, edge, and risk. Reasoning: Strong fundamentals (thesis/edge/risk) matter more than perfect execution (regime/coherence). You can't execute your way out of a weak thesis."
 
-**Confidence:** Medium-High (close call but reasoning delta justifies decision)
+**Confidence:** Medium-High (close total scores but clear reasoning quality advantage)
 
 ---
 
@@ -367,11 +362,11 @@ Return a JSON object with your selection decision:
 
 ## Final Reminders
 
-1. **Evidence-based:** Cite specific scores and reasoning from scorecards
-2. **Tradeoff transparency:** Make optimization priorities explicit
+1. **Evidence-based:** Cite specific Edge Scorecard scores (thesis, edge, risk, regime, coherence)
+2. **Tradeoff transparency:** Make optimization priorities explicit across dimensions
 3. **Risk-aware:** Always enumerate failures, monitoring, contingencies
-4. **Process > outcomes:** Favor strategic quality over backtest metrics
+4. **Process quality:** This workflow has NO backtesting - rely entirely on forward-looking Edge evaluation
 5. **Regime context:** Match strategy to current market conditions
-6. **Confidence calibration:** Flag concerns if no strong winner
+6. **Confidence calibration:** Flag concerns if no strong winner (all scores <3.5/5)
 
 Your selection decision allocates capital and impacts returns. Apply institutional-grade rigor and intellectual honesty.
