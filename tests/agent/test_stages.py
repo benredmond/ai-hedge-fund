@@ -14,7 +14,6 @@ from unittest.mock import AsyncMock, patch
 from src.agent.stages import CandidateGenerator, WinnerSelector, CharterGenerator
 from src.agent.models import (
     Strategy,
-    BacktestResult,
     EdgeScorecard,
     SelectionReasoning,
     Charter,
@@ -97,18 +96,6 @@ def sample_scorecards():
             regime_awareness=3,
             strategic_coherence=4
         ),  # total_score = 3.6
-    ]
-
-
-@pytest.fixture
-def sample_backtests():
-    """5 sample backtest results with varying performance."""
-    return [
-        BacktestResult(sharpe_ratio=1.2, max_drawdown=-0.15, total_return=0.08, volatility_annualized=0.12),
-        BacktestResult(sharpe_ratio=2.1, max_drawdown=-0.10, total_return=0.15, volatility_annualized=0.10),
-        BacktestResult(sharpe_ratio=0.8, max_drawdown=-0.20, total_return=0.05, volatility_annualized=0.15),
-        BacktestResult(sharpe_ratio=1.5, max_drawdown=-0.12, total_return=0.10, volatility_annualized=0.11),
-        BacktestResult(sharpe_ratio=1.0, max_drawdown=-0.18, total_return=0.06, volatility_annualized=0.14),
     ]
 
 
@@ -205,18 +192,17 @@ class TestWinnerSelector:
         self,
         sample_candidates,
         sample_scorecards,
-        sample_backtests,
         sample_market_context
     ):
         """
         Validate that select() chooses candidate with highest composite score.
 
-        Composite formula:
-            score = 0.4 × Sharpe + 0.3 × EdgeScore + 0.2 × RegimeFit + 0.1 × (1 - abs(Drawdown))
+        Composite formula (Edge Scorecard only):
+            score = 0.50 × (Thesis + Edge + Risk)/3 + 0.30 × Regime + 0.20 × Coherence
 
         Given the test data:
-        - Candidate 1 has best Sharpe (2.1) and best EdgeScore (4.7)
-        - Should win despite not having best drawdown
+        - Candidate 1 has best EdgeScore (5.0) across all dimensions
+        - Should win with highest composite score
         """
         selector = WinnerSelector()
 
@@ -239,19 +225,18 @@ class TestWinnerSelector:
             winner, reasoning = await selector.select(
                 sample_candidates,
                 sample_scorecards,
-                sample_backtests,
                 sample_market_context,
                 model="openai:gpt-4o"
             )
 
             # Calculate expected winner manually
-            # Candidate 1: Sharpe=2.1, Edge=4.7, Regime=5, Drawdown=-0.10
-            sharpe_norm = (2.1 + 1) / 4  # = 0.775
-            edge_norm = 4.7 / 5  # = 0.94
-            regime_norm = 5 / 5  # = 1.0
-            drawdown_norm = 1 - 0.10  # = 0.90
-            expected_score = 0.4 * 0.775 + 0.3 * 0.94 + 0.2 * 1.0 + 0.1 * 0.90
-            # = 0.31 + 0.282 + 0.2 + 0.09 = 0.882
+            # Candidate 1: thesis=5, edge=5, risk=5, regime=5, coherence=5 (total_score=5.0)
+            # Composite formula: 0.50 × (5+5+5)/15 + 0.30 × 5/5 + 0.20 × 5/5
+            reasoning_norm = (5 + 5 + 5) / 15.0  # = 1.0
+            regime_norm = 5 / 5.0  # = 1.0
+            coherence_norm = 5 / 5.0  # = 1.0
+            expected_score = 0.50 * 1.0 + 0.30 * 1.0 + 0.20 * 1.0
+            # = 0.50 + 0.30 + 0.20 = 1.0
 
             # Candidate 1 should have highest composite score
             assert winner == sample_candidates[1], "Should select candidate with highest composite score"
@@ -262,7 +247,6 @@ class TestWinnerSelector:
         self,
         sample_candidates,
         sample_scorecards,
-        sample_backtests,
         sample_market_context
     ):
         """
@@ -289,7 +273,6 @@ class TestWinnerSelector:
             winner, reasoning = await selector.select(
                 sample_candidates,
                 sample_scorecards,
-                sample_backtests,
                 sample_market_context,
                 model="openai:gpt-4o"
             )
@@ -314,10 +297,9 @@ class TestWinnerSelector:
         Validate that normalization formula handles edge cases correctly.
 
         Tests:
-        - Sharpe ratio normalization: (-1 to 3) → (0 to 1)
-        - Edge score normalization: (1 to 5) → (0.2 to 1.0)
-        - Regime alignment: (1 to 5) → (0.2 to 1.0)
-        - Drawdown: negative values normalized correctly
+        - Edge score normalization: All dimensions normalized 0-1 (3-5 scale)
+        - Regime awareness: (3 to 5) → normalized in formula
+        - Strategic coherence: (3 to 5) → normalized in formula
         """
         selector = WinnerSelector()
 
@@ -333,14 +315,6 @@ class TestWinnerSelector:
                          regime_awareness=3, strategic_coherence=3),
             EdgeScorecard(thesis_quality=3, edge_economics=3, risk_framework=3,
                          regime_awareness=3, strategic_coherence=3),
-        ]
-
-        extreme_backtests = [
-            BacktestResult(sharpe_ratio=-1.0, max_drawdown=-0.50, total_return=-0.30, volatility_annualized=0.25),  # Worst
-            BacktestResult(sharpe_ratio=3.0, max_drawdown=-0.05, total_return=0.40, volatility_annualized=0.08),   # Best
-            BacktestResult(sharpe_ratio=1.0, max_drawdown=-0.15, total_return=0.10, volatility_annualized=0.12),
-            BacktestResult(sharpe_ratio=1.0, max_drawdown=-0.15, total_return=0.10, volatility_annualized=0.12),
-            BacktestResult(sharpe_ratio=1.0, max_drawdown=-0.15, total_return=0.10, volatility_annualized=0.12),
         ]
 
         # Mock reasoning generation
@@ -362,13 +336,12 @@ class TestWinnerSelector:
             winner, reasoning = await selector.select(
                 sample_candidates,
                 extreme_scorecards,
-                extreme_backtests,
                 sample_market_context,
                 model="openai:gpt-4o"
             )
 
-            # Candidate 1 (best Sharpe and Edge) should win
-            assert reasoning.winner_index == 1, "Candidate with best metrics should win"
+            # Candidate 1 (best Edge Scorecard) should win
+            assert reasoning.winner_index == 1, "Candidate with best Edge Scorecard should win"
 
 
 # ============================================================================
@@ -382,7 +355,6 @@ class TestCharterGenerator:
     async def test_charter_has_all_required_sections(
         self,
         sample_candidates,
-        sample_backtests,
         sample_scorecards,
         sample_market_context
     ):
@@ -431,7 +403,6 @@ class TestCharterGenerator:
                 reasoning,
                 sample_candidates,
                 sample_scorecards,
-                sample_backtests,
                 sample_market_context,
                 model="openai:gpt-4o"
             )
@@ -458,7 +429,6 @@ class TestCharterGenerator:
     async def test_charter_prompt_includes_context(
         self,
         sample_candidates,
-        sample_backtests,
         sample_scorecards,
         sample_market_context
     ):
@@ -467,7 +437,7 @@ class TestCharterGenerator:
 
         Should include:
         - Winner strategy details
-        - Backtest results
+        - Edge Scorecard evaluations
         - Selection reasoning
         - Alternative candidates
         - Market context
@@ -512,7 +482,6 @@ class TestCharterGenerator:
                 reasoning,
                 sample_candidates,
                 sample_scorecards,
-                sample_backtests,
                 sample_market_context,
                 model="openai:gpt-4o"
             )
@@ -520,7 +489,7 @@ class TestCharterGenerator:
             # Validate prompt includes key elements
             assert captured_prompt is not None, "Prompt should have been captured"
             assert sample_candidates[1].name in captured_prompt, "Prompt should include winner name"
-            assert "sharpe_ratio" in captured_prompt, "Prompt should include backtest metrics"
+            assert "edge_score" in captured_prompt, "Prompt should include Edge Scorecard metrics"
             assert reasoning.why_selected in captured_prompt, "Prompt should include selection reasoning"
             assert sample_market_context["metadata"]["anchor_date"] in captured_prompt, "Prompt should include market context date"
             assert "regime_tags" in captured_prompt, "Prompt should reference regime"

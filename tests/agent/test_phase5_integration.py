@@ -1,7 +1,7 @@
 """
 Phase 5: End-to-End Integration Tests
 
-Tests the complete 5-stage workflow with real, unmocked services:
+Tests the complete 4-stage workflow with real, unmocked services:
 - Real context pack from data/context_packs/latest.json
 - Real FRED MCP (stdio server)
 - Real yfinance MCP (stdio server)
@@ -37,12 +37,11 @@ class TestPhase5EndToEnd:
     """
     End-to-end workflow test with real MCPs and AI model.
 
-    Tests all 5 stages:
+    Tests all 4 stages:
     1. Generate 5 candidates (AI + FRED/yfinance data)
     2. Evaluate Edge Scorecard (quality filter, min 3.0/5)
-    3. Backtest via Composer MCP
-    4. Select winner (composite ranking + AI reasoning)
-    5. Generate charter (full context)
+    3. Select winner (composite ranking + AI reasoning)
+    4. Generate charter (full context)
 
     Expected behavior:
     - May need retries if AI generates weak candidates (Edge Scorecard rejects < 3.0)
@@ -60,13 +59,13 @@ class TestPhase5EndToEnd:
         - Real context pack (data/context_packs/latest.json)
         - FRED MCP: Economic data (stdio)
         - yfinance MCP: Market data (stdio)
-        - Composer MCP: Backtesting (HTTP at https://mcp.composer.trade/mcp/)
+        - Composer MCP: Available for future deployment (HTTP at https://mcp.composer.trade/mcp/)
         - OpenAI GPT-4o: Strategy generation, reasoning, charter
 
         Assertions verify:
         - 5 distinct candidates with unique ticker sets
         - All Edge Scorecard scores >= 3.0/5
-        - Diverse backtest results (not mocked)
+        - Edge Scorecard diversity (not all identical)
         - Winner selection with detailed reasoning
         - Complete charter with all 5 sections
         """
@@ -153,30 +152,14 @@ class TestPhase5EndToEnd:
             assert 1 <= scorecard.strategic_coherence <= 5, "Strategic coherence out of range"
 
         # ===================================================================
-        # VALIDATION 3: Backtest Results (Real Composer MCP)
+        # VALIDATION 3: Edge Scorecard Diversity
         # ===================================================================
 
-        assert len(result.backtests) == 5, "Should have 5 backtest results"
-
-        # Validate backtest structure
-        for i, backtest in enumerate(result.backtests):
-            # Should have realistic values (not mock data)
-            assert isinstance(backtest.sharpe_ratio, float), f"Backtest {i} sharpe_ratio not a float"
-            assert isinstance(backtest.max_drawdown, float), f"Backtest {i} max_drawdown not a float"
-            assert isinstance(backtest.total_return, float), f"Backtest {i} total_return not a float"
-            assert isinstance(backtest.volatility_annualized, float), f"Backtest {i} volatility not a float"
-
-            # Sanity check ranges (not too extreme)
-            assert -5.0 <= backtest.sharpe_ratio <= 10.0, f"Backtest {i} Sharpe ratio unrealistic"
-            assert -1.0 <= backtest.max_drawdown <= 0.0, f"Backtest {i} max drawdown should be negative"
-            assert -1.0 <= backtest.total_return <= 5.0, f"Backtest {i} total return unrealistic"
-            assert 0.0 <= backtest.volatility_annualized <= 1.0, f"Backtest {i} volatility unrealistic"
-
-        # Check that backtests are diverse (not all identical mock values)
-        sharpe_ratios = [bt.sharpe_ratio for bt in result.backtests]
-        unique_sharpes = len(set(sharpe_ratios))
-        assert unique_sharpes > 1, (
-            "All backtest Sharpe ratios are identical - suggests mocking instead of real Composer calls"
+        # Check that Edge Scorecards are diverse (not all identical)
+        total_scores = [sc.total_score for sc in result.scorecards]
+        unique_scores = len(set(total_scores))
+        assert unique_scores > 1, (
+            "All Edge Scorecard scores are identical - suggests potential issues with evaluation"
         )
 
         # ===================================================================
@@ -220,16 +203,7 @@ class TestPhase5EndToEnd:
         assert result.charter.outlook_90d, "Charter missing 90-day outlook"
         assert len(result.charter.outlook_90d) > 100, "90-day outlook too short"
 
-        # ===================================================================
-        # VALIDATION 6: MCP Usage Validation (Not Mocked)
-        # ===================================================================
-
-        # This is implicitly validated by:
-        # 1. Diverse backtest results (checked above)
-        # 2. Realistic candidate generation (requires real market data from FRED/yfinance)
-        # 3. Valid ticker symbols and weights
-
-        # Additional check: Winner should reference actual market conditions
+        # Charter should reference actual market conditions (validates MCP usage)
         charter_text = result.charter.market_thesis.lower()
 
         # Charter should reference market context concepts
@@ -251,7 +225,6 @@ class TestPhase5EndToEnd:
         print(f"\nCandidates Generated: {len(result.all_candidates)}")
         print(f"Winner: {result.strategy.name}")
         print(f"Winner Assets: {', '.join(result.strategy.assets)}")
-        print(f"Winner Sharpe: {result.backtests[result.selection_reasoning.winner_index].sharpe_ratio:.2f}")
         print(f"Winner Edge Score: {result.scorecards[result.selection_reasoning.winner_index].total_score:.1f}/5")
         print("=" * 80)
 

@@ -97,7 +97,6 @@ def create_history_processor(max_messages: int = 20):
     Different workflow stages have different iteration needs:
     - Candidate Generation (20): Iterative with optional tool usage
     - Edge Scoring (10): Single evaluation, no tools
-    - Backtesting (5): Single tool call wrapper
     - Winner Selection (10): Single-pass reasoning
     - Charter Generation (20): Complex synthesis with tools
 
@@ -178,7 +177,6 @@ async def create_agent(
             Recommended limits per stage:
             - Candidate Generation: 20 (iterative with tools)
             - Edge Scoring: 10 (single evaluation)
-            - Backtesting: 5 (single tool call)
             - Winner Selection: 10 (single-pass reasoning)
             - Charter Generation: 20 (complex synthesis)
 

@@ -199,73 +199,6 @@ class TestCharterModel:
         assert len(charter.failure_modes) == 1
 
 
-class TestBacktestResultModel:
-    """Test BacktestResult model validation"""
-
-    def test_valid_backtest_result_accepted(self):
-        """Valid backtest result with all fields passes validation"""
-        from src.agent.models import BacktestResult
-
-        result = BacktestResult(
-            sharpe_ratio=1.5,
-            max_drawdown=-0.15,
-            total_return=0.25,
-            volatility_annualized=0.12,
-            positive_days_pct=0.55
-        )
-
-        assert result.sharpe_ratio == 1.5
-        assert result.max_drawdown == -0.15
-        assert result.total_return == 0.25
-
-    def test_max_drawdown_must_be_negative_or_zero(self):
-        """Max drawdown must be non-positive"""
-        from src.agent.models import BacktestResult
-
-        # Positive drawdown rejected
-        with pytest.raises(ValidationError):
-            BacktestResult(
-                sharpe_ratio=1.0,
-                max_drawdown=0.10,  # Invalid: should be negative
-                total_return=0.15,
-                volatility_annualized=0.10
-            )
-
-        # Zero is acceptable
-        result = BacktestResult(
-            sharpe_ratio=1.0,
-            max_drawdown=0.0,
-            total_return=0.15,
-            volatility_annualized=0.10
-        )
-        assert result.max_drawdown == 0.0
-
-    def test_volatility_must_be_positive(self):
-        """Volatility must be greater than zero"""
-        from src.agent.models import BacktestResult
-
-        with pytest.raises(ValidationError):
-            BacktestResult(
-                sharpe_ratio=1.0,
-                max_drawdown=-0.10,
-                total_return=0.15,
-                volatility_annualized=0.0  # Invalid: must be positive
-            )
-
-    def test_positive_days_pct_optional(self):
-        """positive_days_pct field is optional"""
-        from src.agent.models import BacktestResult
-
-        result = BacktestResult(
-            sharpe_ratio=1.0,
-            max_drawdown=-0.10,
-            total_return=0.15,
-            volatility_annualized=0.12
-            # No positive_days_pct
-        )
-        assert result.positive_days_pct is None
-
-
 class TestEdgeScorecardModel:
     """Test EdgeScorecard model validation"""
 
@@ -407,7 +340,7 @@ class TestWorkflowResultModel:
 
     def test_valid_workflow_result_accepted(self):
         """Valid workflow result with all fields passes validation"""
-        from src.agent.models import WorkflowResult, Strategy, Charter, EdgeScorecard, BacktestResult, SelectionReasoning
+        from src.agent.models import WorkflowResult, Strategy, Charter, EdgeScorecard, SelectionReasoning
 
         # Create 5 candidates
         candidates = [
@@ -432,17 +365,6 @@ class TestWorkflowResultModel:
             for _ in range(5)
         ]
 
-        # Create backtests
-        backtests = [
-            BacktestResult(
-                sharpe_ratio=1.0 + i*0.1,
-                max_drawdown=-0.15,
-                total_return=0.20,
-                volatility_annualized=0.12
-            )
-            for i in range(5)
-        ]
-
         # Create charter
         charter = Charter(
             market_thesis="Strong bull market with AI adoption driving growth",
@@ -455,7 +377,7 @@ class TestWorkflowResultModel:
         # Create reasoning
         reasoning = SelectionReasoning(
             winner_index=0,
-            why_selected="This strategy achieved the best composite score combining Sharpe ratio, edge evaluation, and regime fit.",
+            why_selected="This strategy achieved the best composite score combining Edge Scorecard dimensions across thesis quality, edge economics, risk framework, regime awareness, and strategic coherence metrics for optimal regime fit.",
             tradeoffs_accepted="Accepting moderate sector concentration for stronger momentum exposure",
             alternatives_rejected=["Strategy 2", "Strategy 3", "Strategy 4", "Strategy 5"],
             conviction_level=0.82
@@ -467,7 +389,6 @@ class TestWorkflowResultModel:
             charter=charter,
             all_candidates=candidates,
             scorecards=scorecards,
-            backtests=backtests,
             selection_reasoning=reasoning
         )
 
@@ -475,7 +396,7 @@ class TestWorkflowResultModel:
 
     def test_exactly_five_candidates_enforced(self):
         """Must have exactly 5 candidates"""
-        from src.agent.models import WorkflowResult, Strategy, Charter, EdgeScorecard, BacktestResult, SelectionReasoning
+        from src.agent.models import WorkflowResult, Strategy, Charter, EdgeScorecard, SelectionReasoning
 
         # Create 3 candidates (wrong count)
         candidates = [
@@ -510,7 +431,6 @@ class TestWorkflowResultModel:
                 charter=charter,
                 all_candidates=candidates,  # Only 3
                 scorecards=[],
-                backtests=[],
                 selection_reasoning=reasoning
             )
 

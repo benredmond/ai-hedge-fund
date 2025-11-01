@@ -10,7 +10,6 @@ from src.agent.strategy_creator import (
 from src.agent.models import (
     Strategy,
     Charter,
-    BacktestResult,
     SelectionReasoning,
     EdgeScorecard
 )
@@ -18,16 +17,15 @@ from src.agent.models import (
 
 class CharterGenerator:
     """
-    Stage 5: Generate charter document.
+    Stage 4: Generate charter document.
 
     Creates comprehensive charter with market thesis, selection reasoning,
     expected behavior, failure modes, and 90-day outlook.
 
     Uses all selection context from prior stages:
-    - Winner strategy and backtest results
+    - Winner strategy and Edge Scorecard evaluation
     - Selection reasoning (why this vs alternatives)
-    - Edge scorecard scores (institutional evaluation)
-    - All 5 candidates and their backtests for comparison
+    - Edge scorecard scores for all 5 candidates (institutional evaluation)
     - Market context for tool-based regime analysis
     """
 
@@ -37,7 +35,6 @@ class CharterGenerator:
         reasoning: SelectionReasoning,
         candidates: List[Strategy],
         scorecards: List[EdgeScorecard],
-        backtests: List[BacktestResult],
         market_context: dict,
         model: str = DEFAULT_MODEL
     ) -> Charter:
@@ -49,7 +46,6 @@ class CharterGenerator:
             reasoning: SelectionReasoning (why this vs alternatives)
             candidates: All 5 candidates (including winner)
             scorecards: Edge Scorecard evaluations for all candidates
-            backtests: Backtest results for all candidates
             market_context: Current market regime (date-anchored)
             model: LLM model identifier
 
@@ -72,7 +68,6 @@ class CharterGenerator:
         # Build selection context
         winner_idx = reasoning.winner_index
         winner_scorecard = scorecards[winner_idx]
-        winner_backtest = backtests[winner_idx]
 
         # Format selection context for agent
         async with agent_ctx as agent:
@@ -100,12 +95,6 @@ class CharterGenerator:
                     "strategic_coherence": winner_scorecard.strategic_coherence,
                     "total_score": winner_scorecard.total_score
                 },
-                "backtest_winner": {
-                    "sharpe_ratio": winner_backtest.sharpe_ratio,
-                    "max_drawdown": winner_backtest.max_drawdown,
-                    "total_return": winner_backtest.total_return,
-                    "volatility_annualized": winner_backtest.volatility_annualized
-                },
                 "all_candidates": [],
                 "market_context_summary": {
                     "anchor_date": market_context["metadata"]["anchor_date"],
@@ -114,16 +103,14 @@ class CharterGenerator:
                 }
             }
 
-            # Add all candidates with their metrics
-            for i, (candidate, scorecard, backtest) in enumerate(zip(candidates, scorecards, backtests)):
+            # Add all candidates with their Edge scores
+            for i, (candidate, scorecard) in enumerate(zip(candidates, scorecards)):
                 selection_context["all_candidates"].append({
                     "index": i,
                     "name": candidate.name,
                     "assets": candidate.assets,
                     "is_winner": i == winner_idx,
-                    "edge_score": scorecard.total_score,
-                    "sharpe_ratio": backtest.sharpe_ratio,
-                    "max_drawdown": backtest.max_drawdown
+                    "edge_score": scorecard.total_score
                 })
 
             selection_context_json = json.dumps(selection_context, indent=2)
@@ -132,7 +119,7 @@ class CharterGenerator:
 
 ## SELECTION CONTEXT FROM PRIOR STAGES
 
-You have access to the complete selection context from Stages 1-4:
+You have access to the complete selection context from Stages 1-3:
 
 {selection_context_json}
 
@@ -144,7 +131,7 @@ You have access to the complete selection context from Stages 1-4:
 
 Follow the workflow in the recipe:
 
-**Pre-Work**: Parse the SelectionReasoning, Edge Scorecard, and Backtest results above.
+**Pre-Work**: Parse the SelectionReasoning and Edge Scorecard results above.
 
 **Phase 1: Market Data Gathering**
 - Use FRED tools (fred_get_series) for macro regime classification
@@ -153,14 +140,14 @@ Follow the workflow in the recipe:
 
 **Phase 2: Charter Writing**
 - Section 1 (Market Thesis): Tool-cited, connect regime to strategy's edge
-- Section 2 (Strategy Selection): Integrate SelectionReasoning verbatim, cite Edge Scorecard scores, compare backtests vs alternatives
+- Section 2 (Strategy Selection): Integrate SelectionReasoning verbatim, cite Edge Scorecard scores, compare Edge evaluations vs alternatives
 - Section 3 (Expected Behavior): Best/base/worst case scenarios + regime transitions
 - Section 4 (Failure Modes): 3-8 specific, measurable conditions (use templates from recipe)
 - Section 5 (90-Day Outlook): Milestones (Day 30/60/90) + red flags from failure modes
 
 **Critical Requirements**:
 1. Strategy Selection MUST reference why_selected, alternatives_rejected, tradeoffs_accepted
-2. MUST cite Edge Scorecard scores (total + 2-3 dimensions)
+2. MUST cite Edge Scorecard scores (total + 2-3 dimensions) and compare across all 5 candidates
 3. MUST use FRED and yfinance tools for current data (don't rely only on context summary)
 4. Failure modes MUST be specific with: Condition + Impact + Early Warning
 5. Run Pre-Submission Checklist before returning Charter

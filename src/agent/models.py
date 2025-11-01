@@ -146,25 +146,6 @@ class Charter(BaseModel):
         return v
 
 
-class BacktestResult(BaseModel):
-    """
-    Composer backtest results.
-
-    Attributes:
-        sharpe_ratio: Risk-adjusted return metric
-        max_drawdown: Maximum peak-to-trough decline (negative value)
-        total_return: Cumulative return over backtest period
-        volatility_annualized: Annualized standard deviation of returns
-        positive_days_pct: Percentage of positive return days (optional)
-    """
-
-    sharpe_ratio: float
-    max_drawdown: float = Field(le=0)  # Must be negative or zero
-    total_return: float
-    volatility_annualized: float = Field(gt=0)
-    positive_days_pct: float | None = None
-
-
 class EdgeScorecard(BaseModel):
     """
     5-dimension strategy evaluation scorecard.
@@ -330,7 +311,6 @@ class WorkflowResult(BaseModel):
         charter: Generated charter document
         all_candidates: All 5 generated candidates
         scorecards: Edge Scorecard evaluations for all candidates
-        backtests: Backtest results for all candidates
         selection_reasoning: Why winner was chosen
     """
 
@@ -338,7 +318,6 @@ class WorkflowResult(BaseModel):
     charter: Charter
     all_candidates: List[Strategy] = Field(min_length=5, max_length=5)
     scorecards: List[EdgeScorecard] = Field(min_length=5, max_length=5)
-    backtests: List[BacktestResult] = Field(min_length=5, max_length=5)
     selection_reasoning: SelectionReasoning
 
     @field_validator("all_candidates")

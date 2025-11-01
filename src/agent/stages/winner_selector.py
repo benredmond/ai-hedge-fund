@@ -4,7 +4,6 @@ from typing import List, Tuple
 from src.agent.strategy_creator import create_agent, load_prompt, DEFAULT_MODEL
 from src.agent.models import (
     Strategy,
-    BacktestResult,
     EdgeScorecard,
     SelectionReasoning
 )
@@ -12,9 +11,9 @@ from src.agent.models import (
 
 class WinnerSelector:
     """
-    Stage 4: Select winner from 5 candidates.
+    Stage 3: Select winner from 5 candidates.
 
-    Uses composite ranking: Sharpe + Edge + Regime + Drawdown.
+    Uses composite ranking based on Edge Scorecard dimensions.
     Generates AI reasoning for selection.
     """
 
@@ -22,7 +21,6 @@ class WinnerSelector:
         self,
         candidates: List[Strategy],
         scorecards: List[EdgeScorecard],
-        backtests: List[BacktestResult],
         market_context: dict,
         model: str = DEFAULT_MODEL
     ) -> Tuple[Strategy, SelectionReasoning]:
@@ -30,15 +28,13 @@ class WinnerSelector:
         Select best candidate using composite ranking and AI reasoning.
 
         Composite Ranking Formula (for initial ordering):
-            score = 0.35 × Sharpe + 0.30 × (Thesis + Edge + Risk)/3 + 0.20 × Regime + 0.15 × Coherence
+            score = 0.50 × (Thesis + Edge + Risk)/3 + 0.30 × Regime + 0.20 × Coherence
 
-        Note: AI may override composite ranking if strategic reasoning justifies it
-        (e.g., lower Sharpe but superior thesis quality)
+        Note: AI may override composite ranking if strategic reasoning justifies it.
 
         Args:
             candidates: 5 strategies
-            scorecards: 5 edge scorecards (with new 5-dimension rubric)
-            backtests: 5 backtest results
+            scorecards: 5 edge scorecards (with 5-dimension rubric)
             market_context: Current market conditions
             model: LLM for reasoning generation
 
@@ -47,7 +43,7 @@ class WinnerSelector:
 
         Example:
             >>> selector = WinnerSelector()
-            >>> winner, reasoning = await selector.select(candidates, scorecards, backtests, context)
+            >>> winner, reasoning = await selector.select(candidates, scorecards, context)
             >>> print(f"Selected: {winner.name} - {reasoning.why_selected[:100]}...")
         """
         # Extract regime tags for context
@@ -57,13 +53,10 @@ class WinnerSelector:
         composite_scores = []
 
         for i in range(5):
-            # Normalize each component to 0-1 range
-            sharpe_norm = min(1.0, max(0.0, (backtests[i].sharpe_ratio + 1) / 4))  # -1 to 3 → 0 to 1
-
             # Strategic reasoning quality (average of thesis, edge, risk)
-            # Note: Current EdgeScorecard has old dimension names; will work with both old and new
+            # Note: EdgeScorecard uses 5-dimension rubric
             if hasattr(scorecards[i], 'thesis_quality'):
-                # New 5-dimension rubric
+                # 5-dimension rubric
                 reasoning_norm = (
                     scorecards[i].thesis_quality +
                     scorecards[i].edge_economics +
@@ -81,14 +74,11 @@ class WinnerSelector:
                 regime_norm = scorecards[i].regime_alignment / 5.0
                 coherence_norm = scorecards[i].mental_model_coherence / 5.0
 
-            drawdown_norm = min(1.0, 1 - abs(backtests[i].max_drawdown))
-
-            # Weighted composite score
+            # Weighted composite score (Edge Scorecard only)
             composite = (
-                0.35 * sharpe_norm +
-                0.30 * reasoning_norm +
-                0.20 * regime_norm +
-                0.15 * coherence_norm
+                0.50 * reasoning_norm +
+                0.30 * regime_norm +
+                0.20 * coherence_norm
             )
 
             composite_scores.append((i, composite))
@@ -130,12 +120,6 @@ class WinnerSelector:
 - Weights: {dict(list(candidates[idx].weights.items())[:3])}{"..." if len(candidates[idx].weights) > 3 else ""}
 - Rebalancing: {candidates[idx].rebalance_frequency.value}
 
-**Backtest Results:**
-- Sharpe Ratio: {backtests[idx].sharpe_ratio:.2f}
-- Max Drawdown: {backtests[idx].max_drawdown:.1%}
-- Total Return: {backtests[idx].total_return:.1%}
-- Volatility: {backtests[idx].volatility_annualized:.1%}
-
 **Edge Scorecard:**
 """
                 # Add scores (works with both old and new rubric)
@@ -167,7 +151,7 @@ class WinnerSelector:
 Select the winner and provide comprehensive selection reasoning following the framework in your system prompt.
 
 **Key Reminders:**
-1. **Process over past performance**: Favor strategies with strong thesis/edge/risk reasoning over pure backtest Sharpe
+1. **Process quality**: Favor strategies with strong thesis/edge/risk reasoning and strategic coherence
 2. **Tradeoffs matter**: Make explicit what you're optimizing for vs sacrificing
 3. **Regime context**: Match strategy to current market conditions
 4. **Risk awareness**: Enumerate failure scenarios and monitoring priorities
