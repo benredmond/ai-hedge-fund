@@ -129,23 +129,12 @@ class TestCandidateGenerator:
         """
         generator = CandidateGenerator()
 
-        # Mock the agent for phased prompting
+        # Mock the agent for single-phase generation
         with patch('src.agent.stages.candidate_generator.create_agent') as mock_create:
-            # Phase 1 mock (research): returns dict
-            mock_research_agent = AsyncMock()
-            mock_research_result = AsyncMock()
-            mock_research_result.output = {
-                "macro_regime": {"classification": "expansion"},
-                "market_regime": {"trend": "bull"}
-            }
-            mock_research_agent.run.return_value = mock_research_result
-            mock_research_context = AsyncMock()
-            mock_research_context.__aenter__.return_value = mock_research_agent
-
-            # Phase 2 mock (generate): returns list of strategies (wrong count)
-            mock_generate_agent = AsyncMock()
-            mock_generate_result = AsyncMock()
-            mock_generate_result.output = [
+            # Mock single-phase generation: returns list of strategies (wrong count)
+            mock_agent = AsyncMock()
+            mock_result = AsyncMock()
+            mock_result.output = [
                 Strategy(
                     name="Only Strategy",
                     assets=["SPY"],
@@ -154,12 +143,10 @@ class TestCandidateGenerator:
                     logic_tree={}
                 )
             ]  # Only 1 strategy instead of 5
-            mock_generate_agent.run.return_value = mock_generate_result
-            mock_generate_context = AsyncMock()
-            mock_generate_context.__aenter__.return_value = mock_generate_agent
-
-            # Return different contexts for each call
-            mock_create.side_effect = [mock_research_context, mock_generate_context]
+            mock_agent.run.return_value = mock_result
+            mock_context = AsyncMock()
+            mock_context.__aenter__.return_value = mock_agent
+            mock_create.return_value = mock_context
 
             with pytest.raises(ValueError, match="Expected 5 candidates, got 1"):
                 await generator.generate(sample_market_context, model="openai:gpt-4o")
@@ -174,22 +161,11 @@ class TestCandidateGenerator:
         """
         generator = CandidateGenerator()
 
-        # Mock the agent for phased prompting
+        # Mock the agent for single-phase generation
         with patch('src.agent.stages.candidate_generator.create_agent') as mock_create:
-            # Phase 1 mock (research): returns dict
-            mock_research_agent = AsyncMock()
-            mock_research_result = AsyncMock()
-            mock_research_result.output = {
-                "macro_regime": {"classification": "expansion"},
-                "market_regime": {"trend": "bull"}
-            }
-            mock_research_agent.run.return_value = mock_research_result
-            mock_research_context = AsyncMock()
-            mock_research_context.__aenter__.return_value = mock_research_agent
-
-            # Phase 2 mock (generate): returns list with duplicates
-            mock_generate_agent = AsyncMock()
-            mock_generate_result = AsyncMock()
+            # Mock single-phase generation: returns list with duplicates
+            mock_agent = AsyncMock()
+            mock_result = AsyncMock()
 
             # Create 5 candidates, but 2 have same ticker set
             duplicate_candidates = []
@@ -207,13 +183,11 @@ class TestCandidateGenerator:
                     )
                 )
 
-            mock_generate_result.output = duplicate_candidates
-            mock_generate_agent.run.return_value = mock_generate_result
-            mock_generate_context = AsyncMock()
-            mock_generate_context.__aenter__.return_value = mock_generate_agent
-
-            # Return different contexts for each call
-            mock_create.side_effect = [mock_research_context, mock_generate_context]
+            mock_result.output = duplicate_candidates
+            mock_agent.run.return_value = mock_result
+            mock_context = AsyncMock()
+            mock_context.__aenter__.return_value = mock_agent
+            mock_create.return_value = mock_context
 
             with pytest.raises(ValueError, match="Duplicate candidates detected"):
                 await generator.generate(sample_market_context, model="openai:gpt-4o")

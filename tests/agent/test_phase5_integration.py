@@ -96,7 +96,7 @@ class TestPhase5EndToEnd:
         try:
             result = await create_strategy_workflow(
                 market_context=market_context,
-                model='openai:gpt-4o'
+                model='openai:gpt-5'
             )
         except (BaseExceptionGroup, ExceptionGroup) as eg:
             # Check if it's a Composer authentication error (handle ExceptionGroup)

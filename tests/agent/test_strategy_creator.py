@@ -137,6 +137,79 @@ class TestAgentConfiguration:
         async with agent_ctx as agent:
             assert agent is not None
 
+    @pytest.mark.asyncio
+    async def test_agent_accepts_custom_history_limit(self):
+        """create_agent accepts custom history_limit parameter"""
+        import os
+        if not os.getenv('ANTHROPIC_API_KEY'):
+            pytest.skip("ANTHROPIC_API_KEY not configured")
+
+        from src.agent.strategy_creator import create_agent
+
+        # Should work with custom history limit
+        agent_ctx = await create_agent(
+            model='anthropic:claude-3-5-sonnet-20241022',
+            output_type=Strategy,
+            history_limit=10  # Smaller limit for simple tasks
+        )
+
+        async with agent_ctx as agent:
+            assert agent is not None
+            # Agent should have history processor configured
+            # (exact internal structure depends on pydantic-ai)
+
+
+class TestHistoryProcessor:
+    """Test history processor factory"""
+
+    def test_create_history_processor_factory_exists(self):
+        """create_history_processor factory function is importable"""
+        from src.agent.strategy_creator import create_history_processor
+
+        assert callable(create_history_processor)
+
+    def test_create_history_processor_returns_function(self):
+        """create_history_processor returns a callable processor"""
+        from src.agent.strategy_creator import create_history_processor
+
+        processor = create_history_processor(max_messages=10)
+
+        assert callable(processor)
+
+    def test_history_processor_trims_to_limit(self):
+        """History processor trims messages to specified limit"""
+        from src.agent.strategy_creator import create_history_processor
+        from pydantic_ai import messages as _messages
+        from unittest.mock import Mock
+
+        processor = create_history_processor(max_messages=5)
+        ctx = Mock()
+
+        # Create 10 messages
+        test_messages = [_messages.ModelRequest(parts=[]) for _ in range(10)]
+
+        # Process should trim to 5
+        result = processor(ctx, test_messages)
+
+        assert len(result) <= 5, f"Expected <= 5 messages, got {len(result)}"
+
+    def test_history_processor_preserves_under_limit(self):
+        """History processor preserves all messages when under limit"""
+        from src.agent.strategy_creator import create_history_processor
+        from pydantic_ai import messages as _messages
+        from unittest.mock import Mock
+
+        processor = create_history_processor(max_messages=10)
+        ctx = Mock()
+
+        # Create 5 messages (under limit)
+        test_messages = [_messages.ModelRequest(parts=[]) for _ in range(5)]
+
+        # Process should keep all
+        result = processor(ctx, test_messages)
+
+        assert len(result) == 5, f"Expected 5 messages, got {len(result)}"
+
 
 class TestPromptLoading:
     """Test prompt template loading"""
@@ -150,11 +223,11 @@ class TestPromptLoading:
         assert isinstance(prompt, str)
         assert len(prompt) > 0
 
-    def test_load_strategy_creation_prompt(self):
-        """Strategy creation prompt template can be loaded"""
+    def test_load_candidate_generation_prompt(self):
+        """Candidate generation prompt template can be loaded"""
         from src.agent.strategy_creator import load_prompt
 
-        prompt = load_prompt('strategy_creation.md')
+        prompt = load_prompt('candidate_generation.md')
 
         assert isinstance(prompt, str)
         assert len(prompt) > 0
