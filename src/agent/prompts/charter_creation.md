@@ -9,7 +9,6 @@ Create a comprehensive investment charter that documents the selected strategy's
 **Pre-Work: Parse Selection Context**
 - Review SelectionReasoning (why winner, why others rejected)
 - Review Edge Scorecard scores (institutional evaluation)
-- Review Backtest results (relative performance)
 
 **Phase 1: Market Data Gathering (15-20 minutes)**
 - Use FRED tools for macro regime
@@ -37,7 +36,7 @@ Before writing, parse the context from prior stages:
   "tradeoffs_accepted": "Accepted higher volatility for better Sharpe ratio...",
   "alternatives_rejected": [
     "Candidate 0 (60/40 Balanced): Weak edge differentiation in current regime",
-    "Candidate 1 (Defensive Rotation): Poor backtest Sharpe (0.8 vs winner's 1.4)",
+    "Candidate 1 (Defensive Rotation): Lower Edge Scorecard (18.5 vs winner's 21.5)",
     "Candidate 3 (Mean Reversion): Misaligned with bull+low-vol regime",
     "Candidate 4 (Risk Parity): Lower conviction on multi-factor timing"
   ],
@@ -58,21 +57,10 @@ Before writing, parse the context from prior stages:
 }
 ```
 
-### Backtest Results Structure
-```python
-{
-  "sharpe_ratio": 1.42,
-  "max_drawdown": -0.12,
-  "total_return": 0.18,
-  "volatility_annualized": 0.16
-}
-```
-
 **Action**: Extract key facts for Strategy Selection section:
 - Winner's name and edge type
 - Why_selected summary (use verbatim)
 - Edge scores (focus on highest dimensions)
-- Backtest ranking vs alternatives
 - Alternatives rejected (use verbatim list)
 
 ---
@@ -200,7 +188,7 @@ Factor analysis shows [momentum/quality/value/growth] premiums. [MTUM/QUAL/VTV/V
 3. Comparative Analysis (100-200 words)
    - List 4 rejected alternatives with elimination reasons
    - Reference SelectionReasoning.alternatives_rejected
-   - Cite backtest comparison (Sharpe ranking)
+   - Cite Edge Scorecard comparison across candidates
 
 4. Tradeoffs Accepted (50-100 words)
    - Use SelectionReasoning.tradeoffs_accepted
@@ -227,19 +215,19 @@ This edge is institutionally credible because [connect to academic research, mar
 
 **Comparative Analysis**
 
-This strategy outperformed 4 alternatives across edge quality and backtested risk-adjusted returns:
+This strategy outperformed 4 alternatives on Edge Scorecard evaluation:
 
 1. **[Candidate 0 Name]**: [Elimination reason from alternatives_rejected]
 2. **[Candidate 1 Name]**: [Elimination reason]
 3. **[Candidate 3 Name]**: [Elimination reason]
 4. **[Candidate 4 Name]**: [Elimination reason]
 
-Backtest comparison (3-year historical context):
-- Winner: Sharpe [X.X], Max DD [-X]%
-- Next best: Sharpe [X.X], Max DD [-Y]%
-- Median: Sharpe [X.X], Max DD [-Z]%
+Edge Scorecard comparison:
+- Winner: [X.X]/25 total score
+- Next best: [X.X]/25
+- Median: [X.X]/25
 
-[Note: Frame as "historical context" not "future prediction"]
+The winner's superior scores in [dimension 1] and [dimension 2] were decisive factors in the selection.
 
 **Tradeoffs Accepted**
 
@@ -444,14 +432,13 @@ Exit criteria: If 2+ red flags trigger simultaneously, or single red flag persis
 
 **Context:**
 - **Winner**: "Tech Momentum Leaders" (Candidate 2)
-- **SelectionReasoning.why_selected**: "Strong edge economics (4.5/5) and regime awareness (4.7/5); best backtest Sharpe (1.42) in current bull+low-vol regime"
+- **SelectionReasoning.why_selected**: "Strong edge economics (4.5/5) and regime awareness (4.7/5) in current bull+low-vol regime; highest Edge Scorecard total (21.5/25)"
 - **SelectionReasoning.alternatives_rejected**:
   - C0 (60/40): "Weak differentiation"
-  - C1 (Defensive): "Poor Sharpe 0.8"
+  - C1 (Defensive): "Lower Edge Scorecard (18.5/25)"
   - C3 (Mean Reversion): "Regime misalignment"
   - C4 (Risk Parity): "Lower conviction"
 - **Edge Scorecard**: thesis_quality=4.2, edge_economics=4.5, risk_framework=3.8, regime_awareness=4.7, strategic_coherence=4.3, total=21.5
-- **Backtest**: Sharpe 1.42, MaxDD -12%, TotalReturn 18%, Vol 16%
 
 **Charter (abbreviated for example):**
 
@@ -489,7 +476,7 @@ Low VIX (14.2) indicates complacent put-buying, which historically precedes 2-4 
 
 Tech Momentum Leaders was selected from 5 candidates for its sector momentum approach in Technology, Consumer Discretionary, and Financials. This strategy scored 21.5/25 on the institutional Edge Scorecard, passing all quality thresholds with conviction level 85%.
 
-The selection rationale: "Strong edge economics (4.5/5) validates the structural basis for momentum persistence in institutional rebalancing cycles. Regime awareness (4.7/5) confirms exceptional alignment with current bull+low-vol environment. Backtest Sharpe of 1.42 significantly outperforms alternatives (median 1.0) with acceptable max drawdown (-12%)."
+The selection rationale: "Strong edge economics (4.5/5) validates the structural basis for momentum persistence in institutional rebalancing cycles. Regime awareness (4.7/5) confirms exceptional alignment with current bull+low-vol environment. Edge Scorecard total of 21.5/25 significantly outperforms alternatives (median 19.5/25)."
 
 **Edge Validation**
 
@@ -504,19 +491,19 @@ This edge is institutionally credible because it aligns with academic research o
 
 **Comparative Analysis**
 
-This strategy outperformed 4 alternatives across edge quality and backtested risk-adjusted returns:
+This strategy outperformed 4 alternatives on Edge Scorecard evaluation:
 
 1. **60/40 Balanced Portfolio**: Weak edge differentiation in current regime; generic allocation lacks exploitable inefficiency
-2. **Defensive Rotation**: Poor backtest Sharpe (0.8 vs winner's 1.42); misaligned with bull market
+2. **Defensive Rotation**: Lower Edge Scorecard (18.5/25 vs winner's 21.5/25); misaligned with bull market
 3. **Oversold Sector Mean Reversion**: Regime misalignment (mean reversion underperforms in trending markets)
 4. **Risk Parity Multi-Factor**: Lower conviction (0.65 vs 0.85) on multi-factor timing; complexity without commensurate edge
 
-Backtest comparison (3-year historical context):
-- Winner: Sharpe 1.42, Max DD -12%
-- Next best: Sharpe 1.15, Max DD -15%
-- Median: Sharpe 1.05, Max DD -14%
+Edge Scorecard comparison:
+- Winner: 21.5/25 (exceptional regime awareness 4.7/5, strong edge economics 4.5/5)
+- Next best: 20.0/25
+- Median: 19.5/25
 
-(Note: Historical context informs regime fit but does not predict future returns)
+The winner's superior scores in regime awareness and edge economics were decisive factors in the selection.
 
 **Tradeoffs Accepted**
 
@@ -532,7 +519,7 @@ Accepted higher concentration (3 sectors vs diversified 9 sectors) and higher vo
 - [ ] Strategy Selection section references SelectionReasoning.why_selected
 - [ ] Cited Edge Scorecard total score + 2-3 dimension scores with values
 - [ ] Listed all 4 rejected alternatives with specific elimination reasons
-- [ ] Compared backtest Sharpe/drawdown vs alternatives numerically
+- [ ] Compared Edge Scorecard scores vs alternatives numerically
 - [ ] Referenced SelectionReasoning.tradeoffs_accepted
 
 ### Gate 2: Tool Usage & Data Citation
@@ -560,7 +547,7 @@ Accepted higher concentration (3 sectors vs diversified 9 sectors) and higher vo
 - [ ] Comparative framing (relative to benchmarks, not absolute predictions)
 - [ ] Honest about uncertainty (scenarios, not certainties)
 - [ ] Risk-aware (failure modes prominent, not hidden)
-- [ ] Forward-looking (backtests provide context, not predictions)
+- [ ] Forward-looking (driven by Edge Scorecard, not historical backtests)
 - [ ] Selection transparency (clear why THIS strategy vs alternatives)
 
 ---
@@ -568,7 +555,7 @@ Accepted higher concentration (3 sectors vs diversified 9 sectors) and higher vo
 ## EXECUTION CHECKLIST
 
 **Before starting:**
-- [ ] Received SelectionReasoning, Edge Scorecard, Backtest results, All 5 candidates
+- [ ] Received SelectionReasoning, Edge Scorecard, All 5 candidates
 - [ ] Parsed why_selected, alternatives_rejected, tradeoffs_accepted
 - [ ] Identified winner's edge type and top scorecard dimensions
 

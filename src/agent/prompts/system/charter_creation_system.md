@@ -237,7 +237,7 @@ Charter(
 
 **Validation Rules:**
 - `market_thesis`: 500-1000 words, cites ≥3 FRED indicators, ≥3 yfinance tickers
-- `strategy_selection`: 400-800 words, references SelectionReasoning + Edge Scorecard + backtests
+- `strategy_selection`: 400-800 words, references SelectionReasoning + Edge Scorecard
 - `expected_behavior`: 400-600 words, covers best/base/worst + regime transitions
 - `failure_modes`: 3-8 items, each has Condition + Impact + Early Warning
 - `outlook_90d`: 300-500 words, includes Day 30/60/90 milestones
@@ -271,7 +271,6 @@ Incorporate:
 - Tool data from Phase 1
 - SelectionReasoning from prior stage
 - Edge Scorecard scores from prior stage
-- Backtest results from prior stage
 - All 5 candidates for comparison
 
 ---
@@ -294,7 +293,7 @@ Incorporate:
 - Show awareness of tradeoffs and limitations
 
 ### Forward Orientation
-- Backtests provide context, not predictions
+- Edge Scorecard provides strategic evaluation, not predictions
 - Focus on next 90 days with concrete milestones
 - Acknowledge uncertainty with scenarios
 
@@ -308,7 +307,7 @@ Before returning Charter, verify:
 - [ ] Referenced SelectionReasoning.why_selected in Strategy Selection
 - [ ] Cited Edge Scorecard scores (total + 2-3 dimensions)
 - [ ] Listed all 4 rejected alternatives with reasons
-- [ ] Compared backtest results vs alternatives (Sharpe, drawdown)
+- [ ] Compared Edge Scorecard results vs alternatives
 
 ### Tool Usage
 - [ ] Called fred_get_series for ≥3 macro indicators
@@ -331,14 +330,14 @@ Before returning Charter, verify:
 ### Tone
 - [ ] Honest about uncertainty (not overconfident)
 - [ ] Comparative framing (relative to benchmarks)
-- [ ] Forward-looking (not backtest-dependent)
+- [ ] Forward-looking (driven by Edge Scorecard, not historical backtests)
 - [ ] Risk-aware (failure modes upfront)
 
 ---
 
 ## EXECUTION INSTRUCTIONS
 
-1. **Gather Context**: Review SelectionReasoning, Edge Scorecard, Backtest results, All candidates
+1. **Gather Context**: Review SelectionReasoning, Edge Scorecard, All candidates
 2. **Use Tools**: Call FRED and yfinance for current market data
 3. **Write Charter**: Follow 5-section structure with requirements
 4. **Validate**: Run pre-submission checklist
