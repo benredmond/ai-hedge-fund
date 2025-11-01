@@ -8,6 +8,28 @@ This is an **AI Trading Strategy Evaluation Framework** that tests AI models' ab
 
 **Key principle:** Individual 90-day cohorts are inherently noisy, but longitudinal analysis across multiple cohorts reveals patterns in strategic decision-making capabilities.
 
+## Token Management
+
+The workflow uses two key strategies to manage token usage:
+
+1. **Comprehensive Context Pack** - Pre-analyzes market regime to minimize redundant API calls
+   - Macro regime (interest rates, inflation, employment)
+   - Market regime (trend, volatility, breadth, sector leadership)
+   - Factor premiums (value vs growth, momentum, quality, size)
+   - Benchmark performance (30d returns, Sharpe, volatility)
+   - Recent market events (30d lookback, curated)
+
+2. **Per-Stage History Limits** - Optimized message retention per workflow stage
+   - Candidate Generation: 20 messages (iterative with tools)
+   - Edge Scoring: 10 messages (single evaluation)
+   - Backtesting: 5 messages (single tool call wrapper)
+   - Winner Selection: 10 messages (single-pass reasoning)
+   - Charter Generation: 20 messages (complex synthesis)
+
+**Result:** ~52-57k tokens per workflow run (30% reduction from initial 2-phase architecture)
+
+See `docs/TOKEN_MANAGEMENT.md` for detailed token optimization strategies.
+
 ## Development Commands
 
 ### Environment Setup
@@ -22,17 +44,30 @@ pip install -r requirements.txt
 # Configure environment variables
 # Create .env file with:
 #   FRED_API_KEY=your_key_here
-#   DEFAULT_MODEL=openai:gpt-4o  # Optional: LLM model for strategy creation (default: openai:gpt-4o)
-# Get free key at: https://fred.stlouisfed.org/docs/api/api_key.html
+#   DEEPSEEK_API_KEY=sk-...  # Recommended: 90% cheaper than GPT-4o
+#   DEFAULT_MODEL=openai:deepseek-chat  # Optional: LLM model (default: openai:gpt-4o)
+# Get FRED key at: https://fred.stlouisfed.org/docs/api/api_key.html
+# Get DeepSeek key at: https://platform.deepseek.com
 ```
 
 ### Environment Variables
 
-- **FRED_API_KEY** (required): Federal Reserve Economic Data API key. Get free key at https://fred.stlouisfed.org/docs/api/api_key.html
-- **DEFAULT_MODEL** (optional): LLM model identifier for strategy creation workflow. Default: `openai:gpt-4o`
+**Required:**
+- **FRED_API_KEY**: Federal Reserve Economic Data API key. Get free key at https://fred.stlouisfed.org/docs/api/api_key.html
+
+**LLM Provider (choose one or more):**
+- **OPENAI_API_KEY**: OpenAI GPT-4o (default, ~$2.50-10/M tokens)
+- **ANTHROPIC_API_KEY**: Anthropic Claude
+- **DEEPSEEK_API_KEY**: DeepSeek ($0.56/$1.68 per M tokens, 90% cheaper, excellent quality) - Get key at https://platform.deepseek.com
+- **KIMI_API_KEY**: Kimi/Moonshot (~$0.50-1/$1.50-3 per M tokens, 85% cheaper) - Get key at https://platform.moonshot.cn
+
+**Optional:**
+- **DEFAULT_MODEL**: LLM model identifier for strategy creation workflow. Default: `openai:gpt-4o`
   - Format: `<provider>:<model>` (e.g., `openai:gpt-4o`, `anthropic:claude-3-opus-20240229`)
+  - DeepSeek: `openai:deepseek-chat` (recommended for cost savings)
+  - Kimi: `openai:moonshot-v1-128k` (excellent for long context)
   - Used by `create_strategy_workflow()` when model parameter not specified
-- **OPENAI_API_KEY**, **COMPOSER_API_KEY**, **COMPOSER_API_SECRET**: Required for full integration tests
+- **COMPOSER_API_KEY**, **COMPOSER_API_SECRET**: Required for Composer backtesting and deployment
 
 ### Testing
 ```bash
@@ -166,8 +201,9 @@ See `docs/market_context_schema.md` for complete schema documentation.
 ### Evaluation Flow (4 Phases)
 
 **Phase 1: Strategy Creation**
-- AI receives: market context, historical data access, Composer tools, backtesting capability
-- AI generates: 5 candidate strategies internally
+- AI receives: comprehensive market context pack (pre-analyzed regime data), historical data access, Composer tools, backtesting capability
+- Market context pack includes: macro indicators, market regime, sector leadership, factor premiums, benchmark performance, recent events, optional manual Composer pattern examples
+- AI generates: 5 candidate strategies (tools available but optional - use only for data gaps)
 - AI outputs: 1 selected "symphony" + charter document
 - Charter must include: market thesis, why now, expected behavior, failure modes, selection reasoning
 
@@ -349,3 +385,4 @@ This is a **longitudinal research project**, not a quick benchmark.
 **Year 3+:** Scale - test variants, different time horizons, human baselines, prediction accuracy tracking
 
 The dataset becomes more valuable over time as it captures multiple market regimes and builds statistical power.
+- DO NOT SWITCH MODELS TO 4o for "efficiency"
