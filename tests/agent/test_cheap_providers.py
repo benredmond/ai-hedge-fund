@@ -90,6 +90,26 @@ async def test_kimi_32k_creates_agent():
         assert agent.output_type == Strategy
 
 
+@pytest.mark.skipif(
+    not os.getenv("KIMI_API_KEY"),
+    reason="KIMI_API_KEY not set"
+)
+@pytest.mark.asyncio
+async def test_kimi_k2_creates_agent():
+    """Test that Kimi K2 model can create an agent successfully"""
+    agent_ctx = await create_agent(
+        model="openai:kimi-k2-0905-preview",
+        output_type=Strategy,
+        system_prompt="You are a trading strategy assistant.",
+        include_composer=False,
+        history_limit=5
+    )
+
+    async with agent_ctx as agent:
+        assert agent is not None
+        assert agent.output_type == Strategy
+
+
 @pytest.mark.asyncio
 async def test_deepseek_without_key_raises_error():
     """Test that DeepSeek without API key raises appropriate error"""
@@ -114,23 +134,17 @@ async def test_deepseek_without_key_raises_error():
 
 
 @pytest.mark.asyncio
-async def test_kimi_without_key_raises_error():
+async def test_kimi_without_key_raises_error(monkeypatch):
     """Test that Kimi without API key raises appropriate error"""
-    # Temporarily clear the environment variable
-    original_key = os.environ.get("KIMI_API_KEY")
-    if "KIMI_API_KEY" in os.environ:
-        del os.environ["KIMI_API_KEY"]
+    # Mock the module-level constant to simulate missing API key
+    import src.agent.strategy_creator as strategy_creator
+    monkeypatch.setattr(strategy_creator, "KIMI_API_KEY", None)
 
-    try:
-        with pytest.raises(ValueError, match="KIMI_API_KEY environment variable required"):
-            await create_agent(
-                model="openai:moonshot-v1-128k",
-                output_type=Strategy,
-                system_prompt="Test prompt",
-                include_composer=False,
-                history_limit=5
-            )
-    finally:
-        # Restore original key if it existed
-        if original_key:
-            os.environ["KIMI_API_KEY"] = original_key
+    with pytest.raises(ValueError, match="KIMI_API_KEY environment variable required"):
+        await create_agent(
+            model="openai:moonshot-v1-128k",
+            output_type=Strategy,
+            system_prompt="Test prompt",
+            include_composer=False,
+            history_limit=5
+        )

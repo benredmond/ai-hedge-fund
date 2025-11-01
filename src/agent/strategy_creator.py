@@ -29,7 +29,7 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 
 KIMI_API_KEY = os.getenv("KIMI_API_KEY")
-KIMI_BASE_URL = "https://api.moonshot.cn/v1"
+KIMI_BASE_URL = "https://api.moonshot.ai/v1"
 
 
 class AgentContext:
@@ -220,7 +220,7 @@ async def create_agent(
             os.environ["OPENAI_API_KEY"] = DEEPSEEK_API_KEY
             os.environ["OPENAI_BASE_URL"] = DEEPSEEK_BASE_URL
         # Kimi/Moonshot uses OpenAI-compatible API
-        elif model_name.startswith("moonshot"):
+        elif model_name.startswith("moonshot") or model_name.startswith("kimi"):
             if not KIMI_API_KEY:
                 raise ValueError(
                     "KIMI_API_KEY environment variable required for Kimi/Moonshot models"

@@ -59,13 +59,13 @@ pip install -r requirements.txt
 - **OPENAI_API_KEY**: OpenAI GPT-4o (default, ~$2.50-10/M tokens)
 - **ANTHROPIC_API_KEY**: Anthropic Claude
 - **DEEPSEEK_API_KEY**: DeepSeek ($0.56/$1.68 per M tokens, 90% cheaper, excellent quality) - Get key at https://platform.deepseek.com
-- **KIMI_API_KEY**: Kimi/Moonshot (~$0.50-1/$1.50-3 per M tokens, 85% cheaper) - Get key at https://platform.moonshot.cn
+- **KIMI_API_KEY**: Kimi/Moonshot (~$0.50-1/$1.50-3 per M tokens, 85% cheaper) - Get key at https://platform.moonshot.ai
 
 **Optional:**
 - **DEFAULT_MODEL**: LLM model identifier for strategy creation workflow. Default: `openai:gpt-4o`
   - Format: `<provider>:<model>` (e.g., `openai:gpt-4o`, `anthropic:claude-3-opus-20240229`)
   - DeepSeek: `openai:deepseek-chat` (recommended for cost savings)
-  - Kimi: `openai:moonshot-v1-128k` (excellent for long context)
+  - Kimi: `openai:moonshot-v1-128k` or `openai:kimi-k2-0905-preview` (excellent for long context)
   - Used by `create_strategy_workflow()` when model parameter not specified
 - **COMPOSER_API_KEY**, **COMPOSER_API_SECRET**: Required for Composer backtesting and deployment
 
