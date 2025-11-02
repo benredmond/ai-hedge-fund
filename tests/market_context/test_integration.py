@@ -34,7 +34,7 @@ class TestIntegration:
         # Validate metadata
         metadata = context_pack["metadata"]
         assert metadata["anchor_date"].startswith("2025-01-15")
-        assert metadata["version"] == "v1.0.0"
+        assert metadata["version"] == "v2.0.0"  # v2.0
 
         # Validate regime snapshot has required sections
         regime = context_pack["regime_snapshot"]

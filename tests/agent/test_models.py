@@ -19,7 +19,8 @@ class TestStrategyModel:
             assets=["SPY", "AGG"],
             weights={"SPY": 0.6, "AGG": 0.4},
             rebalance_frequency="monthly",
-            logic_tree={}
+            logic_tree={},
+            rebalancing_rationale="Monthly equal-weight rebalancing implements mean-reversion by mechanically buying relative losers and selling relative winners, exploiting temporary sector rotation overshoots that typically reverse within 30-60 days."
         )
 
         assert strategy.name == "60/40 Portfolio"
@@ -36,7 +37,8 @@ class TestStrategyModel:
                 assets=[],
                 weights={},
                 rebalance_frequency="monthly",
-                logic_tree={}
+                logic_tree={},
+                rebalancing_rationale="Monthly rebalancing maintains target weights by systematically buying dips and selling rallies, implementing contrarian exposure that captures mean-reversion across asset classes."
             )
 
     def test_weights_must_sum_to_one(self):
@@ -50,7 +52,8 @@ class TestStrategyModel:
                 assets=["SPY"],
                 weights={"SPY": 0.5},
                 rebalance_frequency="monthly",
-                logic_tree={}
+                logic_tree={},
+                rebalancing_rationale="Monthly rebalancing maintains target weights by systematically buying dips and selling rallies, implementing contrarian exposure that captures mean-reversion across asset classes."
             )
 
         # Too high
@@ -60,7 +63,8 @@ class TestStrategyModel:
                 assets=["SPY"],
                 weights={"SPY": 1.5},
                 rebalance_frequency="monthly",
-                logic_tree={}
+                logic_tree={},
+                rebalancing_rationale="Monthly rebalancing maintains target weights by systematically buying dips and selling rallies, implementing contrarian exposure that captures mean-reversion across asset classes."
             )
 
     def test_weights_tolerance_accepted(self):
@@ -73,7 +77,8 @@ class TestStrategyModel:
             assets=["SPY", "AGG"],
             weights={"SPY": 0.595, "AGG": 0.40},  # Sums to 0.995
             rebalance_frequency="monthly",
-            logic_tree={}
+            logic_tree={},
+            rebalancing_rationale="Monthly rebalancing maintains target weights by systematically buying dips and selling rallies, implementing contrarian exposure that captures mean-reversion across asset classes."
         )
         assert sum(strategy.weights.values()) == pytest.approx(1.0, abs=0.01)
 
@@ -87,7 +92,8 @@ class TestStrategyModel:
                 assets=["SPY", "QQQ", "AGG"],
                 weights={"SPY": 0.6, "QQQ": 0.4},  # AGG missing
                 rebalance_frequency="monthly",
-                logic_tree={}
+                logic_tree={},
+                rebalancing_rationale="Monthly rebalancing maintains target weights by systematically buying dips and selling rallies, implementing contrarian exposure that captures mean-reversion across asset classes."
             )
 
     def test_weights_extra_asset(self):
@@ -100,7 +106,8 @@ class TestStrategyModel:
                 assets=["SPY"],
                 weights={"SPY": 0.7, "QQQ": 0.3},  # QQQ not in assets
                 rebalance_frequency="monthly",
-                logic_tree={}
+                logic_tree={},
+                rebalancing_rationale="Monthly rebalancing maintains target weights by systematically buying dips and selling rallies, implementing contrarian exposure that captures mean-reversion across asset classes."
             )
 
     def test_rebalance_frequency_enum(self):
@@ -114,7 +121,8 @@ class TestStrategyModel:
                 assets=["SPY"],
                 weights={"SPY": 1.0},
                 rebalance_frequency=freq,
-                logic_tree={}
+                logic_tree={},
+                rebalancing_rationale="Monthly rebalancing maintains target weights by systematically buying dips and selling rallies, implementing contrarian exposure that captures mean-reversion across asset classes."
             )
             assert strategy.rebalance_frequency == freq
 
@@ -125,7 +133,108 @@ class TestStrategyModel:
                 assets=["SPY"],
                 weights={"SPY": 1.0},
                 rebalance_frequency="every_tuesday",
-                logic_tree={}
+                logic_tree={},
+                rebalancing_rationale="Monthly rebalancing maintains target weights by systematically buying dips and selling rallies, implementing contrarian exposure that captures mean-reversion across asset classes."
+            )
+
+    def test_dynamic_strategy_with_empty_weights(self):
+        """Dynamic strategies (with logic_tree) can have empty weights"""
+        from src.agent.models import Strategy
+
+        strategy = Strategy(
+            name="VIX Rotation",
+            assets=["SPY", "TLT", "GLD"],
+            weights={},  # Empty - allocation defined in logic_tree
+            logic_tree={
+                "condition": "VIX > 20",
+                "if_true": {"assets": ["TLT", "GLD"], "weights": {"TLT": 0.6, "GLD": 0.4}},
+                "if_false": {"assets": ["SPY"], "weights": {"SPY": 1.0}}
+            },
+            rebalance_frequency="daily",
+            rebalancing_rationale="Daily rebalancing implements VIX rotation edge by checking volatility threshold and shifting allocation when VIX crosses 20 (defensive) or drops below 15 (growth)."
+        )
+
+        assert strategy.weights == {}
+        assert strategy.logic_tree != {}
+        assert len(strategy.assets) == 3
+
+    def test_dynamic_strategy_with_partial_weights(self):
+        """Dynamic strategies can have partial weights that sum to 1.0"""
+        from src.agent.models import Strategy
+
+        strategy = Strategy(
+            name="Momentum Rotation",
+            assets=["XLK", "XLF", "XLY", "XLE"],
+            weights={"XLK": 0.4, "XLF": 0.6},  # Partial weights as default, logic_tree overrides
+            logic_tree={
+                "filter": {
+                    "universe": ["XLK", "XLF", "XLY", "XLE"],
+                    "metric": "momentum_90d",
+                    "select": "top_2"
+                }
+            },
+            rebalance_frequency="monthly",
+            rebalancing_rationale="Monthly rebalancing selects top 2 sectors by 90-day momentum, implementing sector rotation edge by systematically increasing allocation to recent winners and decreasing laggards, which exploits the 6-12 week institutional rebalancing lag."
+        )
+
+        assert sum(strategy.weights.values()) == pytest.approx(1.0)
+        assert strategy.logic_tree != {}
+
+    def test_static_strategy_requires_all_weights(self):
+        """Static strategies (empty logic_tree) must have weights for all assets"""
+        from src.agent.models import Strategy
+
+        # Missing weights for some assets
+        with pytest.raises(ValidationError, match="cover all assets"):
+            Strategy(
+                name="Static Portfolio",
+                assets=["SPY", "TLT", "GLD"],
+                weights={"SPY": 0.6, "TLT": 0.4},  # GLD missing
+                logic_tree={},  # Static strategy
+                rebalance_frequency="monthly",
+                rebalancing_rationale="Monthly rebalancing maintains target weights."
+            )
+
+    def test_static_strategy_cannot_have_empty_weights(self):
+        """Static strategies (empty logic_tree) cannot have empty weights"""
+        from src.agent.models import Strategy
+
+        with pytest.raises(ValidationError, match="cannot be empty for static strategies"):
+            Strategy(
+                name="Static Portfolio",
+                assets=["SPY", "TLT"],
+                weights={},  # Empty weights not allowed for static
+                logic_tree={},  # Static strategy
+                rebalance_frequency="monthly",
+                rebalancing_rationale="Monthly rebalancing maintains target weights."
+            )
+
+    def test_dynamic_strategy_weights_must_be_subset_of_assets(self):
+        """Dynamic strategy weights (if provided) cannot include assets not in assets list"""
+        from src.agent.models import Strategy
+
+        with pytest.raises(ValidationError, match="not in assets list"):
+            Strategy(
+                name="VIX Rotation",
+                assets=["SPY", "TLT"],
+                weights={"SPY": 0.6, "GLD": 0.4},  # GLD not in assets list
+                logic_tree={"condition": "VIX > 20"},
+                rebalance_frequency="daily",
+                rebalancing_rationale="Daily VIX rotation implements volatility regime changes by checking threshold every market day and shifting allocation when VIX crosses 20, exploiting the 2-4 day institutional rebalancing lag that exists due to committee approval requirements."
+            )
+
+    def test_dynamic_strategy_partial_weights_must_sum_to_one(self):
+        """Dynamic strategy partial weights (if provided) must sum to 1.0"""
+        from src.agent.models import Strategy
+
+        with pytest.raises(ValidationError, match="sum to"):
+            Strategy(
+                name="Momentum Rotation",
+                assets=["XLK", "XLF", "XLY"],
+                weights={"XLK": 0.3, "XLF": 0.3},  # Sums to 0.6, not 1.0
+                logic_tree={"filter": {"select": "top_2"}},
+                rebalance_frequency="monthly",
+                rebalancing_rationale="Monthly momentum rotation selects top 2 sectors by 90-day momentum, implementing sector rotation edge by systematically increasing allocation to recent winners and decreasing laggards, exploiting institutional rebalancing lag."
             )
 
 
@@ -348,7 +457,8 @@ class TestWorkflowResultModel:
                 name=f"Strategy {i+1}",
                 assets=["SPY", "AGG"],
                 weights={"SPY": 0.6, "AGG": 0.4},
-                rebalance_frequency="monthly"
+                rebalance_frequency="monthly",
+                rebalancing_rationale="Monthly rebalancing maintains target weights by systematically buying dips and selling rallies, implementing contrarian exposure that captures mean-reversion across asset classes."
             )
             for i in range(5)
         ]
@@ -404,7 +514,8 @@ class TestWorkflowResultModel:
                 name=f"Strategy {i+1}",
                 assets=["SPY"],
                 weights={"SPY": 1.0},
-                rebalance_frequency="monthly"
+                rebalance_frequency="monthly",
+                rebalancing_rationale="Monthly rebalancing maintains target weights by systematically buying dips and selling rallies, implementing contrarian exposure that captures mean-reversion across asset classes."
             )
             for i in range(3)
         ]

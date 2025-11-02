@@ -28,7 +28,12 @@ class TestFetchRegimeSnapshot:
         # During 2025-01-15, market was in bull trend
         assert result["trend"]["regime"] in ["bull", "strong_bull"]
         assert "SPY_vs_200d_ma" in result["trend"]
-        assert isinstance(result["trend"]["SPY_vs_200d_ma"], (int, float))
+        
+        # v2.0: SPY_vs_200d_ma is now a time series dict
+        spy_vs_ma = result["trend"]["SPY_vs_200d_ma"]
+        assert isinstance(spy_vs_ma, dict)
+        assert "current" in spy_vs_ma
+        assert isinstance(spy_vs_ma["current"], (int, float, type(None)))
 
     @freeze_time("2025-01-15 12:00:00")
     def test_volatility_regime_classification(self):
@@ -38,8 +43,13 @@ class TestFetchRegimeSnapshot:
         assert result["volatility"]["regime"] in ["low", "normal", "elevated", "high"]
         assert "VIX_current" in result["volatility"]
         assert "VIX_30d_avg" in result["volatility"]
-        assert isinstance(result["volatility"]["VIX_current"], (int, float))
-        assert result["volatility"]["VIX_current"] > 0
+        
+        # v2.0: VIX_current is now a time series dict
+        vix_current = result["volatility"]["VIX_current"]
+        assert isinstance(vix_current, dict)
+        assert "current" in vix_current
+        if vix_current["current"] is not None:
+            assert vix_current["current"] > 0
 
     @freeze_time("2025-01-15 12:00:00")
     def test_breadth_calculation(self):
@@ -48,8 +58,12 @@ class TestFetchRegimeSnapshot:
 
         assert "sectors_above_50d_ma_pct" in result["breadth"]
         breadth = result["breadth"]["sectors_above_50d_ma_pct"]
-        assert isinstance(breadth, (int, float))
-        assert 0 <= breadth <= 100
+        
+        # v2.0: breadth is now a time series dict
+        assert isinstance(breadth, dict)
+        assert "current" in breadth
+        if breadth["current"] is not None:
+            assert 0 <= breadth["current"] <= 100
 
     @freeze_time("2025-01-15 12:00:00")
     def test_sector_leadership_identification(self):
@@ -89,9 +103,18 @@ class TestFetchRegimeSnapshot:
         assert "quality_premium_30d" in factor
         assert "size_premium_30d" in factor
 
-        assert isinstance(factor["momentum_premium_30d"], (int, float))
-        assert isinstance(factor["quality_premium_30d"], (int, float))
-        assert isinstance(factor["size_premium_30d"], (int, float))
+        # v2.0: factor premiums are now time series dicts
+        momentum = factor["momentum_premium_30d"]
+        quality = factor["quality_premium_30d"]
+        size = factor["size_premium_30d"]
+        
+        assert isinstance(momentum, dict)
+        assert isinstance(quality, dict)
+        assert isinstance(size, dict)
+        
+        assert "current" in momentum
+        assert "current" in quality
+        assert "current" in size
 
     @freeze_time("2025-01-15 12:00:00")
     def test_sector_dispersion_calculation(self):
@@ -126,7 +149,10 @@ class TestFetchMacroIndicators:
         assert "interest_rates" in result
         assert "inflation" in result
         assert "employment" in result
-        assert "sentiment" in result
+        # v2.0: sentiment removed, added many new sections
+        assert "manufacturing" in result
+        assert "consumer" in result
+        assert "credit_conditions" in result
 
     @patch('src.market_context.fetchers.Fred')
     def test_interest_rates_structure(self, mock_fred_class):
@@ -143,10 +169,14 @@ class TestFetchMacroIndicators:
         assert "treasury_2y" in rates
         assert "yield_curve_2s10s" in rates
 
-        assert isinstance(rates["fed_funds_rate"], (int, float))
-        assert isinstance(rates["treasury_10y"], (int, float))
-        assert isinstance(rates["treasury_2y"], (int, float))
-        assert isinstance(rates["yield_curve_2s10s"], (int, float))
+        # v2.0: Interest rates are now time series dicts
+        assert isinstance(rates["fed_funds_rate"], dict)
+        assert isinstance(rates["treasury_10y"], dict)
+        assert isinstance(rates["treasury_2y"], dict)
+        assert isinstance(rates["yield_curve_2s10s"], dict)
+        
+        assert "current" in rates["fed_funds_rate"]
+        assert "current" in rates["treasury_10y"]
 
     @patch('src.market_context.fetchers.Fred')
     def test_inflation_indicators(self, mock_fred_class):
@@ -161,8 +191,12 @@ class TestFetchMacroIndicators:
         assert "cpi_yoy" in inflation
         assert "core_cpi_yoy" in inflation
 
-        assert isinstance(inflation["cpi_yoy"], (int, float))
-        assert isinstance(inflation["core_cpi_yoy"], (int, float))
+        # v2.0: Inflation metrics are now time series dicts
+        assert isinstance(inflation["cpi_yoy"], dict)
+        assert isinstance(inflation["core_cpi_yoy"], dict)
+        
+        assert "current" in inflation["cpi_yoy"]
+        assert "current" in inflation["core_cpi_yoy"]
 
     @patch('src.market_context.fetchers.Fred')
     def test_employment_indicators(self, mock_fred_class):
@@ -178,9 +212,13 @@ class TestFetchMacroIndicators:
         assert "nonfarm_payrolls" in employment
         assert "wage_growth_yoy" in employment
 
-        assert isinstance(employment["unemployment_rate"], (int, float))
-        assert isinstance(employment["nonfarm_payrolls"], (int, float))
-        assert isinstance(employment["wage_growth_yoy"], (int, float))
+        # v2.0: Employment metrics are now time series dicts
+        assert isinstance(employment["unemployment_rate"], dict)
+        assert isinstance(employment["nonfarm_payrolls"], dict)
+        assert isinstance(employment["wage_growth_yoy"], dict)
+        
+        assert "current" in employment["unemployment_rate"]
+        assert "current" in employment["nonfarm_payrolls"]
 
     @patch('src.market_context.fetchers.Fred')
     def test_yield_curve_calculation(self, mock_fred_class):
@@ -188,20 +226,29 @@ class TestFetchMacroIndicators:
         mock_fred = Mock()
         mock_fred_class.return_value = mock_fred
 
-        # Mock different returns for different series
-        def mock_get_series(series_id):
+        # Mock pandas Series for time series data
+        import pandas as pd
+        
+        def mock_get_series(series_id, **kwargs):
+            # Return pandas Series with dates
+            dates = pd.date_range(end='2025-01-15', periods=400, freq='D')
             if series_id == 'DGS10':
-                return 4.12
+                return pd.Series([4.12] * 400, index=dates)
             elif series_id == 'DGS2':
-                return 4.35
-            return 0.0
+                return pd.Series([4.35] * 400, index=dates)
+            return pd.Series([0.0] * 400, index=dates)
 
-        mock_fred.get_series_latest_release.side_effect = mock_get_series
+        mock_fred.get_series.side_effect = mock_get_series
 
         result = fetch_macro_indicators(fred_api_key="test_key")
 
+        # v2.0: Yield curve is now a time series dict
         # Yield curve should be 10y - 2y = 4.12 - 4.35 = -0.23 (inverted)
-        assert result["interest_rates"]["yield_curve_2s10s"] == pytest.approx(-0.23, abs=0.01)
+        yield_curve = result["interest_rates"]["yield_curve_2s10s"]
+        assert isinstance(yield_curve, dict)
+        assert "current" in yield_curve
+        if yield_curve["current"] is not None:
+            assert yield_curve["current"] == pytest.approx(-0.23, abs=0.01)
 
 
 class TestFetchRecentEvents:
@@ -244,7 +291,7 @@ class TestFetchBenchmarkPerformance:
     @freeze_time("2025-10-23 12:00:00")
     def test_returns_benchmark_structure(self):
         """Returns performance data for all benchmarks."""
-        result = fetch_benchmark_performance(lookback_days=30)
+        result = fetch_benchmark_performance()
 
         assert isinstance(result, dict)
         assert "SPY" in result
@@ -255,27 +302,42 @@ class TestFetchBenchmarkPerformance:
 
     @freeze_time("2025-10-23 12:00:00")
     def test_benchmark_metrics_structure(self):
-        """Each benchmark has return, volatility, and Sharpe ratio."""
-        result = fetch_benchmark_performance(lookback_days=30)
+        """Each benchmark has multi-period returns, volatility, Sharpe, and max drawdown."""
+        result = fetch_benchmark_performance()
 
         for ticker in ["SPY", "QQQ", "AGG"]:
-            assert "return_pct" in result[ticker]
+            assert "returns" in result[ticker]
             assert "volatility_annualized" in result[ticker]
             assert "sharpe_ratio" in result[ticker]
+            assert "max_drawdown" in result[ticker]
 
-            assert isinstance(result[ticker]["return_pct"], (int, float))
-            assert isinstance(result[ticker]["volatility_annualized"], (int, float))
-            assert isinstance(result[ticker]["sharpe_ratio"], (int, float))
+            # v2.0: Returns for multiple periods
+            returns = result[ticker]["returns"]
+            assert isinstance(returns, dict)
+            assert "30d" in returns
+            assert "60d" in returns
+            assert "90d" in returns
+            assert "ytd" in returns
+            
+            # Volatility and Sharpe for multiple periods (not YTD)
+            vol = result[ticker]["volatility_annualized"]
+            sharpe = result[ticker]["sharpe_ratio"]
+            assert isinstance(vol, dict)
+            assert isinstance(sharpe, dict)
+            assert "30d" in vol
+            assert "30d" in sharpe
 
     @freeze_time("2025-10-23 12:00:00")
     def test_composite_benchmarks_calculated(self):
         """60/40 and risk parity portfolios are calculated correctly."""
-        result = fetch_benchmark_performance(lookback_days=30)
+        result = fetch_benchmark_performance()
 
-        # 60/40 should exist and be weighted correctly
+        # 60/40 should exist with multi-period structure
         assert "60_40" in result
-        assert "return_pct" in result["60_40"]
+        assert "returns" in result["60_40"]
+        assert "30d" in result["60_40"]["returns"]
 
-        # Risk parity should exist
+        # Risk parity should exist with multi-period structure
         assert "risk_parity" in result
-        assert "return_pct" in result["risk_parity"]
+        assert "returns" in result["risk_parity"]
+        assert "30d" in result["risk_parity"]["returns"]

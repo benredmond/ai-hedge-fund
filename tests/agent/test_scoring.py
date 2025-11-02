@@ -20,7 +20,8 @@ class TestEdgeScorer:
             name="3-Month Tech Momentum",
             assets=['QQQ', 'XLK', 'MTUM'],
             weights={'QQQ': 0.5, 'XLK': 0.3, 'MTUM': 0.2},
-            rebalance_frequency='weekly'
+            rebalance_frequency='weekly',
+            rebalancing_rationale="Buy-and-hold approach lets winners compound without mechanically trimming positions, implementing momentum persistence by allowing natural concentration in outperformers rather than selling winners back to fixed weights."
         )
         context = {
             'regime_tags': ['strong_bull', 'growth_favored', 'volatility_normal'],
@@ -51,7 +52,8 @@ class TestEdgeScorer:
             name="60/40 Portfolio",
             assets=['SPY', 'AGG'],
             weights={'SPY': 0.6, 'AGG': 0.4},
-            rebalance_frequency='monthly'
+            rebalance_frequency='monthly',
+            rebalancing_rationale="Monthly equal-weight rebalancing implements mean-reversion by mechanically buying relative losers and selling relative winners, exploiting sector rotation overshoots that typically reverse within 30-60 days."
         )
         context = {
             'regime_tags': ['strong_bull'],
@@ -80,7 +82,8 @@ class TestEdgeScorer:
             assets=['QQQ', 'AGG', 'GLD'],
             weights={'QQQ': 0.5, 'AGG': 0.3, 'GLD': 0.2},
             rebalance_frequency='weekly',
-            logic_tree={'condition': 'VIX < 20', 'true_branch': {}}
+            logic_tree={'condition': 'VIX < 20', 'true_branch': {}},
+            rebalancing_rationale="Weekly rebalancing exploits volatility regime transitions by rapidly shifting between growth and defensive assets when VIX crosses key thresholds, capturing inefficiencies in institutional rebalancing lags."
         )
         context = {
             'regime_tags': ['growth_favored', 'volatility_normal'],

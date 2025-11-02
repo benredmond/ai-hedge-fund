@@ -51,7 +51,8 @@ def sample_candidates():
             assets=[f"TICKER{i}", f"TICKER{i+1}"],
             weights={f"TICKER{i}": 0.6, f"TICKER{i+1}": 0.4},
             rebalance_frequency=RebalanceFrequency.MONTHLY,
-            logic_tree={}
+            logic_tree={},
+            rebalancing_rationale="Monthly rebalancing maintains target weights by systematically buying dips and selling rallies, implementing contrarian exposure that captures mean-reversion across asset classes."
         )
         for i in range(5)
     ]
@@ -127,7 +128,8 @@ class TestCandidateGenerator:
                     assets=["SPY"],
                     weights={"SPY": 1.0},
                     rebalance_frequency=RebalanceFrequency.MONTHLY,
-                    logic_tree={}
+                    logic_tree={},
+                    rebalancing_rationale="Monthly rebalancing maintains target weights by systematically buying dips and selling rallies, implementing contrarian exposure that captures mean-reversion across asset classes."
                 )
             ]  # Only 1 strategy instead of 5
             mock_agent.run.return_value = mock_result
@@ -166,7 +168,8 @@ class TestCandidateGenerator:
                         assets=tickers,
                         weights=weights,
                         rebalance_frequency=RebalanceFrequency.MONTHLY,
-                        logic_tree={}
+                        logic_tree={},
+                        rebalancing_rationale="Monthly rebalancing maintains target weights by systematically buying dips and selling rallies, implementing contrarian exposure that captures mean-reversion across asset classes."
                     )
                 )
 

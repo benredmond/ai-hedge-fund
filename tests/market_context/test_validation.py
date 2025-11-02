@@ -15,14 +15,17 @@ class TestValidateContextPack:
                 "anchor_date": "2025-01-15T12:00:00",
                 "data_cutoff": "2025-01-15T12:00:00",
                 "generated_at": datetime.utcnow().isoformat(),
-                "version": "v1.0.0"
+                "version": "v2.0.0"  # v2.0
             },
             "regime_snapshot": {
                 "trend": {"regime": "bull"},
                 "volatility": {"regime": "normal"}
             },
             "macro_indicators": {
-                "interest_rates": {"fed_funds_rate": 5.25}
+                "interest_rates": {"fed_funds_rate": {"current": 5.25}}  # v2.0: time series
+            },
+            "benchmark_performance": {  # v2.0: renamed from benchmark_performance_30d
+                "SPY": {"returns": {"30d": 2.5}}
             },
             "recent_events": [
                 {"date": "2025-01-10", "headline": "Test"}
@@ -42,10 +45,11 @@ class TestValidateContextPack:
                 "anchor_date": "2025-01-15T12:00:00",
                 "data_cutoff": "2025-01-15T12:00:00",
                 "generated_at": datetime.utcnow().isoformat(),
-                "version": "v1.0.0"
+                "version": "v2.0.0"
             },
             "regime_snapshot": {},
             "macro_indicators": {},
+            "benchmark_performance": {},  # v2.0: required field
             "recent_events": [
                 {"date": "2025-01-20", "headline": "Future event!"}  # After anchor
             ],
@@ -78,10 +82,11 @@ class TestValidateContextPack:
                 "anchor_date": "2025-01-15T12:00:00",
                 "data_cutoff": "2025-01-15T12:00:00",
                 "generated_at": datetime.utcnow().isoformat(),
-                "version": "v1.0.0"
+                "version": "v2.0.0"
             },
             "regime_snapshot": {},
             "macro_indicators": {},
+            "benchmark_performance": {},  # v2.0: required field
             "recent_events": [],
             "regime_tags": "not_a_list"  # Invalid type
         }
@@ -99,10 +104,11 @@ class TestValidateContextPack:
                 "anchor_date": "2025-01-15T12:00:00",
                 "data_cutoff": "2025-01-15T12:00:00",
                 "generated_at": "2025-01-14T12:00:00",  # 24 hours old
-                "version": "v1.0.0"
+                "version": "v2.0.0"
             },
             "regime_snapshot": {},
             "macro_indicators": {},
+            "benchmark_performance": {},  # v2.0: required field
             "recent_events": [],
             "regime_tags": []
         }

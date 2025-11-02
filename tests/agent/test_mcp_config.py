@@ -17,8 +17,8 @@ class TestMCPConfiguration:
 
         # Should be callable and return async context manager
         servers_cm = get_mcp_servers()
-        assert hasattr(servers_cm, '__aenter__')
-        assert hasattr(servers_cm, '__aexit__')
+        assert hasattr(servers_cm, "__aenter__")
+        assert hasattr(servers_cm, "__aexit__")
 
     @pytest.mark.asyncio
     async def test_mcp_servers_initialized(self):
@@ -27,7 +27,7 @@ class TestMCPConfiguration:
 
         async with get_mcp_servers() as servers:
             # Should have FRED and yfinance servers (Composer deferred)
-            assert 'fred' in servers or 'yfinance' in servers
+            assert "fred" in servers or "yfinance" in servers
             assert isinstance(servers, dict)
 
     @pytest.mark.asyncio
@@ -38,7 +38,7 @@ class TestMCPConfiguration:
         server = create_fred_server()
 
         # Check it's the right type
-        assert hasattr(server, '__aenter__')  # Context manager
+        assert hasattr(server, "__aenter__")  # Context manager
 
         # Verify configuration (tool prefix will be checked in integration test)
         assert server is not None
@@ -51,7 +51,7 @@ class TestMCPConfiguration:
         server = create_yfinance_server()
 
         # Check it's the right type
-        assert hasattr(server, '__aenter__')  # Context manager
+        assert hasattr(server, "__aenter__")  # Context manager
         assert server is not None
 
     @pytest.mark.asyncio
@@ -81,8 +81,8 @@ class TestToolPrefixing:
 
         server_params = StdioServerParameters(
             command="node",
-            args=["/Users/ben/dev/fred-mcp-server/build/index.js"],
-            env={"FRED_API_KEY": os.getenv("FRED_API_KEY")}
+            args=["/Users/ben/dev/mcp/fred-mcp-server/build/index.js"],
+            env={"FRED_API_KEY": os.getenv("FRED_API_KEY")},
         )
 
         async with stdio_client(server_params) as (read, write):
@@ -101,12 +101,11 @@ class TestToolPrefixing:
         from mcp.client.stdio import stdio_client, StdioServerParameters
         from mcp.client.session import ClientSession
 
-        yfinance_venv_python = "/Users/ben/dev/yahoo-finance-mcp/.venv/bin/python"
-        yfinance_mcp_path = "/Users/ben/dev/yahoo-finance-mcp/server.py"
+        yfinance_venv_python = "/Users/ben/dev/mcp/yahoo-finance-mcp/.venv/bin/python"
+        yfinance_mcp_path = "/Users/ben/dev/mcp/yahoo-finance-mcp/server.py"
 
         server_params = StdioServerParameters(
-            command=yfinance_venv_python,
-            args=[yfinance_mcp_path]
+            command=yfinance_venv_python, args=[yfinance_mcp_path]
         )
 
         async with stdio_client(server_params) as (read, write):
@@ -123,7 +122,7 @@ class TestMCPServerPaths:
 
     def test_fred_mcp_path_exists(self):
         """FRED MCP server path exists"""
-        fred_path = "/Users/ben/dev/fred-mcp-server/build/index.js"
+        fred_path = "/Users/ben/dev/mcp/fred-mcp-server/build/index.js"
 
         if not os.path.exists(fred_path):
             pytest.skip(f"FRED MCP not found at {fred_path}")
@@ -132,7 +131,7 @@ class TestMCPServerPaths:
 
     def test_yfinance_mcp_path_exists(self):
         """yfinance MCP server path exists"""
-        yfinance_path = "/Users/ben/dev/yahoo-finance-mcp/server.py"
+        yfinance_path = "/Users/ben/dev/mcp/yahoo-finance-mcp/server.py"
 
         if not os.path.exists(yfinance_path):
             pytest.skip(f"yfinance MCP not found at {yfinance_path}")
@@ -141,7 +140,7 @@ class TestMCPServerPaths:
 
     def test_yfinance_venv_exists(self):
         """yfinance MCP dedicated venv exists"""
-        venv_python = "/Users/ben/dev/yahoo-finance-mcp/.venv/bin/python"
+        venv_python = "/Users/ben/dev/mcp/yahoo-finance-mcp/.venv/bin/python"
 
         if not os.path.exists(venv_python):
             pytest.skip(f"yfinance venv not found at {venv_python}")

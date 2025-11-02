@@ -57,35 +57,40 @@ class TestCreateStrategyWorkflow:
                     assets=['SPY', 'QQQ', 'AGG'],
                     weights={'SPY': 0.5, 'QQQ': 0.3, 'AGG': 0.2},
                     rebalance_frequency='monthly',
-                    failure_modes=["VIX spike above 30", "Tech underperformance", "Rate spike"]
+                    failure_modes=["VIX spike above 30", "Tech underperformance", "Rate spike"],
+                    rebalancing_rationale="Buy-and-hold approach lets winners compound without mechanically trimming positions, implementing momentum persistence by allowing natural concentration in outperformers rather than selling winners back to fixed weights."
                 ),
                 Strategy(
                     name="Quality Defensive 60-40 Portfolio",
                     assets=['SPY', 'AGG', 'GLD'],
                     weights={'SPY': 0.4, 'AGG': 0.4, 'GLD': 0.2},
                     rebalance_frequency='monthly',
-                    failure_modes=["Rising rates compress bonds", "Inflation spike", "Flight to risk"]
+                    failure_modes=["Rising rates compress bonds", "Inflation spike", "Flight to risk"],
+                    rebalancing_rationale="Monthly equal-weight rebalancing implements mean-reversion by mechanically buying relative losers and selling relative winners, exploiting sector rotation overshoots that typically reverse within 30-60 days."
                 ),
                 Strategy(
                     name="4-Asset Global Growth Allocation",
                     assets=['SPY', 'IWM', 'AGG', 'GLD'],
                     weights={'SPY': 0.4, 'IWM': 0.2, 'AGG': 0.3, 'GLD': 0.1},
                     rebalance_frequency='monthly',
-                    failure_modes=["International underperformance", "Dollar strength", "Risk-off environment"]
+                    failure_modes=["International underperformance", "Dollar strength", "Risk-off environment"],
+                    rebalancing_rationale="Monthly rebalancing maintains target weights by systematically buying dips and selling rallies, implementing contrarian exposure that captures mean-reversion across asset classes."
                 ),
                 Strategy(
                     name="Value Factor 3-Asset Rotation",
                     assets=['SPY', 'QQQ', 'TLT'],
                     weights={'SPY': 0.5, 'QQQ': 0.3, 'TLT': 0.2},
                     rebalance_frequency='monthly',
-                    failure_modes=["Growth outperforms value", "Quality premium reversal", "Small cap weakness"]
+                    failure_modes=["Growth outperforms value", "Quality premium reversal", "Small cap weakness"],
+                    rebalancing_rationale="Weekly rebalancing exploits short-term factor mean reversion by rapidly rotating into undervalued sectors before institutional capital flows arrive, capturing transient pricing dislocations."
                 ),
                 Strategy(
                     name="Gold-Tilted 3-Asset Inflation Play",
                     assets=['GLD', 'TLT', 'IWM'],
                     weights={'GLD': 0.5, 'TLT': 0.3, 'IWM': 0.2},
                     rebalance_frequency='monthly',
-                    failure_modes=["Deflation scenario", "Dollar strength", "Commodity collapse"]
+                    failure_modes=["Deflation scenario", "Dollar strength", "Commodity collapse"],
+                    rebalancing_rationale="Monthly rebalancing maintains inflation hedge by systematically adding to gold on dips and trimming on rallies, ensuring consistent commodity exposure across inflation regime shifts."
                 ),
             ]
             mock_generate.return_value = mock_candidates
