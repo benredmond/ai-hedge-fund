@@ -100,6 +100,25 @@ Return your evaluation as a JSON object with scores for all 5 dimensions.
             result = await agent.run(prompt)
             raw_output = result.output
 
+        # Debug logging: Print full LLM response for debugging format issues
+        print(f"\n[DEBUG:EdgeScorer] LLM response type: {type(raw_output)}")
+        if isinstance(raw_output, dict):
+            print(f"[DEBUG:EdgeScorer] Response keys: {list(raw_output.keys())}")
+            print(f"[DEBUG:EdgeScorer] Response preview (first 500 chars): {str(raw_output)[:500]}...")
+        else:
+            print(f"[DEBUG:EdgeScorer] Non-dict response: {str(raw_output)[:200]}...")
+
+        # Unwrap nested response if model wraps in single-key dict (e.g., Kimi K2 uses "evaluation")
+        # This handles provider differences while preserving GPT-4o flat format compatibility
+        if isinstance(raw_output, dict) and len(raw_output) == 1:
+            wrapper_key = list(raw_output.keys())[0]
+            # Check if it's a known wrapper pattern (not a legitimate single-field response)
+            known_wrappers = ["evaluation", "result", "data", "output", "response"]
+            if wrapper_key in known_wrappers:
+                print(f"[DEBUG:EdgeScorer] Unwrapping '{wrapper_key}' wrapper from LLM response")
+                raw_output = raw_output[wrapper_key]
+                print(f"[DEBUG:EdgeScorer] After unwrap - keys: {list(raw_output.keys()) if isinstance(raw_output, dict) else 'not-dict'}")
+
         # Parse the rich output format from the new prompt
         # The prompt returns: {dimension: {score: X, reasoning: ..., evidence_cited: ..., ...}}
         # We need to extract just the scores to create EdgeScorecard

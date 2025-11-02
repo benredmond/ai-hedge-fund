@@ -24,21 +24,16 @@ from pydantic_ai.tools import RunContext
 
 # MCP Server Paths - configurable via environment variables
 FRED_MCP_PATH = os.getenv(
-    'FRED_MCP_PATH',
-    str(Path.home() / 'dev/fred-mcp-server/build/index.js')
+    "FRED_MCP_PATH", str(Path.home() / "dev/fred-mcp-server/build/index.js")
 )
 YFINANCE_MCP_PATH = os.getenv(
-    'YFINANCE_MCP_PATH',
-    str(Path.home() / 'dev/yahoo-finance-mcp/server.py')
+    "YFINANCE_MCP_PATH", str(Path.home() / "dev/mcp/yahoo-finance-mcp/server.py")
 )
 YFINANCE_VENV_PYTHON = os.getenv(
-    'YFINANCE_VENV_PYTHON',
-    str(Path.home() / 'dev/yahoo-finance-mcp/.venv/bin/python')
+    "YFINANCE_VENV_PYTHON",
+    str(Path.home() / "dev/mcp/yahoo-finance-mcp/.venv/bin/python"),
 )
-COMPOSER_MCP_URL = os.getenv(
-    'COMPOSER_MCP_URL',
-    'https://mcp.composer.trade/mcp/'
-)
+COMPOSER_MCP_URL = os.getenv("COMPOSER_MCP_URL", "https://mcp.composer.trade/mcp/")
 
 
 # Tool result compression configuration
@@ -47,10 +42,7 @@ SUMMARIZATION_MODEL = os.getenv("SUMMARIZATION_MODEL", "openai:gpt-5-mini")
 
 
 async def compress_tool_result(
-    ctx: RunContext[Any],
-    call_tool_func,
-    name: str,
-    args: dict[str, Any]
+    ctx: RunContext[Any], call_tool_func, name: str, args: dict[str, Any]
 ) -> Any:
     """
     Compress large tool results before they're added to conversation history.
@@ -77,15 +69,14 @@ async def compress_tool_result(
         result = await call_tool_func(name, args, metadata=None)
         return result
 
-
     # Call original tool
     result = await call_tool_func(name, args, metadata=None)
 
     # Only compress data-heavy tools
     data_heavy_tools = [
-        'fred_get_series',  # Returns long time series
-        'fred_search',  # Returns many search results with descriptions
-        'stock_get_historical_stock_prices',  # Returns price history
+        "fred_get_series",  # Returns long time series
+        "fred_search",  # Returns many search results with descriptions
+        "stock_get_historical_stock_prices",  # Returns price history
     ]
 
     if name not in data_heavy_tools:
@@ -97,18 +88,21 @@ async def compress_tool_result(
         if len(result_str) < 200:
             return result  # Too small to bother compressing
     except (TypeError, ValueError, UnicodeDecodeError) as e:
-        print(f"Warning: Cannot serialize tool result for size check: {e.__class__.__name__}: {e}")
-        print(f"Tool result type: {type(result)}, keys: {result.keys() if isinstance(result, dict) else 'N/A'}")
+        print(
+            f"Warning: Cannot serialize tool result for size check: {e.__class__.__name__}: {e}"
+        )
+        print(
+            f"Tool result type: {type(result)}, keys: {result.keys() if isinstance(result, dict) else 'N/A'}"
+        )
         return result  # Proceed without compression
 
     # Import here to avoid circular dependency
     from src.agent.tool_result_summarizer import SummarizationService
 
     # Create summarizer (cached globally on first use)
-    if not hasattr(compress_tool_result, '_summarizer'):
+    if not hasattr(compress_tool_result, "_summarizer"):
         compress_tool_result._summarizer = SummarizationService(
-            model=SUMMARIZATION_MODEL,
-            enabled=True
+            model=SUMMARIZATION_MODEL, enabled=True
         )
 
     summarizer = compress_tool_result._summarizer
@@ -117,14 +111,20 @@ async def compress_tool_result(
         # Summarize the result
         summary_data = await summarizer.summarize(name, result)
 
-        # Log compression stats
-        print(f"[COMPRESS] {name}: {summary_data['original_tokens']} → "
-              f"{summary_data['summary_tokens']} tokens "
-              f"({summary_data['savings']} saved)")
-
         # Return just the summary content (not the metadata dict)
         # The summary is already a dict/str from the LLM
-        summary_content = summary_data['summary']
+        summary_content = summary_data["summary"]
+
+        # Log compression stats with content preview
+        original_preview = str(result)[:100] if result else "N/A"
+        summary_preview = str(summary_content)[:100] if summary_content else "N/A"
+        print(
+            f"[COMPRESS] {name}: {summary_data['original_tokens']} → "
+            f"{summary_data['summary_tokens']} tokens "
+            f"({summary_data['savings']} saved)"
+        )
+        print(f"[COMPRESS]   Before: {original_preview}...")
+        print(f"[COMPRESS]   After:  {summary_preview}...")
 
         # If the LLM returned a string, parse it as JSON if possible
         if isinstance(summary_content, str):
@@ -137,16 +137,22 @@ async def compress_tool_result(
                 summary_content = {
                     "error": "summarization_failed",
                     "raw_output": summary_content[:500],
-                    "message": "LLM returned non-JSON response"
+                    "message": "LLM returned non-JSON response",
                 }
 
         # HARD CAP: Ensure result never exceeds 150 tokens (~600 chars)
         # This is a safety net in case LLM ignores the 30 token limit
         # WARNING: Truncation may produce invalid JSON or incomplete data
         try:
-            result_str = json.dumps(summary_content) if not isinstance(summary_content, str) else summary_content
+            result_str = (
+                json.dumps(summary_content)
+                if not isinstance(summary_content, str)
+                else summary_content
+            )
             if len(result_str) > 600:
-                print(f"Warning: Summary exceeds 600 char limit ({len(result_str)} chars), truncating")
+                print(
+                    f"Warning: Summary exceeds 600 char limit ({len(result_str)} chars), truncating"
+                )
                 # Truncate to 600 chars if it's too long
                 if isinstance(summary_content, str):
                     summary_content = summary_content[:600]
@@ -176,7 +182,7 @@ def create_fred_server() -> MCPServerStdio:
     Returns:
         MCPServerStdio configured for FRED economic data access
     """
-    fred_api_key = os.getenv('FRED_API_KEY')
+    fred_api_key = os.getenv("FRED_API_KEY")
     if not fred_api_key:
         raise ValueError(
             "FRED_API_KEY not set. Get a free key at: "
@@ -184,12 +190,12 @@ def create_fred_server() -> MCPServerStdio:
         )
 
     return MCPServerStdio(
-        command='node',
+        command="node",
         args=[FRED_MCP_PATH],
-        env={'FRED_API_KEY': fred_api_key},
-        tool_prefix='fred',
+        env={"FRED_API_KEY": fred_api_key},
+        tool_prefix="fred",
         timeout=30,  # Increase from default 5s for slower environments
-        process_tool_call=compress_tool_result if COMPRESS_MCP_RESULTS else None
+        process_tool_call=compress_tool_result if COMPRESS_MCP_RESULTS else None,
     )
 
 
@@ -197,7 +203,7 @@ def create_yfinance_server() -> MCPServerStdio:
     """
     Create yfinance MCP server configuration.
 
-    CRITICAL: Uses dedicated venv at /Users/ben/dev/yahoo-finance-mcp/.venv/
+    CRITICAL: Uses dedicated venv at /Users/ben/dev/mcp/yahoo-finance-mcp/.venv/
     DO NOT use project's Python interpreter.
 
     Returns:
@@ -211,16 +217,14 @@ def create_yfinance_server() -> MCPServerStdio:
         )
 
     if not os.path.exists(YFINANCE_MCP_PATH):
-        raise FileNotFoundError(
-            f"yfinance MCP server not found at {YFINANCE_MCP_PATH}"
-        )
+        raise FileNotFoundError(f"yfinance MCP server not found at {YFINANCE_MCP_PATH}")
 
     return MCPServerStdio(
         command=YFINANCE_VENV_PYTHON,
         args=[YFINANCE_MCP_PATH],
-        tool_prefix='stock',
+        tool_prefix="stock",
         timeout=30,  # Increase from default 5s for slower environments
-        process_tool_call=compress_tool_result if COMPRESS_MCP_RESULTS else None
+        process_tool_call=compress_tool_result if COMPRESS_MCP_RESULTS else None,
     )
 
 
@@ -241,8 +245,8 @@ def create_composer_server() -> MCPServerStreamableHTTP:
     Raises:
         ValueError: If COMPOSER_API_KEY or COMPOSER_API_SECRET not set
     """
-    api_key = os.getenv('COMPOSER_API_KEY')
-    api_secret = os.getenv('COMPOSER_API_SECRET')
+    api_key = os.getenv("COMPOSER_API_KEY")
+    api_secret = os.getenv("COMPOSER_API_SECRET")
 
     if not api_key or not api_secret:
         raise ValueError(
@@ -256,11 +260,11 @@ def create_composer_server() -> MCPServerStreamableHTTP:
 
     return MCPServerStreamableHTTP(
         url=COMPOSER_MCP_URL,
-        headers={'Authorization': f'Basic {encoded_credentials}'},
-        timeout=30,          # Connection timeout (increased from 5s)
-        read_timeout=300,    # Read timeout (5 minutes)
-        tool_prefix='composer',
-        process_tool_call=compress_tool_result if COMPRESS_MCP_RESULTS else None
+        headers={"Authorization": f"Basic {encoded_credentials}"},
+        timeout=30,  # Connection timeout (increased from 5s)
+        read_timeout=300,  # Read timeout (5 minutes)
+        tool_prefix="composer",
+        process_tool_call=compress_tool_result if COMPRESS_MCP_RESULTS else None,
     )
 
 
@@ -287,7 +291,7 @@ async def get_mcp_servers():
 
     try:
         # Add FRED server
-        servers['fred'] = create_fred_server()
+        servers["fred"] = create_fred_server()
     except (ValueError, FileNotFoundError) as e:
         error_msg = f"FRED MCP server failed: {e}"
         print(f"Warning: {error_msg}")
@@ -295,7 +299,7 @@ async def get_mcp_servers():
 
     try:
         # Add yfinance server
-        servers['yfinance'] = create_yfinance_server()
+        servers["yfinance"] = create_yfinance_server()
     except FileNotFoundError as e:
         error_msg = f"yfinance MCP server failed: {e}"
         print(f"Warning: {error_msg}")
@@ -303,7 +307,7 @@ async def get_mcp_servers():
 
     try:
         # Add Composer server
-        servers['composer'] = create_composer_server()
+        servers["composer"] = create_composer_server()
     except (ValueError, FileNotFoundError) as e:
         error_msg = f"Composer MCP server failed: {e}"
         print(f"Warning: {error_msg}")
@@ -316,7 +320,9 @@ async def get_mcp_servers():
             print(f"  - {err}")
         print(f"\nContinuing with {len(servers)}/3 servers available")
         if len(servers) < 2:
-            print("WARNING: Running with degraded capabilities - strategy quality may be reduced")
+            print(
+                "WARNING: Running with degraded capabilities - strategy quality may be reduced"
+            )
 
     if not servers:
         raise RuntimeError(
@@ -341,27 +347,23 @@ def get_available_tools() -> Dict[str, list]:
         Dict mapping server name to list of tool names
     """
     tools = {
-        'fred': [
-            'fred_browse',
-            'fred_search',
-            'fred_get_series'
+        "fred": ["fred_browse", "fred_search", "fred_get_series"],
+        "yfinance": [
+            "stock_get_stock_info",
+            "stock_get_historical_stock_prices",
+            "stock_get_yahoo_finance_news",
+            "stock_get_financial_statement",
+            "stock_get_holder_info",
+            "stock_get_option_chain",
         ],
-        'yfinance': [
-            'stock_get_stock_info',
-            'stock_get_historical_stock_prices',
-            'stock_get_yahoo_finance_news',
-            'stock_get_financial_statement',
-            'stock_get_holder_info',
-            'stock_get_option_chain'
+        "composer": [
+            "composer_create_symphony",
+            "composer_search_symphonies",
+            "composer_backtest_symphony",
+            "composer_backtest_symphony_by_id",
+            "composer_list_accounts",
+            "composer_get_account_holdings",
+            "composer_get_symphony_daily_performance",
         ],
-        'composer': [
-            'composer_create_symphony',
-            'composer_search_symphonies',
-            'composer_backtest_symphony',
-            'composer_backtest_symphony_by_id',
-            'composer_list_accounts',
-            'composer_get_account_holdings',
-            'composer_get_symphony_daily_performance'
-        ]
     }
     return tools

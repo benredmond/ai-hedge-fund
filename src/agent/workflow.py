@@ -68,6 +68,23 @@ async def create_strategy_workflow(
     candidates = await candidate_gen.generate(market_context, model)
     print(f"✓ Generated {len(candidates)} candidates")
 
+    # Debug: Print candidate details
+    print("\n" + "="*80)
+    print("GENERATED CANDIDATES:")
+    print("="*80)
+    for i, candidate in enumerate(candidates, 1):
+        print(f"\n{i}. {candidate.name}")
+        print(f"   Assets: {', '.join(candidate.assets)}")
+        # Handle weights as dict (model converts list to dict in validator)
+        if isinstance(candidate.weights, dict):
+            weight_strs = [f"{asset}: {weight:.2%}" for asset, weight in candidate.weights.items()]
+            print(f"   Weights: {', '.join(weight_strs)}")
+        else:
+            print(f"   Weights: {candidate.weights}")
+        print(f"   Rebalance: {candidate.rebalance_frequency.value}")
+        print(f"   Logic Tree: {'Yes' if candidate.logic_tree else 'Static allocation'}")
+    print("="*80 + "\n")
+
     # Stage 2: Evaluate Edge Scorecard (parallel scoring)
     print("Stage 2/4: Evaluating Edge Scorecard...")
     scoring_tasks = [
