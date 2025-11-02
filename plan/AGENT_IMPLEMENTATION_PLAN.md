@@ -135,7 +135,7 @@ async with agent_ctx as agent:
 
 ```python
 # ❌ AVOID: Hardcoded paths (won't work on other machines)
-FRED_MCP_PATH = "/Users/ben/dev/fred-mcp-server/build/index.js"
+FRED_MCP_PATH = "/Users/ben/dev/mcp/fred-mcp-server/build/index.js"
 
 # ✅ CORRECT: Environment variables with sensible defaults
 from pathlib import Path

@@ -58,7 +58,7 @@ pytest tests/agent/test_fred_mcp.py -v -s
 
 ### Installation
 
-**Already installed** at `/Users/ben/dev/yahoo-finance-mcp/`
+**Already installed** at `/Users/ben/dev/mcp/yahoo-finance-mcp/`
 
 This is a Python-based MCP server (not Node.js like FRED).
 
@@ -66,8 +66,8 @@ This is a Python-based MCP server (not Node.js like FRED).
 
 ### Configuration
 
-**Server script**: `/Users/ben/dev/yahoo-finance-mcp/server.py`
-**Python environment**: `/Users/ben/dev/yahoo-finance-mcp/.venv/bin/python`
+**Server script**: `/Users/ben/dev/mcp/yahoo-finance-mcp/server.py`
+**Python environment**: `/Users/ben/dev/mcp/yahoo-finance-mcp/.venv/bin/python`
 
 The server uses its own virtual environment with dependencies (pandas, yfinance, etc.).
 
@@ -149,15 +149,15 @@ import os
 # FRED MCP (Node.js stdio)
 fred_server = MCPServerStdio(
     'node',
-    args=['/Users/ben/dev/fred-mcp-server/build/index.js'],
+    args=['/Users/ben/dev/mcp/fred-mcp-server/build/index.js'],
     tool_prefix='fred',
     env={'FRED_API_KEY': os.getenv('FRED_API_KEY')}
 )
 
 # yfinance MCP (Python stdio)
 yfinance_server = MCPServerStdio(
-    '/Users/ben/dev/yahoo-finance-mcp/.venv/bin/python',
-    args=['/Users/ben/dev/yahoo-finance-mcp/server.py'],
+    '/Users/ben/dev/mcp/yahoo-finance-mcp/.venv/bin/python',
+    args=['/Users/ben/dev/mcp/yahoo-finance-mcp/server.py'],
     tool_prefix='stock'
 )
 
@@ -188,7 +188,7 @@ After Phase 1 completion:
 - [x] `pip list | grep mcp` shows package installed (v1.19.0)
 - [x] FRED MCP server built successfully (`ls ~/dev/fred-mcp-server/build/index.js`)
 - [x] FRED MCP connectivity test passing (`pytest tests/agent/test_fred_mcp.py`)
-- [x] yfinance MCP server configured (`ls ~/dev/yahoo-finance-mcp/server.py`)
+- [x] yfinance MCP server configured (`ls ~/dev/mcp/yahoo-finance-mcp/server.py`)
 - [x] yfinance MCP connectivity test passing (`pytest tests/agent/test_yfinance_mcp.py`)
 - [x] Composer credentials in `.env` (`grep COMPOSER_API_KEY .env`)
 - [x] Composer endpoint reachable (`pytest tests/agent/test_composer_endpoint.py`)
@@ -220,7 +220,7 @@ After Phase 1 completion:
 
 ### Import errors in Python MCP server
 - **Cause**: Using wrong Python interpreter (project venv vs server venv)
-- **Fix**: Always use server's own venv: `/Users/ben/dev/yahoo-finance-mcp/.venv/bin/python`
+- **Fix**: Always use server's own venv: `/Users/ben/dev/mcp/yahoo-finance-mcp/.venv/bin/python`
 
 ### Network timeouts
 - **Cause**: Slow first-time data fetching (yfinance caching)
