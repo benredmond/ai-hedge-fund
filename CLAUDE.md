@@ -203,7 +203,7 @@ See `docs/market_context_schema.md` for complete schema documentation.
 **Phase 1: Strategy Creation**
 - AI receives: comprehensive market context pack (pre-analyzed regime data), historical data access, Composer tools
 - Market context pack includes: macro indicators, market regime, sector leadership, factor premiums, benchmark performance, recent events, optional manual Composer pattern examples
-- AI generates: 5 candidate strategies (tools available but optional - use only for data gaps)
+- AI generates: 5 candidate strategies (context pack provides macro/sectors; tools used for stocks, factor ETFs, fundamentals)
 - AI outputs: 1 selected "symphony" + charter document
 - Charter must include: market thesis, why now, expected behavior, failure modes, selection reasoning
 

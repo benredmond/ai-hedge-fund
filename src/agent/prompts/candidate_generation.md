@@ -87,6 +87,47 @@ Based on Step 1.2 regime:
 
 ## PHASE 2: GENERATE (Framework-Driven)
 
+### Step 2.0: MANDATORY Pre-Generation Gap Analysis
+
+**BEFORE generating any Strategy objects, identify data gaps and fetch missing data:**
+
+For EACH of your 5 candidate ideas:
+
+1. **List the assets you're considering**
+   - Example: ["NVDA", "AMD", "AVGO"] or ["VTV", "MTUM", "QUAL"]
+
+2. **Check if data is in context pack**
+   - ✅ **IN context pack:** Sector ETFs (XLK, XLF, XLU, etc.), SPY, QQQ, AGG, VIX, macro data
+   - ❌ **NOT in context pack:** Individual stocks, factor ETFs, dividend yields, P/E ratios
+
+3. **Identify gaps and call tools**
+   ```python
+   # Example: Stock concentration strategy
+   if using ["NVDA", "AMD", "AVGO"]:
+       stock_get_historical_stock_prices(symbol="NVDA", period="1y")
+       stock_get_historical_stock_prices(symbol="AMD", period="1y")
+       stock_get_historical_stock_prices(symbol="AVGO", period="1y")
+       stock_get_stock_info(symbol="NVDA")  # Get fundamentals
+
+   # Example: Factor ETF strategy
+   if using ["VTV", "VUG", "MTUM"]:
+       stock_get_historical_stock_prices(symbol="VTV", period="1y")
+       stock_get_historical_stock_prices(symbol="VUG", period="1y")
+       stock_get_historical_stock_prices(symbol="MTUM", period="1y")
+
+   # Example: Dividend strategy
+   if dividend/yield focus:
+       stock_get_stock_info(symbol="VYM")  # Get dividend yield
+       stock_get_stock_info(symbol="SCHD")
+
+   # Always valuable: Pattern inspiration
+   composer_search_symphonies(query="your strategy archetype")
+   ```
+
+4. **THEN proceed to Step 2.1**
+
+**Validation:** If your candidate uses assets NOT in the context pack, you MUST call tools before generating the Strategy object. This ensures your thesis is grounded in actual data, not assumptions.
+
 ### Step 2.1: Ideate 5 Candidates
 
 Using Research Synthesis from Phase 1, brainstorm candidates across different dimensions:
@@ -146,104 +187,130 @@ Failure mode: [Specific condition - e.g., "VIX > 25 for 10+ days → momentum re
 
 ## WORKED EXAMPLES
 
-### Example Regime: Strong Bull + Low Volatility + Growth Leadership
+**⚠️ WARNING: These are ABSTRACT TEMPLATES for learning structure - DO NOT copy ticker lists or strategy names.**
+**Your candidates must use YOUR research findings from Step 2.0 gap analysis, NOT these placeholder examples.**
 
-**Phase 1 Research (abbreviated):**
-- Macro: Expansion (low unemployment 3.8%, GDP growth 2.5%, inflation moderate 3.2%)
-- Market: Bull (SPY +15% YTD, >200d MA), Low vol (VIX 14), Strong breadth (80% sectors >50d MA)
-- Leadership: XLK (+22%), XLY (+18%), XLF (+16%)
-- Weakness: XLE (-5%), XLU (+3%), XLP (+5%)
-- Factors: Momentum +2.3%, Quality +0.8%, Growth > Value by 8%
-- Composer: Top strategies use momentum filters, tech overweight, monthly rebalance
+### Abstract Example Regime: [Use YOUR context pack data]
 
-### Example Candidate 1: Momentum Concentration
+**Research Findings Template:**
+- Macro: [Your macro regime from context pack]
+- Market: [Your market regime: trend, volatility, breadth]
+- Leadership: [Your top 3 sectors from context pack]
+- Weakness: [Your bottom 3 sectors from context pack]
+- Factors: [Your factor premiums from context pack]
+
+### Example Pattern 1: Momentum Archetype
 ```
-Name: "Tech Momentum Leaders"
+Name: "[ARCHETYPE] + [DIFFERENTIATOR]"
+  → NOT "Tech Momentum Leaders" - create your own name
 
-Edge: Momentum persistence in sector rotation
-Why it exists: Institutional capital flows lag sector trends by 2-4 weeks due to quarterly rebalancing
-Why now: Strong breadth (80%) + low VIX (14) + growth leadership = momentum regime confirmed by Phase 1 data
+Edge: [Your specific momentum inefficiency - be precise]
+Why it exists: [Your causal mechanism - cite research if available]
+Why now: [Your regime fit - cite YOUR context pack data]
 Archetype: Momentum
 
-Assets: ["XLK", "XLY", "XLF"]  # Top 3 sectors by 90d return
-Weights: {"XLK": 0.40, "XLY": 0.35, "XLF": 0.25}  # Weight by momentum strength
-Rebalance: monthly
+Assets: [YOUR top performers from research - Step 2.0]
+  → NOT pre-determined tickers - use your gap analysis results
+  → Example format: If your research found Healthcare, Tech, Financials leading,
+     use those - don't copy someone else's Energy, Utilities, Staples
 
-Failure mode: VIX > 25 for 10+ days → momentum reverses → expect 12-18% drawdown
+Weights: [YOUR allocation logic]
+Rebalance: [YOUR frequency based on edge timescale]
+
+Failure mode: [YOUR specific trigger - cite context pack thresholds]
 ```
 
-### Example Candidate 2: Carry + Diversification
+### Example Pattern 2: Carry/Yield Archetype
 ```
-Name: "Quality Dividend Carry"
+Name: "[ARCHETYPE] + [DIFFERENTIATOR]"
+  → Create based on YOUR strategy specifics
 
-Edge: Dividend yield premium + quality factor resilience
-Why it exists: Institutional demand for yield + quality screens for balance sheet strength
-Why now: Low vol environment (VIX 14) + positive macro (expansion) = carry works, quality outperforming (+0.8% factor premium from Phase 1)
+Edge: [Your yield/carry inefficiency]
+  → If using dividend ETFs, you MUST call stock_get_stock_info in Step 2.0 for yields
+Why it exists: [Your causal mechanism]
+Why now: [Your regime fit - cite YOUR context pack]
 Archetype: Carry
 
-Assets: ["VYM", "QUAL", "USMV", "AGG"]  # Dividend + quality + low vol + bonds
-Weights: {"VYM": 0.30, "QUAL": 0.30, "USMV": 0.25, "AGG": 0.15}
-Rebalance: quarterly
+Assets: [YOUR dividend/yield instruments from Step 2.0 research]
+  → Example: If researching dividend ETFs, call tools for VYM, SCHD, DVY, etc.
+  → Then select based on actual data, not assumptions
 
-Failure mode: Rising rates (10Y yield > 5%) → dividend stocks underperform → expect 8-12% drawdown
+Weights: [YOUR allocation]
+Rebalance: [YOUR frequency - typically quarterly for carry]
+
+Failure mode: [YOUR specific condition]
 ```
 
-### Example Candidate 3: Tactical Hedging (Counter-Cyclical)
+### Example Pattern 3: Volatility/Tactical Archetype
 ```
-Name: "VIX-Responsive Defensive"
+Name: "[ARCHETYPE] + [TRIGGER]"
+  → Base on YOUR specific volatility logic
 
-Edge: Volatility spikes → defensive rotation lag → 2-5 day opportunity window
-Why it exists: Risk-off flows take time to clear; bonds/gold rally after VIX crosses 20
-Why now: Currently low vol (VIX 14) so positioned for growth, but vol spikes are regime-ending risk per historical patterns
+Edge: [Your volatility regime inefficiency]
+  → VIX data IS in context pack - cite actual current VIX level
+Why it exists: [Your mechanism]
+Why now: [Your regime - what's current VIX from context pack?]
 Archetype: Volatility
 
-Assets: ["SPY", "TLT", "GLD", "BIL"]
-Weights: Dynamic based on VIX:
-  - VIX < 20: {"SPY": 0.70, "TLT": 0.15, "GLD": 0.10, "BIL": 0.05}
-  - VIX >= 20: {"SPY": 0.30, "TLT": 0.35, "GLD": 0.25, "BIL": 0.10}
-Rebalance: daily (to respond to VIX changes)
+Assets: [YOUR tactical allocation assets]
+  → If using non-standard defensive assets beyond AGG/TLT, call tools in Step 2.0
 
-Failure mode: Whipsaw (VIX oscillates around 20) → transaction costs erode returns
+Weights: [YOUR dynamic logic]
+  → Define YOUR threshold and allocations based on research
+Rebalance: [YOUR frequency]
+
+Failure mode: [YOUR whipsaw risk or breakdown condition]
 ```
 
-### Example Candidate 4: Mean Reversion (Counter-Cyclical)
+### Example Pattern 4: Mean Reversion Archetype
 ```
-Name: "Oversold Sector Rotation"
+Name: "[ARCHETYPE] + [TARGET]"
+  → Describe YOUR mean reversion target
 
-Edge: Extreme sector underperformance (>-15% vs SPY over 90d) mean reverts 65% of time
-Why it exists: Sentiment overshoots fundamentals; institutional flows mechanically rebalance
-Why now: Current regime shows high dispersion (energy -5%, utilities +3% vs SPY +15%) creating mean reversion opportunities
+Edge: [Your overreaction/oversold inefficiency]
+  → Context pack has sector performance - identify YOUR laggards
+Why it exists: [Your behavioral/structural mechanism]
+Why now: [Your dispersion metric from context pack]
 Archetype: Mean Reversion
 
-Assets: ["XLE", "XLU", "XLP"]  # Bottom 3 sectors from Phase 1
-Weights: {"XLE": 0.40, "XLU": 0.30, "XLP": 0.30}
-Rebalance: monthly
+Assets: [YOUR underperformers from context pack sector_leadership.laggards]
+  → Example: If context pack shows XLF, XLC, XLB as laggards, explain WHY you think
+     they'll revert (not just "they're down")
 
-Failure mode: Structural decline (e.g., energy transition) → mean reversion fails → expect -10% to -20% if thesis wrong
+Weights: [YOUR allocation]
+Rebalance: [YOUR frequency]
+
+Failure mode: [YOUR structural decline risk]
 ```
 
-### Example Candidate 5: Multi-Strategy Balanced
+### Example Pattern 5: Multi-Strategy Archetype
 ```
-Name: "60/40 Quality Momentum"
+Name: "[STRATEGY_1] + [STRATEGY_2] [COMBINATION]"
+  → Describe YOUR specific multi-strategy blend
 
-Edge: Diversification + systematic rebalancing discipline + quality/momentum tilts
-Why it exists: Uncorrelated returns (stocks/bonds) + rebalancing bonus + factor premiums (quality +0.8%, momentum +2.3% from Phase 1)
-Why now: Expansion regime supports stocks; bonds provide hedge; low vol allows modest risk
-Archetype: Multi-strategy (directional + carry)
+Edge: [Your diversification + factor tilt logic]
+  → If using factor ETFs, you MUST call tools in Step 2.0 for historical data
+Why it exists: [Your correlation structure + factor premium evidence]
+Why now: [Your regime supporting multiple edges]
+Archetype: Multi-strategy
 
-Assets: ["MTUM", "QUAL", "AGG", "TLT"]
-Weights: {"MTUM": 0.30, "QUAL": 0.30, "AGG": 0.30, "TLT": 0.10}
-Rebalance: quarterly
+Assets: [YOUR blend from Step 2.0 research]
+  → If using MTUM, QUAL, USMV, etc. - fetch their data first
+  → Then explain why THIS combination given YOUR research
 
-Failure mode: Simultaneous stock/bond selloff (stagflation) → correlation breaks → expect -15% to -25%
+Weights: [YOUR allocation across strategies]
+Rebalance: [YOUR frequency]
+
+Failure mode: [YOUR correlation breakdown scenario]
 ```
 
-**Diversity check for examples:**
-- Edge types: Momentum, Carry, Volatility, Mean Reversion, Multi-strategy ✓ (all different)
-- Archetypes: Momentum, Carry, Volatility, Mean Reversion, Multi-strategy ✓ (all different)
-- Concentration: 3 assets, 4 assets, 4 assets, 3 assets, 4 assets ✓ (all similar, could improve)
-- Regime: Pro-cyclical, Pro-cyclical, Counter-cyclical, Counter-cyclical, Balanced ✓ (good mix)
-- Rebalance: Monthly, Quarterly, Daily, Monthly, Quarterly ✓ (good mix)
+**Key Principle:** These patterns show STRUCTURE (how to think about edges, archetypes, failure modes).
+Your actual candidates must be based on:
+1. YOUR context pack data (current regime, sectors, factors)
+2. YOUR Step 2.0 gap analysis (tools called for missing data)
+3. YOUR original thinking (not copying these examples)
+
+**If your final candidates look similar to these examples, you've failed the diversity requirement.**
 
 ---
 

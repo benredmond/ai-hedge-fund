@@ -144,7 +144,60 @@ You will receive a comprehensive market context pack in the user prompt with the
 - ❌ Do NOT fetch CPI/inflation - already in `macro_indicators.inflation`
 - ❌ Do NOT fetch employment data - already in `macro_indicators.employment`
 
-**The context pack contains comprehensive market data. Tools should be rarely needed (expect <10% of research needs).**
+**WHEN TO USE TOOLS - Data NOT in Context Pack:**
+
+The context pack provides comprehensive macro/market regime data, but does NOT include:
+
+1. **Individual Stock Data** (use tools for stock-specific strategies)
+   ```python
+   # Example: NVDA/AMD/AVGO concentration strategy
+   stock_get_historical_stock_prices(symbol="NVDA", period="1y")
+   stock_get_stock_info(symbol="NVDA")  # P/E, dividend yield, market cap
+   ```
+
+2. **Non-Sector ETFs** (context pack only has 11 sector ETFs)
+   ```python
+   # Example: Factor ETFs (VTV, VUG, MTUM, QUAL, USMV)
+   stock_get_historical_stock_prices(symbol="VTV", period="1y")
+   stock_get_historical_stock_prices(symbol="MTUM", period="1y")
+   ```
+
+3. **Company Fundamentals** (dividend yields, P/E ratios, growth rates)
+   ```python
+   # Example: Dividend strategy needs yield data
+   stock_get_stock_info(symbol="VYM")  # Dividend yield, ex-dividend date
+   stock_get_stock_info(symbol="SCHD")  # Compare dividend aristocrats
+   ```
+
+4. **Specific Asset Comparisons** (beyond benchmark performance in context pack)
+   ```python
+   # Example: Comparing bond ETFs (TLT vs AGG vs BND)
+   stock_get_historical_stock_prices(symbol="TLT", period="1y")
+   stock_get_historical_stock_prices(symbol="BND", period="1y")
+   ```
+
+5. **Pattern Inspiration** (always valuable to search Composer)
+   ```python
+   # Example: Find similar strategies in production
+   composer_search_symphonies(query="sector rotation momentum")
+   composer_search_symphonies(query="VIX defensive rotation")
+   ```
+
+6. **Extended Time Series** (context pack limited to 12-month lookback)
+   ```python
+   # Example: Need 2-3 year history for strategy validation
+   stock_get_historical_stock_prices(symbol="SPY", period="3y")
+   ```
+
+**Decision Tree for Tool Usage:**
+- Strategy uses sector ETFs (XLK, XLF, etc.) → ✅ NO tools needed (in context pack)
+- Strategy uses SPY/QQQ/AGG/VIX → ✅ NO tools needed (in context pack)
+- Strategy uses individual stocks (AAPL, NVDA, etc.) → ⚠️ YES, fetch stock data
+- Strategy uses factor ETFs (VTV, MTUM, QUAL, etc.) → ⚠️ YES, fetch ETF data
+- Strategy needs dividend yields → ⚠️ YES, call stock_get_stock_info
+- Looking for pattern inspiration → ✅ ALWAYS search Composer (valuable insight)
+
+**Expected Tool Usage:** 30-50% of strategies will need tools (stock-specific, factor ETFs, fundamentals).
 
 ### Phase 2: Strategy Generation (Framework-Driven)
 
