@@ -10,6 +10,13 @@ from pydantic import BaseModel, Field, field_validator
 from pydantic.fields import FieldInfo
 from enum import Enum
 
+
+class WeightsDict(dict[str, float]):
+    """Dictionary that iterates over numeric weight values for legacy list semantics."""
+
+    def __iter__(self):
+        return iter(self.values())
+
 # Try to import ValidationInfo, fall back to using 'info' param without type hint
 try:
     from pydantic import ValidationInfo
@@ -31,6 +38,8 @@ class Strategy(BaseModel):
     Trading strategy specification.
 
     Attributes:
+        thesis_document: Comprehensive investment thesis with causal reasoning (optional for backward compatibility)
+        rebalancing_rationale: How rebalancing implements strategy edge (required, 150-800 chars)
         name: Strategy name/identifier
         assets: List of tickers to invest in
         weights: Asset allocation (must sum to 1.0)
@@ -38,11 +47,26 @@ class Strategy(BaseModel):
         logic_tree: Conditional logic for dynamic allocation (can be empty dict for static allocation)
     """
 
+    # ========== REASONING FIELD (FIRST for chain-of-thought) ==========
+    thesis_document: str = Field(
+        default="",
+        max_length=2000,
+        description="Comprehensive investment thesis: market analysis, edge explanation, regime fit, risk factors (200-2000 chars when provided)"
+    )
+
+    rebalancing_rationale: str = Field(
+        ...,
+        min_length=150,
+        max_length=800,
+        description="Explicit explanation of how rebalancing method implements the strategy's edge. Must describe what rebalancing does to winners/losers and connect to edge mechanism."
+    )
+
+    # ========== EXECUTION FIELDS ==========
     name: str = Field(..., min_length=1, max_length=200)
     assets: List[str] = Field(..., min_length=1, max_length=50)
+    logic_tree: Dict[str, Any] = Field(default_factory=dict)
     weights: Dict[str, float]
     rebalance_frequency: RebalanceFrequency
-    logic_tree: Dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("assets")
     @classmethod
@@ -57,19 +81,28 @@ class Strategy(BaseModel):
     @field_validator("weights", mode="before")
     @classmethod
     def convert_weights_to_dict(cls, v, info: ValidationInfo):
-        """Convert list weights to dict format if needed (AI compatibility)"""
-        # If already a dict, pass through to main validator
-        if isinstance(v, dict):
-            return v
+        """Convert raw weights into numeric mapping compatible with list iteration."""
+        assets = info.data.get("assets", [])
 
-        # If it's a list, convert to dict using assets
+        def _coerce_numeric(value: Any, asset: str) -> float:
+            try:
+                return float(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"Weight for asset '{asset}' must be numeric, got {value!r}"
+                ) from exc
+
+        # If already mapping, coerce values to float and wrap in custom dict
+        if isinstance(v, dict):
+            return WeightsDict({asset: _coerce_numeric(weight, asset) for asset, weight in v.items()})
+
+        # If it's a list, convert to dict using assets order
         if isinstance(v, list):
-            assets = info.data.get("assets", [])
             if len(v) != len(assets):
                 raise ValueError(
                     f"Weights list length ({len(v)}) must match assets length ({len(assets)})"
                 )
-            return dict(zip(assets, v))
+            return WeightsDict({asset: _coerce_numeric(weight, asset) for asset, weight in zip(assets, v)})
 
         raise ValueError(f"Weights must be a dict or list, got {type(v)}")
 
@@ -78,16 +111,65 @@ class Strategy(BaseModel):
     def weights_valid(
         cls, v: Dict[str, float], info: ValidationInfo
     ) -> Dict[str, float]:
-        """Validate weights dict matches assets and sums to 1.0"""
-        if not v:
-            raise ValueError("Weights cannot be empty")
+        """
+        Validate weights dict matches assets and sums to 1.0.
 
-        # Get assets from model data
+        For dynamic strategies (logic_tree non-empty): allows empty weights or partial weights
+        For static strategies (logic_tree empty): requires weights for all assets
+        """
+        if not isinstance(v, WeightsDict):
+            v = WeightsDict(v)
+
+        # Get assets and logic_tree from model data
         assets = info.data.get("assets", [])
+        logic_tree = info.data.get("logic_tree", {})
+
+        # CASE 1: Dynamic strategy (logic_tree is non-empty)
+        # Allocation is defined in logic_tree branches, so weights can be empty or partial
+        if logic_tree:
+            # Allow empty weights - allocation defined in logic_tree
+            if not v:
+                return WeightsDict({})
+
+            # If weights provided, they must be subset of assets (no extra assets)
+            extra_assets = set(v.keys()) - set(assets)
+            if extra_assets:
+                raise ValueError(
+                    f"Weights contain assets not in assets list: {extra_assets}"
+                )
+
+            # If weights provided, they should sum to 1.0 (with tolerance)
+            # This covers cases where logic_tree uses weights as default allocation
+            total = sum(v.values())
+            if not 0.99 <= total <= 1.01:
+                raise ValueError(
+                    f"Weights sum to {total:.4f}, must be between 0.99 and 1.01"
+                )
+
+            # Normalize if within tolerance
+            if total != 1.0:
+                normalized = WeightsDict({k: val / total for k, val in v.items()})
+                return normalized
+
+            return WeightsDict(v)
+
+        # CASE 2: Static strategy (logic_tree is empty)
+        # Strict validation - weights must cover ALL assets and sum to 1.0
+        if not v:
+            raise ValueError(
+                "Weights cannot be empty for static strategies (no logic_tree). "
+                "Either provide weights for all assets OR add conditional logic to logic_tree."
+            )
+
+        if not assets:
+            raise ValueError("Strategy must have at least 1 asset")
 
         # Check weights cover exactly the assets list
         if set(v.keys()) != set(assets):
-            raise ValueError("Weights must cover all assets (no more, no less)")
+            raise ValueError(
+                "Weights must cover all assets (no more, no less) for static strategies. "
+                f"Assets: {sorted(assets)}, Weights: {sorted(v.keys())}"
+            )
 
         # Check weights sum to 1.0 (with tolerance for LLM rounding)
         total = sum(v.values())
@@ -98,10 +180,10 @@ class Strategy(BaseModel):
 
         # Normalize if within tolerance
         if total != 1.0:
-            normalized = {k: val / total for k, val in v.items()}
+            normalized = WeightsDict({k: val / total for k, val in v.items()})
             return normalized
 
-        return v
+        return WeightsDict(v)
 
     @field_validator("rebalance_frequency", mode="before")
     @classmethod
@@ -109,6 +191,29 @@ class Strategy(BaseModel):
         """Normalize frequency to lowercase for enum matching"""
         if isinstance(v, str):
             return v.lower()
+        return v
+
+    @field_validator("thesis_document")
+    @classmethod
+    def validate_thesis_quality(cls, v: str) -> str:
+        """Validate thesis quality only if provided (allows empty for backward compat)."""
+        if not v:  # Allow empty for backward compatibility
+            return v
+
+        if len(v) < 200:
+            raise ValueError(
+                f"thesis_document must be ≥200 chars when provided (got {len(v)}). "
+                f"Provide comprehensive investment thesis or leave empty."
+            )
+
+        # Check for placeholder text
+        placeholder_phrases = ["TODO", "TBD", "to be determined", "N/A", "placeholder"]
+        if any(phrase.lower() in v.lower() for phrase in placeholder_phrases):
+            raise ValueError(
+                f"Cannot use placeholder text in thesis_document. "
+                f"Found prohibited phrase in: {v[:100]}..."
+            )
+
         return v
 
 
@@ -182,21 +287,8 @@ class EdgeScorecard(BaseModel):
             + self.strategic_coherence
         ) / 5
 
-    @field_validator(
-        "thesis_quality",
-        "edge_economics",
-        "risk_framework",
-        "regime_awareness",
-        "strategic_coherence",
-    )
-    @classmethod
-    def dimension_above_threshold(cls, v: int) -> int:
-        """Ensure each dimension meets minimum threshold of 3"""
-        if v < 3:
-            raise ValueError(
-                f"Edge Scorecard dimension scored {v}, minimum threshold is 3"
-            )
-        return v
+    # No validator for minimum threshold - filtering happens in winner_selector.py
+    # Dimensions can score 1-5; candidates with total_score <3.0 are filtered during selection
 
 
 class SelectionReasoning(BaseModel):
