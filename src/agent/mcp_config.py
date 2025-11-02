@@ -115,16 +115,16 @@ async def compress_tool_result(
         # The summary is already a dict/str from the LLM
         summary_content = summary_data["summary"]
 
-        # Log compression stats with content preview
-        original_preview = str(result)[:100] if result else "N/A"
-        summary_preview = str(summary_content)[:100] if summary_content else "N/A"
+        # Log compression stats with full content
+        original_full = str(result) if result else "N/A"
+        summary_full = str(summary_content) if summary_content else "N/A"
         print(
             f"[COMPRESS] {name}: {summary_data['original_tokens']} → "
             f"{summary_data['summary_tokens']} tokens "
             f"({summary_data['savings']} saved)"
         )
-        print(f"[COMPRESS]   Before: {original_preview}...")
-        print(f"[COMPRESS]   After:  {summary_preview}...")
+        print(f"[COMPRESS]   Before: {original_full}")
+        print(f"[COMPRESS]   After:  {summary_full}")
 
         # If the LLM returned a string, parse it as JSON if possible
         if isinstance(summary_content, str):

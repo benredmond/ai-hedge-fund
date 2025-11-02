@@ -1,7 +1,9 @@
 """Generate charter document for selected strategy."""
 
+import asyncio
 from typing import List
 import json
+import openai
 from src.agent.strategy_creator import (
     create_agent,
     load_prompt,
@@ -13,6 +15,7 @@ from src.agent.models import (
     SelectionReasoning,
     EdgeScorecard
 )
+from pydantic_ai.exceptions import ModelHTTPError
 
 
 class CharterGenerator:
@@ -56,66 +59,55 @@ class CharterGenerator:
         system_prompt = load_prompt("system/charter_creation_system.md")
         recipe_prompt = load_prompt("charter_creation.md")
 
-        # Create agent
-        # Use 20 message history limit (complex synthesis with tools)
-        agent_ctx = await create_agent(
-            model=model,
-            output_type=Charter,
-            system_prompt=system_prompt,
-            history_limit=20
-        )
-
         # Build selection context
         winner_idx = reasoning.winner_index
         winner_scorecard = scorecards[winner_idx]
 
         # Format selection context for agent
-        async with agent_ctx as agent:
-            # Serialize all context
-            selection_context = {
-                "winner": {
-                    "name": winner.name,
-                    "assets": winner.assets,
-                    "weights": winner.weights,
-                    "rebalance_frequency": winner.rebalance_frequency.value,
-                    "logic_tree": winner.logic_tree
-                },
-                "reasoning": {
-                    "winner_index": winner_idx,
-                    "why_selected": reasoning.why_selected,
-                    "tradeoffs_accepted": reasoning.tradeoffs_accepted,
-                    "alternatives_rejected": reasoning.alternatives_rejected,
-                    "conviction_level": reasoning.conviction_level
-                },
-                "edge_scorecard": {
-                    "thesis_quality": winner_scorecard.thesis_quality,
-                    "edge_economics": winner_scorecard.edge_economics,
-                    "risk_framework": winner_scorecard.risk_framework,
-                    "regime_awareness": winner_scorecard.regime_awareness,
-                    "strategic_coherence": winner_scorecard.strategic_coherence,
-                    "total_score": winner_scorecard.total_score
-                },
-                "all_candidates": [],
-                "market_context_summary": {
-                    "anchor_date": market_context["metadata"]["anchor_date"],
-                    "regime_tags": market_context.get("regime_tags", []),
-                    "regime_snapshot": market_context.get("regime_snapshot", {})
-                }
+        # Serialize all context
+        selection_context = {
+            "winner": {
+                "name": winner.name,
+                "assets": winner.assets,
+                "weights": winner.weights,
+                "rebalance_frequency": winner.rebalance_frequency.value,
+                "logic_tree": winner.logic_tree
+            },
+            "reasoning": {
+                "winner_index": winner_idx,
+                "why_selected": reasoning.why_selected,
+                "tradeoffs_accepted": reasoning.tradeoffs_accepted,
+                "alternatives_rejected": reasoning.alternatives_rejected,
+                "conviction_level": reasoning.conviction_level
+            },
+            "edge_scorecard": {
+                "thesis_quality": winner_scorecard.thesis_quality,
+                "edge_economics": winner_scorecard.edge_economics,
+                "risk_framework": winner_scorecard.risk_framework,
+                "regime_awareness": winner_scorecard.regime_awareness,
+                "strategic_coherence": winner_scorecard.strategic_coherence,
+                "total_score": winner_scorecard.total_score
+            },
+            "all_candidates": [],
+            "market_context_summary": {
+                "anchor_date": market_context["metadata"]["anchor_date"],
+                "regime_tags": market_context.get("regime_tags", []),
+                "regime_snapshot": market_context.get("regime_snapshot", {})
             }
+        }
 
-            # Add all candidates with their Edge scores
-            for i, (candidate, scorecard) in enumerate(zip(candidates, scorecards)):
-                selection_context["all_candidates"].append({
-                    "index": i,
-                    "name": candidate.name,
-                    "assets": candidate.assets,
-                    "is_winner": i == winner_idx,
-                    "edge_score": scorecard.total_score
-                })
+        for i, (candidate, scorecard) in enumerate(zip(candidates, scorecards)):
+            selection_context["all_candidates"].append({
+                "index": i,
+                "name": candidate.name,
+                "assets": candidate.assets,
+                "is_winner": i == winner_idx,
+                "edge_score": scorecard.total_score
+            })
 
-            selection_context_json = json.dumps(selection_context, indent=2)
+        selection_context_json = json.dumps(selection_context, indent=2)
 
-            prompt = f"""Create a comprehensive charter document for the selected strategy.
+        prompt = f"""Create a comprehensive charter document for the selected strategy.
 
 ## SELECTION CONTEXT FROM PRIOR STAGES
 
@@ -155,7 +147,65 @@ Follow the workflow in the recipe:
 Begin by using MCP tools to gather current market data, then write the 5-section charter.
 """
 
-            result = await agent.run(prompt)
-            charter = result.output
+        # Use 20 message history limit (complex synthesis with tools)
+        charter = await self._run_with_retries(
+            prompt=prompt,
+            model=model,
+            system_prompt=system_prompt
+        )
+
+        # Debug logging: Print full LLM response
+        print(f"\n[DEBUG:CharterGenerator] Full LLM response:")
+        print(f"{charter}")
 
         return charter
+
+    async def _run_with_retries(
+        self,
+        prompt: str,
+        model: str,
+        system_prompt: str,
+        max_attempts: int = 3,
+        base_delay: float = 5.0
+    ) -> Charter:
+        last_error: Exception | None = None
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                agent_ctx = await create_agent(
+                    model=model,
+                    output_type=Charter,
+                    system_prompt=system_prompt,
+                    history_limit=20
+                )
+
+                async with agent_ctx as agent:
+                    result = await agent.run(prompt)
+                    return result.output
+            except ModelHTTPError as err:
+                if getattr(err, "status_code", None) == 429 and attempt < max_attempts:
+                    wait_time = base_delay * (2 ** (attempt - 1))
+                    print(
+                        f"⚠️  Charter generation hit model rate limit (attempt {attempt}/{max_attempts}). "
+                        f"Retrying in {wait_time:.1f}s..."
+                    )
+                    await asyncio.sleep(wait_time)
+                    last_error = err
+                    continue
+                raise
+            except openai.RateLimitError as err:
+                if attempt < max_attempts:
+                    wait_time = base_delay * (2 ** (attempt - 1))
+                    print(
+                        f"⚠️  Charter generation hit OpenAI rate limit (attempt {attempt}/{max_attempts}). "
+                        f"Retrying in {wait_time:.1f}s..."
+                    )
+                    await asyncio.sleep(wait_time)
+                    last_error = err
+                    continue
+                raise
+
+        if last_error is not None:
+            raise last_error
+
+        raise RuntimeError("Charter generation failed without raising an error")

@@ -87,50 +87,68 @@ Based on Step 1.2 regime:
 
 ## PHASE 2: GENERATE (Framework-Driven)
 
-### Step 2.0: MANDATORY Pre-Generation Gap Analysis
+### Step 2.0: Asset Research & Exploration (Optional)
 
-**BEFORE generating any Strategy objects, identify data gaps and fetch missing data:**
+**BEFORE ideating candidates, optionally explore available assets beyond what's in the context pack:**
 
-For EACH of your 5 candidate ideas:
+The context pack provides comprehensive data on:
+- ✅ **Sector ETFs:** XLK, XLF, XLU, XLE, XLV, XLY, XLP, XLI, XLB, XLC, XLRE
+- ✅ **Benchmarks:** SPY, QQQ, AGG, VIX
+- ✅ **Macro data:** Interest rates, inflation, employment, etc.
+- ✅ **Factor premiums:** Momentum, quality, value vs growth, size
 
-1. **List the assets you're considering**
-   - Example: ["NVDA", "AMD", "AVGO"] or ["VTV", "MTUM", "QUAL"]
+**If you're considering strategies with assets NOT in the context pack, research them now:**
 
-2. **Check if data is in context pack**
-   - ✅ **IN context pack:** Sector ETFs (XLK, XLF, XLU, etc.), SPY, QQQ, AGG, VIX, macro data
-   - ❌ **NOT in context pack:** Individual stocks, factor ETFs, dividend yields, P/E ratios
+```python
+# Example 1: Individual stock concentration
+# Research specific stocks for competitive moat analysis
+stock_get_historical_stock_prices(symbol="NVDA", period="1y")
+stock_get_stock_info(symbol="NVDA")  # P/E, market cap, dividend
 
-3. **Identify gaps and call tools**
-   ```python
-   # Example: Stock concentration strategy
-   if using ["NVDA", "AMD", "AVGO"]:
-       stock_get_historical_stock_prices(symbol="NVDA", period="1y")
-       stock_get_historical_stock_prices(symbol="AMD", period="1y")
-       stock_get_historical_stock_prices(symbol="AVGO", period="1y")
-       stock_get_stock_info(symbol="NVDA")  # Get fundamentals
+# Example 2: Factor ETF strategies
+# Compare factor ETF performance and characteristics
+stock_get_historical_stock_prices(symbol="VTV", period="1y")  # Value
+stock_get_historical_stock_prices(symbol="MTUM", period="1y") # Momentum
 
-   # Example: Factor ETF strategy
-   if using ["VTV", "VUG", "MTUM"]:
-       stock_get_historical_stock_prices(symbol="VTV", period="1y")
-       stock_get_historical_stock_prices(symbol="VUG", period="1y")
-       stock_get_historical_stock_prices(symbol="MTUM", period="1y")
+# Example 3: Dividend/yield strategies
+# Get current yields for yield-focused strategies
+stock_get_stock_info(symbol="VYM")   # High Dividend Yield ETF
+stock_get_stock_info(symbol="SCHD")  # Dividend Aristocrats
 
-   # Example: Dividend strategy
-   if dividend/yield focus:
-       stock_get_stock_info(symbol="VYM")  # Get dividend yield
-       stock_get_stock_info(symbol="SCHD")
+# Example 4: Pattern exploration (optional but valuable)
+# Understand proven strategy patterns on the platform
+composer_search_symphonies(query="momentum sector rotation")
+composer_search_symphonies(query="defensive VIX rotation")
+```
 
-   # Always valuable: Pattern inspiration
-   composer_search_symphonies(query="your strategy archetype")
-   ```
+**This step is OPTIONAL.** You can:
+- Skip if using only context pack assets (sector ETFs, benchmarks)
+- Use tools now to explore before ideating
+- Use tools later during Step 2.1 if you discover data gaps mid-generation
 
-4. **THEN proceed to Step 2.1**
+**If you used tools in Step 2.0, document your findings:**
 
-**Validation:** If your candidate uses assets NOT in the context pack, you MUST call tools before generating the Strategy object. This ensures your thesis is grounded in actual data, not assumptions.
+```markdown
+### Research Findings (Step 2.0):
+
+**Assets Explored:**
+- Individual Stocks: [e.g., NVDA (P/E 45, AI accelerator market leader), AMD (P/E 38, datacenter growth)]
+- Factor ETFs: [e.g., VTV (30d return +2.1%), MTUM (30d return +5.3%)]
+- Dividend ETFs: [e.g., VYM (yield 3.2%), SCHD (yield 3.5%, higher quality)]
+- Composer Patterns: [e.g., Top momentum strategies use monthly rebalance + 3-5 assets]
+
+**Key Insights:**
+[1-3 sentences summarizing what you learned that will inform your candidates]
+
+**Data Gaps Identified:**
+[Note any additional data needs that emerged during research]
+```
+
+**THEN proceed to Step 2.1 (Ideate 5 Candidates)**
 
 ### Step 2.1: Ideate 5 Candidates
 
-Using Research Synthesis from Phase 1, brainstorm candidates across different dimensions:
+Using insights from the context pack and optional Step 2.0 research, brainstorm candidates across different dimensions:
 
 **Dimension Grid (ensure coverage):**
 
@@ -304,13 +322,251 @@ Rebalance: [YOUR frequency]
 Failure mode: [YOUR correlation breakdown scenario]
 ```
 
-**Key Principle:** These patterns show STRUCTURE (how to think about edges, archetypes, failure modes).
+---
+
+## DETAILED WORKED EXAMPLE: Full Implementation with Complex Logic Tree
+
+**This example shows EXACTLY how to implement a conditional strategy with proper logic_tree structure.**
+
+### Context Pack Data (Example):
+- Current VIX: 17.44 (normal regime)
+- Trend: Strong bull (SPY +12.8% above 200d MA)
+- Volatility regime: Normal
+- Market breadth: 75% sectors above 50d MA
+
+### Strategy: VIX Inversion Defensive Rotation
+
+**Edge:** VIX spikes above 22 trigger institutional defensive rotation with 2-4 day lag due to committee-based rebalancing constraints
+
+**Step-by-Step Implementation Planning:**
+
+1. **Requires conditional logic?** YES (VIX trigger mentioned)
+2. **Triggers identified:**
+   - VIX > 22 → Defensive mode (bonds/gold)
+   - VIX < 18 for 2 consecutive days → Growth mode (equities)
+   - 18 ≤ VIX ≤ 22 → Transitional/balanced mode
+3. **Weight derivation:** Static within each mode (defensive = equal weight bonds/gold, growth = 50/30/20 equity split)
+4. **Rebalancing frequency:** Daily (volatility edge requires fast response to regime changes)
+
+**COMPLETE Strategy Object:**
+
+```python
+Strategy(
+  name="VIX Inversion Defensive Rotation",
+
+  thesis_document="""
+  Market Analysis: Current VIX at 17.44 represents normal volatility regime in a strong bull market (SPY +12.8% above 200d MA, breadth at 75%). Historical analysis shows VIX spikes above 22 trigger mechanical defensive rotation by institutional investors with 2-4 day lag.
+
+  Edge Explanation: When VIX crosses 22, risk parity funds have mechanical deleveraging triggers, but most institutional mandates use weekly or monthly rebalancing committees that cannot react intraday. This creates a 2-4 day window where bonds (TLT) and gold (GLD) rally before broader institutional flows catch up. The edge exists due to governance constraints at large institutions requiring committee approval for allocation changes.
+
+  Regime Fit: Currently in growth mode (VIX 17.44, bull market), but positioned to rotate defensively when VIX exceeds 22. Strong breadth (75%) and low volatility support equity allocation until trigger threshold breached. Recent events show no elevated volatility catalysts, making current growth positioning appropriate.
+
+  Risk Factors: Primary risk is whipsaw if VIX oscillates around 22 threshold. Mitigated via hysteresis logic requiring VIX < 18 for 2 consecutive days before re-entering growth mode. Expected max drawdown 8-12% during sustained volatility spikes (VIX > 30 for 10+ days) when defensive rotation fails to protect. Strategy underperforms in grinding bear markets with moderate volatility (VIX 18-22 sustained).
+  """,
+
+  rebalancing_rationale="""
+  My daily rebalancing implements the VIX rotation edge by checking volatility threshold every market day and shifting allocation when VIX crosses 22 (defensive mode) or drops below 18 for 2 days (growth mode). Daily frequency is required because the edge exists in the 2-4 day institutional rebalancing lag - weekly or monthly rebalancing would miss the opportunity window entirely. This mechanically buys defensive assets (TLT, GLD) during VIX spikes before broader institutional flows drive prices up, exploiting the rebalancing committee delay documented in the thesis. The hysteresis logic (requiring 2 days below 18 to exit defensive) prevents whipsaw from rapid VIX oscillations.
+
+  Weights derived using mode-based allocation: Defensive mode uses equal weights (0.50 TLT, 0.30 GLD, 0.20 BIL) justified by equal conviction in bonds and gold during volatility spikes. Growth mode uses 0.50 SPY, 0.30 QQQ, 0.20 AGG based on bull market regime favoring large cap (SPY) over pure growth (QQQ), with 20% bond allocation for stability. Transitional mode (18 < VIX < 22) uses balanced 0.40/0.40/0.20 to maintain flexibility.
+  """,
+
+  assets=["SPY", "QQQ", "AGG", "TLT", "GLD", "BIL"],
+
+  weights={},  # Empty because weights are dynamic based on VIX regime
+
+  rebalance_frequency="daily",
+
+  logic_tree={
+    "condition": "VIX > 22",
+    "if_true": {
+      # Defensive mode: High volatility
+      "assets": ["TLT", "GLD", "BIL"],
+      "weights": {"TLT": 0.50, "GLD": 0.30, "BIL": 0.20},
+      "comment": "VIX spike - rotate to defensive assets before institutional flows"
+    },
+    "if_false": {
+      "condition": "VIX < 18 AND days_below_18 >= 2",
+      "if_true": {
+        # Growth mode: Low volatility confirmed (hysteresis)
+        "assets": ["SPY", "QQQ", "AGG"],
+        "weights": {"SPY": 0.50, "QQQ": 0.30, "AGG": 0.20},
+        "comment": "Low volatility confirmed for 2+ days - growth allocation"
+      },
+      "if_false": {
+        # Transitional mode: Moderate volatility or just dropped below 18
+        "assets": ["SPY", "AGG", "BIL"],
+        "weights": {"SPY": 0.40, "AGG": 0.40, "BIL": 0.20},
+        "comment": "Transitional regime (18 ≤ VIX ≤ 22) - balanced allocation"
+      }
+    }
+  }
+)
+```
+
+**Why This Implementation Is Coherent:**
+
+✅ **Logic Tree Completeness:** Thesis mentions "VIX crosses 22" and "VIX < 18" → logic_tree implements nested VIX conditions with three distinct modes
+
+✅ **Rebalancing Alignment:** Volatility edge with 2-4 day institutional lag → daily rebalancing (PASS auto-reject matrix - volatility edges require daily/weekly)
+
+✅ **Weight Derivation:** Explicit derivation in rebalancing_rationale:
+- Defensive mode: Equal weights (0.50/0.30/0.20) justified by equal conviction
+- Growth mode: 50/30/20 split based on bull regime favoring large cap
+- Transitional mode: 40/40/20 balanced allocation
+
+✅ **Hysteresis Logic:** "days_below_18 >= 2" prevents whipsaw explicitly addressed in Risk Factors section - this is how you implement sophisticated trigger logic
+
+✅ **Internal Consistency:**
+- Thesis says "daily" → rebalance_frequency = "daily" ✓
+- Thesis describes three modes → logic_tree implements three branches ✓
+- Thesis mentions 2-day confirmation → logic_tree has "days_below_18 >= 2" ✓
+
+✅ **No Contradictions:**
+- No "buy-and-hold" claim + rebalancing frequency mismatch
+- No "quarterly" in thesis vs "daily" in field
+- rebalancing_rationale frequency matches rebalance_frequency field
+
+**This is the implementation standard for conditional strategies. Use this as your reference.**
+
+---
+
+**Key Principle:** The abstract patterns above show STRUCTURE (how to think about edges, archetypes, failure modes).
 Your actual candidates must be based on:
 1. YOUR context pack data (current regime, sectors, factors)
-2. YOUR Step 2.0 gap analysis (tools called for missing data)
+2. YOUR Step 2.0 research findings (if tools were used)
 3. YOUR original thinking (not copying these examples)
 
 **If your final candidates look similar to these examples, you've failed the diversity requirement.**
+
+---
+
+## ANTI-PATTERNS: Common Diversity Failures
+
+### ❌ Anti-Pattern #1: Same Archetype, Different Tickers
+
+**BAD Example (FAIL - All Momentum):**
+```
+Candidate 1: Tech Momentum Leaders (XLK, XLY, XLC)
+Candidate 2: Sector Momentum Rotation (XLF, XLI, XLE)
+Candidate 3: Growth Momentum Focus (QQQ, VUG, MTUM)
+Candidate 4: Large Cap Momentum (SPY, VOO, IVV)
+Candidate 5: Quality Momentum Blend (QUAL, SIZE, USMV)
+```
+
+**Problem:** All 5 candidates are momentum strategies with different assets = FAIL diversity requirement
+
+**Fix:** Ensure at least 3 different archetypes across your 5 candidates:
+- Momentum (1-2 candidates)
+- Mean Reversion (1-2 candidates)
+- Carry/Yield (1 candidate)
+- Volatility/Tactical (1 candidate)
+- Directional/Multi-strategy (1 candidate)
+
+---
+
+### ❌ Anti-Pattern #2: Template Weight Copying
+
+**BAD Example (FAIL - Repeating Weight Patterns):**
+```
+Candidate 1: {XLK: 0.40, XLY: 0.35, XLF: 0.25}
+Candidate 2: {NVDA: 0.40, AMD: 0.35, AVGO: 0.25}
+Candidate 3: {SPY: 0.30, QQQ: 0.30, AGG: 0.25, TLT: 0.15}
+Candidate 4: {VYM: 0.30, QUAL: 0.30, USMV: 0.25, AGG: 0.15}
+Candidate 5: {XLE: 0.40, XLU: 0.30, XLP: 0.30}
+```
+
+**Problem:** All use round numbers (0.25, 0.30, 0.35, 0.40) suggesting template copying, not thesis-driven allocation
+
+**Fix:** Derive weights from your edge mechanism:
+- **Momentum edge:** Weight by momentum strength (e.g., 0.48, 0.32, 0.20 if top performer is significantly stronger)
+- **Equal edge strength:** Equal weight justified (0.333, 0.333, 0.334)
+- **Risk parity:** Inverse volatility weights (varies by asset - e.g., 0.42, 0.28, 0.18, 0.12)
+- **Conviction-based:** Larger weight to higher conviction (e.g., 0.50, 0.30, 0.20)
+
+---
+
+### ❌ Anti-Pattern #3: Fixed Rebalance Frequency
+
+**BAD Example (FAIL - All Monthly):**
+```
+Candidate 1: Momentum edge → monthly rebalance
+Candidate 2: Mean reversion edge → monthly rebalance
+Candidate 3: Carry edge → monthly rebalance
+Candidate 4: Volatility edge → monthly rebalance
+Candidate 5: Directional edge → monthly rebalance
+```
+
+**Problem:** Rebalance frequency should match edge timescale, not be uniform across all strategies
+
+**Fix:** Match rebalancing to your edge mechanism:
+- **Carry/yield edge:** Quarterly or longer (yields are slow-moving)
+- **Momentum edge:** Weekly to monthly (medium-term persistence)
+- **Volatility edge:** Daily to weekly (fast regime changes)
+- **Mean reversion edge:** Depends on reversion timescale (2-week reversion → weekly rebalance)
+- **Value edge:** Monthly to quarterly (fundamentals change slowly)
+
+---
+
+### ❌ Anti-Pattern #4: Placeholder Thinking (Mad Libs Strategy)
+
+**BAD Example (FAIL - Template Substitution):**
+```
+Name: "Momentum + Tech Focus"
+Edge: [Generic momentum description]
+Why it exists: [Generic behavioral bias explanation]
+Assets: [Top 3 sectors from context pack]
+```
+
+**Problem:** Filling in template slots without original thinking - just replacing "[ARCHETYPE]" with "Momentum" and "[DIFFERENTIATOR]" with "Tech Focus"
+
+**Fix:** Generate genuinely novel strategy names and theses:
+- **Not:** "Momentum + Tech Focus" (template fill-in)
+- **Yes:** "VIX Inversion Defensive Rotation" (describes specific mechanism)
+- **Not:** "Value + Dividend" (generic combination)
+- **Yes:** "Rate Cut Financial Positioning" (regime-specific thesis)
+
+**Your strategy name should describe the SPECIFIC inefficiency you're exploiting, not just archetype + sector.**
+
+---
+
+### ❌ Anti-Pattern #5: Asset Count Uniformity
+
+**BAD Example (FAIL - All 3-4 Assets):**
+```
+Candidate 1: 3 assets (XLK, XLY, XLF)
+Candidate 2: 4 assets (NVDA, AMD, AVGO, INTC)
+Candidate 3: 3 assets (SPY, QQQ, AGG)
+Candidate 4: 4 assets (VYM, QUAL, USMV, AGG)
+Candidate 5: 3 assets (XLE, XLU, XLP)
+```
+
+**Problem:** All candidates have similar concentration (3-4 assets), no exploration of diversification dimension
+
+**Fix:** Vary concentration based on edge and conviction:
+- **Focused (3-5 assets):** High-conviction company-specific edges
+- **Balanced (6-10 assets):** Sector/factor diversification with active tilts
+- **Diversified (11-15 assets):** Broad market exposure with systematic reweighting
+
+**At minimum, have 1 focused (<= 5 assets) and 1 diversified (>= 10 assets) candidate.**
+
+---
+
+### ✅ Good Diversity Example (PASS)
+
+```
+Candidate 1: Momentum + 3 tech stocks + weekly momentum-weighted + 0.50/0.30/0.20
+Candidate 2: Mean Reversion + 3 oversold sectors + monthly equal-weight + 0.33/0.33/0.33
+Candidate 3: Carry + 12 dividend stocks + quarterly buy-hold + varied weights
+Candidate 4: Volatility + 4 defensive assets + daily VIX-triggered + dynamic allocation
+Candidate 5: Multi-strategy + 8 mixed assets + threshold rebalance + risk parity weights
+```
+
+**Why this passes:**
+- ✅ 5 different archetypes (momentum, mean-rev, carry, vol, multi)
+- ✅ Varied concentration (3, 3, 12, 4, 8 assets)
+- ✅ Different rebalance frequencies (weekly, monthly, quarterly, daily, threshold)
+- ✅ Varied weight derivation (momentum-weighted, equal, varied, dynamic, risk parity)
+- ✅ Original names describe specific mechanisms
 
 ---
 

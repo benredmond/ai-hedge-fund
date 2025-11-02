@@ -176,7 +176,7 @@ The context pack provides comprehensive macro/market regime data, but does NOT i
    stock_get_historical_stock_prices(symbol="BND", period="1y")
    ```
 
-5. **Pattern Inspiration** (always valuable to search Composer)
+5. **Pattern Inspiration** (search Composer when exploring new strategy types)
    ```python
    # Example: Find similar strategies in production
    composer_search_symphonies(query="sector rotation momentum")
@@ -195,9 +195,9 @@ The context pack provides comprehensive macro/market regime data, but does NOT i
 - Strategy uses individual stocks (AAPL, NVDA, etc.) → ⚠️ YES, fetch stock data
 - Strategy uses factor ETFs (VTV, MTUM, QUAL, etc.) → ⚠️ YES, fetch ETF data
 - Strategy needs dividend yields → ⚠️ YES, call stock_get_stock_info
-- Looking for pattern inspiration → ✅ ALWAYS search Composer (valuable insight)
+- Looking for pattern inspiration → Consider searching Composer for proven patterns (optional but can provide valuable insight)
 
-**Expected Tool Usage:** 30-50% of strategies will need tools (stock-specific, factor ETFs, fundamentals).
+**Expected Tool Usage:** 20-40% of strategies will need tools for specific asset data not in context pack. Tools are optional for exploration and pattern research.
 
 ### Phase 2: Strategy Generation (Framework-Driven)
 
@@ -575,6 +575,68 @@ After generating candidates, produce exactly 5 Strategy objects:
 - All tickers must be valid platform format
 - All logic_tree references must exist in assets
 
+**CRITICAL VALIDATION: Conditional Logic Requirement**
+
+If thesis_document contains ANY of these conditional keywords/patterns:
+- Conditional words: "if", "when", "trigger", "threshold", "breach", "cross", "exceed", "spike"
+- Comparisons: "VIX >", "VIX <", "> [number]", "< [number]"
+- Dynamic terms: "rotation", "defensive", "tactical", "switch", "shift", "allocate based on"
+
+AND logic_tree is empty {}
+
+→ **AUTOMATIC FAILURE - Strategy is incomplete**
+
+**Required Action:** Implement the conditional logic you described in your thesis using Composer's logic_tree syntax.
+
+**Validation Matrix:**
+| Thesis Contains | logic_tree Required? | Auto-Reject if Empty? |
+|----------------|---------------------|---------------------|
+| "VIX > [X]" or "VIX < [X]" | YES | ✅ REJECT |
+| "rotation", "tactical", "defensive" + trigger | YES | ✅ REJECT |
+| Archetype = "volatility" | YES | ✅ REJECT |
+| Static allocation with no conditions | NO | ❌ Allow empty {} |
+| Buy-and-hold or equal-weight (no triggers) | NO | ❌ Allow empty {} |
+
+**CRITICAL VALIDATION: Weight Derivation Requirement**
+
+For each Strategy, weights must be derived from your thesis mechanism:
+
+**Acceptable Derivation Methods:**
+
+1. **Momentum-weighted:** Weights proportional to momentum strength
+   - Example: XLK momentum = 4.09%, XLY = 2.1%, XLF = 1.5% → Weights: 0.54, 0.28, 0.18 (proportional to momentum values)
+   - MUST show calculation in rebalancing_rationale
+
+2. **Equal-weight:** All assets weighted equally
+   - Valid when: Mean-reversion edge, diversification is core thesis, or no basis for differential weighting
+   - Example: 3 assets → 0.333, 0.333, 0.334
+   - MUST justify in rebalancing_rationale why equal treatment is appropriate
+
+3. **Risk-parity:** Inverse volatility weighting
+   - Weights inversely proportional to asset volatility
+   - MUST cite volatility data from context pack or tools
+
+4. **Conviction-based:** Higher allocation to highest conviction positions
+   - MUST explain conviction ranking in thesis_document
+   - Example: "NVDA has strongest AI moat (50%), AMD secondary (30%), AVGO tertiary (20%)"
+
+5. **Dynamic (via logic_tree):** Weights change based on conditions
+   - Set weights={} and define allocations in logic_tree branches
+   - Each branch must specify weights that sum to 1.0
+
+**AUTO-REJECT Conditions:**
+- All weights are round numbers (0.25, 0.30, 0.35, 0.40, 0.50) WITHOUT explicit justification in rebalancing_rationale
+- Claimed derivation method doesn't match actual weights (e.g., says "momentum-weighted" but weights don't align with momentum values from context pack/tools)
+- rebalancing_rationale missing weight derivation explanation
+
+**Required in rebalancing_rationale:**
+Must include sentence like: "Weights derived using [method]: [calculation or justification]"
+
+Examples:
+- ✅ "Weights derived using momentum-weighting: XLK 4.09% momentum → 0.54 weight, XLY 2.1% → 0.28, XLF 1.5% → 0.18 (proportional allocation)"
+- ✅ "Equal weights (0.33 each) justified by mean-reversion thesis treating all oversold sectors equally"
+- ❌ "Weights are 0.40, 0.35, 0.25" (no derivation method or justification)
+
 ---
 
 ## REASONING FRAMEWORK: Chain-of-Thought Phases
@@ -658,32 +720,55 @@ For each of the 5 candidates, verify:
 **Step 2: Identify Rebalancing Method**
 - [ ] Rebalancing method is: ☐ Equal-weight  ☐ Momentum-weighted  ☐ Buy-and-hold  ☐ Threshold  ☐ Other
 
-**Step 3: Check Compatibility Matrix**
+**Step 3: Rebalancing Coherence Auto-Reject Matrix**
+
+**CRITICAL: Edge-Frequency Alignment (AUTO-REJECT if violated)**
+
+| Edge/Archetype | Rebalance Frequency | Status | Reason |
+|---------------|-------------------|--------|---------|
+| Momentum | Daily, Weekly, Monthly, None (buy-hold) | ✅ PASS | Momentum works at these timescales |
+| Momentum | Quarterly | ❌ AUTO-REJECT | Too slow - momentum decays faster than quarterly |
+| Mean Reversion | Monthly, Threshold, Quarterly | ✅ PASS | Allows time for reversion to occur |
+| Mean Reversion | Daily, Weekly | ❌ AUTO-REJECT | Too fast - creates whipsaw, prevents reversion capture |
+| Carry/Dividend | Quarterly, None (buy-hold) | ✅ PASS | Carry is slow-moving |
+| Carry/Dividend | Daily, Weekly, Monthly | ❌ AUTO-REJECT | Excessive turnover destroys carry edge |
+| Volatility/Tactical | Daily, Weekly | ✅ PASS | Fast regime changes require fast response |
+| Volatility/Tactical | Monthly, Quarterly | ❌ AUTO-REJECT | Too slow - volatility spikes are < 1 month duration |
+| Directional (bull/bear bet) | Any frequency | ✅ PASS | Frequency depends on thesis timescale |
+
+**Step 4: Rebalancing Method Compatibility**
 
 | Edge Type | Compatible Methods | Incompatible Methods |
 |-----------|-------------------|---------------------|
-| Momentum | Momentum-weighted, Buy-and-hold | **Equal-weight** ❌ |
-| Mean Reversion | Equal-weight, Threshold | **Momentum-weighted** ❌, Buy-and-hold ❌ |
-| Carry/Yield | Buy-and-hold, Quarterly+ | Daily/Weekly rebalance ❌ |
-| Directional | Any (depends on sub-thesis) | N/A |
+| Momentum | Momentum-weighted, Buy-and-hold, None | **Equal-weight** ❌ (sells winners) |
+| Mean Reversion | Equal-weight, Threshold | **Momentum-weighted** ❌, **Buy-and-hold** ❌ |
+| Carry/Yield | Buy-and-hold, Equal-weight (if quarterly+) | Daily/Weekly rebalance ❌ |
+| Directional | Depends on sub-thesis | Evaluate case-by-case |
 
-**Step 4: Validate or Fix**
+**Step 5: Internal Contradiction Scanner (AUTO-REJECT)**
 
-For EACH candidate:
-- [ ] If edge type + rebalancing method appear in "Incompatible" → **REJECT or FIX**
-  - Fix option 1: Change rebalancing method to compatible one
-  - Fix option 2: Change edge type to match rebalancing method
-  - Fix option 3: Provide explicit justification in rebalancing_rationale why this works
+Scan thesis_document and rebalancing_rationale for these contradictions:
 
-**Step 5: Specific Checks (AUTOMATIC FAILURES if violated without justification)**
+- [ ] ❌ **AUTO-REJECT:** thesis contains "buy-and-hold" BUT rebalance_frequency != "none"
+- [ ] ❌ **AUTO-REJECT:** thesis contains "quarterly" BUT rebalance_frequency = "weekly" or "monthly"
+- [ ] ❌ **AUTO-REJECT:** thesis contains "daily rotation" BUT rebalance_frequency = "monthly"
+- [ ] ❌ **AUTO-REJECT:** rebalancing_rationale mentions "[X]" frequency BUT rebalance_frequency field = different value
 
-- [ ] ❌ **FORBIDDEN:** "Momentum" or "trend" edge + equal-weight rebalancing (without explicit justification)
+**Step 6: Specific Forbidden Patterns (AUTO-REJECT if violated without EXPLICIT justification)**
+
+- [ ] ❌ **FORBIDDEN:** "Momentum" or "trend" edge + equal-weight rebalancing
+  - Exception: ONLY if rebalancing_rationale explicitly explains why equal-weight doesn't contradict momentum
 - [ ] ❌ **FORBIDDEN:** "Mean reversion" edge + buy-and-hold or momentum-weighted rebalancing
-- [ ] ❌ **FORBIDDEN:** "Carry" or "yield" edge + daily/weekly rebalancing (destroys edge via turnover)
+  - No exceptions - mean reversion requires selling winners and buying losers
+- [ ] ❌ **FORBIDDEN:** "Carry" or "yield" edge + daily/weekly/monthly rebalancing
+  - Exception: ONLY if thesis explains why turnover doesn't destroy carry
 - [ ] ❌ **FORBIDDEN:** Claiming "rebalancing captures [edge]" without explaining the mechanical link
+  - Must show: rebalancing buys X and sells Y, which exploits inefficiency Z
 - [ ] ❌ **FORBIDDEN:** Any rebalancing_rationale shorter than 150 characters or containing "TBD"
 
-**Step 6: Worked Example (Use as Template)**
+**If ANY AUTO-REJECT triggered or FORBIDDEN pattern detected → STOP and revise that Strategy before proceeding.**
+
+**Step 7: Worked Example (Use as Template)**
 
 ✅ **PASS Example:**
 ```
@@ -709,7 +794,7 @@ Validation: ✗ Momentum edge + equal-weight rebalancing = CONTRADICTION
             → MUST FIX before submission
 ```
 
-**If ANY candidate fails Step 5 checks → You MUST fix before submission. This is non-negotiable.**
+**If ANY candidate triggers AUTO-REJECT in Steps 3-6 → You MUST fix before submission. This is non-negotiable.**
 
 ### Anti-Patterns
 - [ ] No diversification theater (checked correlations)

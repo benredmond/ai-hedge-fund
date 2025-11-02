@@ -93,17 +93,21 @@ async def create_strategy_workflow(
     ]
     scorecards = await asyncio.gather(*scoring_tasks)
 
-    # Validate all scores ≥3 (EdgeScorecard model validates this automatically)
-    # But check total_score for reporting
+    # Filter candidates by Edge Scorecard threshold (≥3.0)
+    # Log failures but allow partial success (winner_selector will handle filtering)
+    passing_indices = []
     for i, scorecard in enumerate(scorecards):
-        if scorecard.total_score < 3.0:
-            raise ValueError(
-                f"Candidate {i + 1} failed Edge Scorecard threshold: "
-                f"{scorecard.total_score:.1f}/5 (minimum: 3.0)"
+        if scorecard.total_score >= 3.0:
+            passing_indices.append(i)
+        else:
+            print(
+                f"⚠️  Candidate {i + 1} failed Edge Scorecard: {scorecard.total_score:.1f}/5 "
+                f"(thesis={scorecard.thesis_quality}, edge={scorecard.edge_economics}, "
+                f"risk={scorecard.risk_framework}, regime={scorecard.regime_awareness}, "
+                f"coherence={scorecard.strategic_coherence})"
             )
-    print(
-        f"✓ All candidates passed Edge Scorecard (avg: {sum(s.total_score for s in scorecards) / 5:.1f}/5)"
-    )
+
+    print(f"✓ {len(passing_indices)}/5 candidates passed Edge Scorecard (avg: {sum(s.total_score for s in scorecards) / 5:.1f}/5)")
 
     # Stage 3: Select winner
     print("Stage 3/4: Selecting winner...")

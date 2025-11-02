@@ -144,24 +144,38 @@ Tools are available if you need data NOT in the context pack:
 
 Generate exactly 5 Strategy objects with:
 
-1. **Edge Articulation** for each:
-   - Specific inefficiency being exploited
-   - Why the edge exists (mechanism)
-   - Why now (cite context pack regime data)
-   - Realistic failure modes
+1. **thesis_document (GENERATE FIRST - MOST IMPORTANT):**
+   - Write 200-2000 character investment thesis explaining:
+     - Market opportunity: What regime/trend are you exploiting?
+     - Edge explanation: Why does this inefficiency exist? Why persistent?
+     - Regime fit: Why NOW? Cite context pack data (VIX, breadth, sector leadership)
+     - Risk factors: Specific failure modes with triggers and impact
+   - Plain text paragraphs (NO markdown headers)
+   - Specific to THIS strategy (not generic "buy winners" boilerplate)
+   - Cite context pack numbers (e.g., "VIX 18.6 indicates low vol regime")
 
-2. **Diversity Requirements**:
+2. **Edge Articulation Requirements**:
+   - Specific inefficiency being exploited
+   - Why the edge exists (causal mechanism)
+   - Why now (cite context pack regime data)
+   - Realistic failure modes with specific triggers
+
+3. **Diversity Requirements**:
    - ≥3 different edge types (behavioral/structural/informational/risk premium)
    - ≥3 different archetypes (momentum/mean reversion/carry/directional/volatility)
    - Mix of concentration (focused vs diversified)
    - Mix of regime positioning (pro-cyclical vs counter-cyclical)
    - ≥3 different rebalancing frequencies
 
-3. **Platform Compliance**:
+4. **Platform Compliance**:
    - All weights sum to 1.0
    - No single asset >50%
    - Valid tickers (ETFs or stocks)
    - Rebalance frequency specified
+
+**CRITICAL FIELD ORDERING:**
+Generate thesis_document FIRST for each strategy (before name, assets, weights).
+This enables chain-of-thought reasoning before committing to execution details.
 
 **IMPORTANT:**
 - Primary data source: Context pack above
@@ -182,4 +196,9 @@ Output List[Strategy] with exactly 5 candidates.
             )
 
             result = await agent.run(generate_prompt)
+
+            # Debug logging: Print full LLM response
+            print(f"\n[DEBUG:CandidateGenerator] Full LLM response:")
+            print(f"{result.output}")
+
             return result.output

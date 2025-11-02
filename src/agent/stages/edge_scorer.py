@@ -68,7 +68,8 @@ class EdgeScorer:
                 "assets": strategy.assets,
                 "weights": strategy.weights,
                 "rebalance_frequency": strategy.rebalance_frequency.value,
-                "logic_tree": strategy.logic_tree if strategy.logic_tree else {}
+                "logic_tree": strategy.logic_tree if strategy.logic_tree else {},
+                "thesis_document": getattr(strategy, 'thesis_document', '')  # Defensive access for backward compat
             }
 
             # Extract relevant market context
@@ -101,12 +102,8 @@ Return your evaluation as a JSON object with scores for all 5 dimensions.
             raw_output = result.output
 
         # Debug logging: Print full LLM response for debugging format issues
-        print(f"\n[DEBUG:EdgeScorer] LLM response type: {type(raw_output)}")
-        if isinstance(raw_output, dict):
-            print(f"[DEBUG:EdgeScorer] Response keys: {list(raw_output.keys())}")
-            print(f"[DEBUG:EdgeScorer] Response preview (first 500 chars): {str(raw_output)[:500]}...")
-        else:
-            print(f"[DEBUG:EdgeScorer] Non-dict response: {str(raw_output)[:200]}...")
+        print(f"\n[DEBUG:EdgeScorer] Full LLM response:")
+        print(f"{raw_output}")
 
         # Unwrap nested response if model wraps in single-key dict (e.g., Kimi K2 uses "evaluation")
         # This handles provider differences while preserving GPT-4o flat format compatibility
