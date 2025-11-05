@@ -151,6 +151,8 @@ class WinnerSelector:
 - Assets: {", ".join(filtered_candidates[idx].assets[:5])}{"..." if len(filtered_candidates[idx].assets) > 5 else ""}
 - Weights: {dict(list(filtered_candidates[idx].weights.items())[:3])}{"..." if len(filtered_candidates[idx].weights) > 3 else ""}
 - Rebalancing: {filtered_candidates[idx].rebalance_frequency.value}
+- Edge Type: {getattr(filtered_candidates[idx].edge_type, "value", filtered_candidates[idx].edge_type)}
+- Archetype: {getattr(filtered_candidates[idx].archetype, "value", filtered_candidates[idx].archetype)}
 
 **Edge Scorecard:**
 """

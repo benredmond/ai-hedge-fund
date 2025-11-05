@@ -71,6 +71,8 @@ class CharterGenerator:
                 "assets": winner.assets,
                 "weights": winner.weights,
                 "rebalance_frequency": winner.rebalance_frequency.value,
+                "edge_type": getattr(winner.edge_type, "value", winner.edge_type),
+                "archetype": getattr(winner.archetype, "value", winner.archetype),
                 "logic_tree": winner.logic_tree
             },
             "reasoning": {
@@ -101,6 +103,8 @@ class CharterGenerator:
                 "index": i,
                 "name": candidate.name,
                 "assets": candidate.assets,
+                "edge_type": getattr(candidate.edge_type, "value", candidate.edge_type),
+                "archetype": getattr(candidate.archetype, "value", candidate.archetype),
                 "is_winner": i == winner_idx,
                 "edge_score": scorecard.total_score
             })

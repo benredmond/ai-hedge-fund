@@ -33,6 +33,28 @@ class RebalanceFrequency(str, Enum):
     MONTHLY = "monthly"
 
 
+class EdgeType(str, Enum):
+    """Classification of the strategic edge being exploited."""
+
+    UNSPECIFIED = "unspecified"
+    BEHAVIORAL = "behavioral"
+    STRUCTURAL = "structural"
+    INFORMATIONAL = "informational"
+    RISK_PREMIUM = "risk_premium"
+
+
+class StrategyArchetype(str, Enum):
+    """Canonical archetypes describing strategy mechanics."""
+
+    UNSPECIFIED = "unspecified"
+    MOMENTUM = "momentum"
+    MEAN_REVERSION = "mean_reversion"
+    CARRY = "carry"
+    DIRECTIONAL = "directional"
+    VOLATILITY = "volatility"
+    MULTI_STRATEGY = "multi_strategy"
+
+
 class Strategy(BaseModel):
     """
     Trading strategy specification.
@@ -59,6 +81,15 @@ class Strategy(BaseModel):
         min_length=150,
         max_length=800,
         description="Explicit explanation of how rebalancing method implements the strategy's edge. Must describe what rebalancing does to winners/losers and connect to edge mechanism."
+    )
+
+    edge_type: EdgeType = Field(
+        default=EdgeType.UNSPECIFIED,
+        description="Edge classification: behavioral, structural, informational, risk_premium"
+    )
+    archetype: StrategyArchetype = Field(
+        default=StrategyArchetype.UNSPECIFIED,
+        description="Strategy archetype: momentum, mean_reversion, carry, directional, volatility, multi_strategy"
     )
 
     # ========== EXECUTION FIELDS ==========
@@ -191,6 +222,24 @@ class Strategy(BaseModel):
         """Normalize frequency to lowercase for enum matching"""
         if isinstance(v, str):
             return v.lower()
+        return v
+
+    @field_validator("edge_type", mode="before")
+    @classmethod
+    def normalize_edge_type(cls, v: EdgeType | str | None) -> EdgeType | str | None:
+        """Normalize edge type strings to enum-compatible format."""
+        if isinstance(v, str):
+            normalized = v.strip().lower().replace(" ", "_").replace("-", "_")
+            return normalized
+        return v
+
+    @field_validator("archetype", mode="before")
+    @classmethod
+    def normalize_archetype(cls, v: StrategyArchetype | str | None) -> StrategyArchetype | str | None:
+        """Normalize archetype strings to enum-compatible format."""
+        if isinstance(v, str):
+            normalized = v.strip().lower().replace(" ", "_").replace("-", "_")
+            return normalized
         return v
 
     @field_validator("thesis_document")

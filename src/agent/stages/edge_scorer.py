@@ -68,6 +68,8 @@ class EdgeScorer:
                 "assets": strategy.assets,
                 "weights": strategy.weights,
                 "rebalance_frequency": strategy.rebalance_frequency.value,
+                "edge_type": getattr(strategy.edge_type, "value", strategy.edge_type),
+                "archetype": getattr(strategy.archetype, "value", strategy.archetype),
                 "logic_tree": strategy.logic_tree if strategy.logic_tree else {},
                 "thesis_document": getattr(strategy, 'thesis_document', '')  # Defensive access for backward compat
             }
