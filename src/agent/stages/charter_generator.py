@@ -180,12 +180,29 @@ Begin by using MCP tools to gather current market data, then write the 5-section
                     model=model,
                     output_type=Charter,
                     system_prompt=system_prompt,
-                    history_limit=20
+                    history_limit=20,
+                    model_settings={"max_tokens": 20000}
                 )
 
                 async with agent_ctx as agent:
                     result = await agent.run(prompt)
-                    return result.output
+                    charter = result.output
+
+                    # Check for truncation
+                    if self._is_truncated(charter):
+                        if attempt < max_attempts:
+                            print(
+                                f"⚠️  Charter appears truncated (attempt {attempt}/{max_attempts}). "
+                                f"Retrying with exponential backoff..."
+                            )
+                            continue  # Retry with existing backoff
+                        else:
+                            raise ValueError(
+                                f"Charter generation incomplete after {max_attempts} attempts. "
+                                f"Possible causes: token limit, validation rejection, or network timeout."
+                            )
+
+                    return charter
             except ModelHTTPError as err:
                 if getattr(err, "status_code", None) == 429 and attempt < max_attempts:
                     wait_time = base_delay * (2 ** (attempt - 1))
@@ -213,3 +230,38 @@ Begin by using MCP tools to gather current market data, then write the 5-section
             raise last_error
 
         raise RuntimeError("Charter generation failed without raising an error")
+
+    def _is_truncated(self, charter: Charter) -> bool:
+        """
+        Detect if charter was truncated during generation.
+
+        Uses heuristic checks:
+        - Minimum field lengths (market_thesis ≥100, outlook_90d ≥50)
+        - Sentence completion (fields end with punctuation)
+        - Minimum failure modes count (≥3 expected)
+
+        Returns:
+            True if charter appears incomplete, False otherwise
+        """
+        # Check minimum field lengths
+        if len(charter.market_thesis) < 100:
+            return True
+        if len(charter.strategy_selection) < 100:
+            return True
+        if len(charter.expected_behavior) < 100:
+            return True
+        if len(charter.outlook_90d) < 50:
+            return True
+
+        # Check sentence completion (all fields should end with punctuation)
+        for field_name in ['market_thesis', 'strategy_selection',
+                           'expected_behavior', 'outlook_90d']:
+            field_value = getattr(charter, field_name)
+            if not field_value.rstrip().endswith(('.', '!', '?', ':')):
+                return True
+
+        # Check minimum failure modes (expect at least 3)
+        if len(charter.failure_modes) < 3:
+            return True
+
+        return False

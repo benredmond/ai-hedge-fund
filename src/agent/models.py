@@ -31,6 +31,8 @@ class RebalanceFrequency(str, Enum):
     DAILY = "daily"
     WEEKLY = "weekly"
     MONTHLY = "monthly"
+    QUARTERLY = "quarterly"
+    NONE = "none"
 
 
 class EdgeType(str, Enum):
@@ -79,7 +81,7 @@ class Strategy(BaseModel):
     rebalancing_rationale: str = Field(
         ...,
         min_length=150,
-        max_length=800,
+        max_length=1000,  # Increased from 800 to allow detailed explanations without blocking retry
         description="Explicit explanation of how rebalancing method implements the strategy's edge. Must describe what rebalancing does to winners/losers and connect to edge mechanism."
     )
 
@@ -265,6 +267,12 @@ class Strategy(BaseModel):
 
         return v
 
+    # NOTE: Conditional logic validation moved to candidate_generator.py semantic validation
+    # Pydantic field validators run during deserialization and block the entire response,
+    # preventing the retry mechanism from working. The semantic validator runs after parsing
+    # and returns error messages that feed into the retry loop.
+    # See: src/agent/stages/candidate_generator.py:_validate_semantics()
+
 
 class Charter(BaseModel):
     """
@@ -355,7 +363,11 @@ class SelectionReasoning(BaseModel):
     winner_index: int = Field(ge=0, le=4)
     why_selected: str = Field(min_length=100, max_length=5000)
     tradeoffs_accepted: str = Field(min_length=50, max_length=2000)
-    alternatives_rejected: List[str] = Field(min_length=4, max_length=4)
+    alternatives_rejected: List[str] = Field(
+        min_length=1,
+        max_length=4,
+        description="Names of rejected candidates (1-4 depending on how many passed quality gate)"
+    )
     conviction_level: float = Field(ge=0.0, le=1.0)
 
     @field_validator("alternatives_rejected")
@@ -363,7 +375,7 @@ class SelectionReasoning(BaseModel):
     def alternatives_not_empty(cls, v: List[str]) -> List[str]:
         """Ensure all alternative names are meaningful"""
         if not v:
-            raise ValueError("Must have 4 rejected alternatives")
+            raise ValueError("Must have at least 1 rejected alternative")
 
         for alt in v:
             if len(alt) < 1:

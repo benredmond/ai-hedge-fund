@@ -233,4 +233,15 @@ Return structured SelectionReasoning output.
             score_delta = winner_composite - runner_up_composite
             reasoning.conviction_level = min(1.0, max(0.0, 0.5 + score_delta))
 
+        # Map winner_index from filtered list to original list
+        # This is critical for charter_generator.py which expects indices to reference the original candidates/scorecards arrays
+        original_winner_index = filtered_indices[reasoning.winner_index]
+        reasoning.winner_index = original_winner_index
+
+        # Defensive assertions to catch index mapping bugs early
+        assert 0 <= original_winner_index < len(candidates), \
+            f"Winner index {original_winner_index} out of range for {len(candidates)} candidates"
+        assert scorecards[original_winner_index].total_score >= 3.0, \
+            f"Winner scorecard {original_winner_index} failed quality gate ({scorecards[original_winner_index].total_score:.1f}/5)"
+
         return winner, reasoning
