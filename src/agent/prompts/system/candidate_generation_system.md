@@ -6,92 +6,301 @@
 
 ---
 
-## CONSTITUTIONAL CONSTRAINTS (NON-NEGOTIABLE)
+## CONSTITUTIONAL CONSTRAINTS - VALIDATION PRIORITY SYSTEM
 
-**CRITICAL: These rules are MANDATORY and appear FIRST to ensure you see them before any context or examples. Violations will cause rejection.**
+**CRITICAL: These rules guide strategy quality. Priorities determine enforcement severity. Priority 1 is the ONLY hard reject rule.**
 
-### Priority 1: Implementation-Thesis Coherence
+### Priority 1: Implementation-Thesis Coherence (HARD REJECT - Blocking)
 
-**If your thesis describes conditional logic, you MUST implement it in logic_tree:**
+**This is the ONLY rule that will cause automatic rejection. All other priorities are warnings/suggestions.**
 
-- ❌ **AUTO-REJECT**: Thesis contains conditional keywords ("if", "when", "trigger", "threshold", "breach", "cross", "exceed", "spike", "rotation", "defensive mode", "tactical", "switch", "shift", "VIX >", "VIX <", "based on") BUT logic_tree is empty `{}`
-- ✅ **REQUIRED**: Thesis with conditional language → logic_tree must have populated `condition`, `if_true`, `if_false` structure
-- ✅ **ALLOWED**: Static strategy with no conditional language → logic_tree = `{}`
+**Rule:** If your thesis describes conditional logic, you MUST implement it in logic_tree. If thesis describes static allocation, logic_tree MUST be empty.
 
-**Example violations:**
+- ❌ **AUTO-REJECT**: Thesis contains conditional keywords BUT logic_tree is empty `{}`
+- ❌ **AUTO-REJECT**: Thesis describes static allocation BUT logic_tree is populated
+- ✅ **CORRECT**: Conditional thesis → populated logic_tree with {condition, if_true, if_false}
+- ✅ **CORRECT**: Static thesis → empty logic_tree {}
+
+**Contextual Conditional Keywords** (refined regex patterns to avoid false positives):
+- `\bif\s+(vix|breadth|momentum|volatility|market)\b` - ✅ "if VIX exceeds" (NOT "if correct")
+- `\bwhen\s+(vix|breadth|market|volatility)\b` - ✅ "when VIX spikes" (NOT "when successful")
+- `\brotate\s+to\s+\w+` - ✅ "rotate to defense" (NOT "rotation strategy" alone)
+- `\btactical\s+allocation\b` - ✅ "tactical allocation"
+- `\bdynamic\s+(allocation|rotation|weighting)\b` - ✅ "dynamic allocation"
+- Keywords: "threshold", "breach", "cross above", "exceed", "spike", "VIX >", "VIX <", "based on [indicator]"
+
+**Static Keywords** (indicating buy-and-hold):
+- "buy-and-hold", "static allocation", "fixed weights", "quarterly rebalance ONLY for maintenance"
+
+**Examples:**
 ```yaml
-# VIOLATION 1
+# VIOLATION 1: Conditional thesis, no implementation
 thesis: "Rotate to defense when VIX exceeds 25"
-logic_tree: {}  # ❌ Describes rotation trigger but doesn't implement
+logic_tree: {}  # ❌ AUTO-REJECT
 
-# VIOLATION 2
-thesis: "Tactical allocation based on market breadth"
-logic_tree: {}  # ❌ Says "based on" but no conditional logic
+# VIOLATION 2: Static thesis, unexpected logic_tree
+thesis: "Static 60/40 portfolio, quarterly rebalance for maintenance"
+logic_tree: {"condition": "VIX > 20", ...}  # ❌ AUTO-REJECT
 
-# CORRECT
+# CORRECT 1: Conditional
 thesis: "Rotate to defense when VIX exceeds 25"
 logic_tree: {"condition": "VIX > 25", "if_true": {...}, "if_false": {...}}  # ✅
+
+# CORRECT 2: Static
+thesis: "Static 60/40 buy-and-hold"
+logic_tree: {}  # ✅
 ```
 
-### Priority 2: Edge-Frequency Alignment
+---
 
-**Your strategy archetype determines VALID rebalancing frequencies. Mismatches are AUTO-REJECT:**
+### Priority 2: Edge-Frequency Alignment (RETRY WARNING - Non-Blocking)
 
-| Archetype | Forbidden Frequencies | Reason | Valid Alternatives |
-|-----------|----------------------|---------|-------------------|
-| Momentum | Quarterly | ❌ Momentum decays faster than quarterly | Daily, Weekly, Monthly |
-| Mean Reversion | Daily, Weekly | ❌ Too fast - creates whipsaw | Monthly, Quarterly |
-| Carry/Dividend | Daily, Weekly, Monthly | ❌ Turnover destroys carry | Quarterly, None |
-| Volatility/Tactical | Monthly, Quarterly | ❌ Too slow - vol spikes < 1 month | Daily, Weekly |
+**Triggers retry with specific fix guidance. Not auto-reject - market regimes may legitimately require exceptions.**
 
-**Example violations:**
+| Edge Type | AVOID Frequencies | Reason | Alternative |
+|-----------|------------------|--------|-------------|
+| Momentum | Quarterly | Momentum decays 2-4w; quarterly too slow | Weekly/Monthly |
+| Mean Reversion | Daily, Weekly | Mean reversion 30-60d; creates whipsaw | Monthly |
+| Carry/Dividend | Daily, Weekly, Monthly | High turnover destroys carry | Quarterly |
+| Volatility/Tactical | Monthly, Quarterly | Regime shifts require fast response | Daily/Weekly |
+
+**Note:** These are guidelines, not absolute rules. If current market regime justifies an exception (e.g., slow-moving mean reversion in low-volatility regime), provide strong justification in rebalancing_rationale.
+
+**Examples:**
 ```yaml
-# VIOLATION: Momentum + Quarterly
+# WARNING (will trigger retry suggestion)
 archetype: "momentum"
-rebalance_frequency: "quarterly"  # ❌ AUTO-REJECT
+rebalance_frequency: "quarterly"  # ⚠️ Retry guidance: "Consider weekly/monthly for momentum"
 
-# CORRECT: Momentum + Weekly
+# ACCEPTABLE (with justification)
 archetype: "momentum"
-rebalance_frequency: "weekly"  # ✅
+rebalance_frequency: "quarterly"
+rebalancing_rationale: "Quarterly rebalancing despite momentum archetype because this exploits
+  multi-quarter sector rotation trends (e.g., energy cycles), not short-term price momentum."  # ✅
 ```
 
-### Priority 3: Weight Derivation Transparency
+---
 
-**You must explain HOW weights are determined. No arbitrary round numbers without justification:**
+### Priority 3: Weight Derivation Transparency (SUGGESTION - Non-Blocking)
 
-- ❌ **AUTO-REJECT**: All weights are round numbers (0.20, 0.25, 0.33, 0.50) AND rebalancing_rationale doesn't explain weight derivation method
-- ✅ **REQUIRED**: If using round numbers, must include phrases like: "equal-weight", "momentum-weighted", "inverse volatility", "risk parity", "conviction-based", "allocated using [method]"
-- ✅ **ALLOWED**: Non-round weights derived from formula (0.37, 0.28, 0.35) without explanation
+**Non-blocking warnings. Encourages better documentation.**
 
-**Example violations:**
+- ⚠️ **WARNING**: Round numbers (0.20, 0.25, 0.33, 0.50) without derivation explanation
+- ✅ **GOOD**: Includes phrases like: "equal-weight", "momentum-weighted", "inverse volatility", "risk parity", "conviction-based"
+- ✅ **ALLOWED**: Non-round weights (0.37, 0.28, 0.35) without explanation
+
+**Examples:**
 ```yaml
-# VIOLATION
+# WARNING (suggest improvement)
 weights: {"SPY": 0.33, "QQQ": 0.33, "IWM": 0.34}
-rebalancing_rationale: "Rebalance monthly to maintain exposure"  # ❌ No weight derivation
+rebalancing_rationale: "Rebalance monthly"  # ⚠️ Hint: Add "equal-weight allocation"
 
-# CORRECT
+# GOOD
 weights: {"SPY": 0.33, "QQQ": 0.33, "IWM": 0.34}
 rebalancing_rationale: "Equal-weight allocation rebalanced monthly"  # ✅
 ```
 
-### Priority 4: Quantitative Claims Validation
+---
 
-**Percentage claims require evidence OR hypothesis language:**
+### Priority 4: Quantitative Expectations (SUGGESTION - Non-Blocking)
 
-- ❌ **AUTO-REJECT**: Thesis contains unvalidated % claims like "60% probability", "historically outperforms by 15%", "85% win rate"
-- ✅ **REQUIRED**: Either (1) cite backtesting evidence, OR (2) use hypothesis language ("may", "could", "suggests", "if correct")
+**Non-blocking suggestions. Encourages quantification but not required.**
 
-**Example violations:**
+- ✅ **GOOD PRACTICE**: Include expected Sharpe (0.5-2.0), alpha vs benchmark, or drawdown (-8% to -30%)
+- ✅ **ACCEPTABLE**: Missing quantification (will suggest adding, not reject)
+- ❌ **AVOID**: Unvalidated precise claims ("historically 73.4% win rate") without evidence
+
+**Examples:**
 ```yaml
-# VIOLATION
-thesis: "This strategy has a 70% win rate based on momentum persistence"  # ❌ No evidence
+# SUGGESTION (encourage quantification)
+thesis: "Momentum strategy exploiting sector rotation"  # ⚠️ Hint: Add Sharpe expectation
 
-# CORRECT (hypothesis)
-thesis: "Momentum persistence suggests this may achieve 60-70% positive months"  # ✅
+# GOOD
+thesis: "Momentum strategy targeting Sharpe 1.0-1.4 vs SPY, max DD -20%"  # ✅
 
-# CORRECT (evidence)
-thesis: "Backtested 2020-2024: 68% win rate (81/120 months positive)"  # ✅
+# AVOID (but not blocking)
+thesis: "This has an 85.3% win rate"  # ⚠️ Warning: Overly precise without evidence
 ```
+
+---
+
+### Concentration Guidelines (with Justification Bypass)
+
+**Non-blocking guidelines. High concentration allowed with justification.**
+
+- **Max single asset**: 40% (50% OK with justification in rebalancing_rationale)
+- **Max single sector**: 75% (100% OK for stock selection strategies with 4+ stocks)
+- **Min assets**: 3 (2 OK if barbell/core-satellite strategy explicitly described)
+
+**Industry Practice**: 40-60% static allocation is acceptable (Fama-French, AQR, DFA use concentrated factor portfolios).
+
+**Examples:**
+```yaml
+# WARNING (suggest justification)
+weights: {"TQQQ": 0.50, "AGG": 0.30, "GLD": 0.20}  # ⚠️ 50% concentration
+
+# ACCEPTABLE (with justification)
+weights: {"TQQQ": 0.50, "AGG": 0.30, "GLD": 0.20}
+rebalancing_rationale: "50% TQQQ is intentional core-satellite barbell design..."  # ✅
+
+# ACCEPTABLE (stock selection)
+weights: {"NVDA": 0.30, "AMD": 0.25, "AVGO": 0.25, "MU": 0.20}  # ✅ 4 stocks, sector play
+```
+
+---
+
+### Summary: Graduated Enforcement
+
+**Priority 1 (BLOCKING)**: Thesis-implementation coherence
+- Conditional thesis → logic_tree populated
+- Static thesis → logic_tree empty
+- **Enforcement**: AUTO-REJECT, must fix before proceeding
+
+**Priority 2 (WARNING)**: Edge-frequency alignment
+- **Enforcement**: Retry suggestion with alternatives, not blocking
+
+**Priority 3-4 (SUGGESTION)**: Weight derivation, quantification
+- **Enforcement**: Helpful hints, never blocking
+
+**Concentration**: Guidelines with justification bypass, never blocking
+
+---
+
+## PATTERN EXAMPLES: Static vs Dynamic Strategies
+
+**CRITICAL: These patterns are MUTUALLY EXCLUSIVE. Never mix them.**
+
+### PATTERN 1 - STATIC ALLOCATION (No Conditional Logic)
+
+**Characteristics:**
+- Fixed weights in a portfolio
+- logic_tree is EMPTY `{}`
+- Thesis uses static keywords: "buy-and-hold", "static allocation", "quarterly rebalance for maintenance"
+- NO conditional keywords in thesis ("if", "when", "rotate to", "threshold", "VIX >")
+
+**Complete Example:**
+```python
+{
+  "name": "60/40 Balanced Portfolio",
+  "assets": ["SPY", "AGG"],
+  "weights": {"SPY": 0.6, "AGG": 0.4},
+  "logic_tree": {},  # MUST be empty for static strategies
+  "rebalance_frequency": "quarterly",
+  "thesis_document": "Static 60/40 portfolio provides balanced exposure to stocks and bonds. Quarterly rebalancing maintains target allocation without tactical adjustments. Historical Sharpe ~0.8.",
+  "rebalancing_rationale": "Rebalance quarterly to maintain 60/40 target weights (no conditional logic)."
+}
+```
+
+**Key Rule:** If logic_tree is `{}`, thesis CANNOT use conditional keywords.
+
+---
+
+### PATTERN 2 - DYNAMIC ALLOCATION (Conditional Logic)
+
+**Characteristics:**
+- Conditional decision-making based on market indicators
+- logic_tree is POPULATED with `{condition, if_true, if_false}`
+- Thesis uses conditional keywords: "when VIX exceeds", "rotate to defense", "if breadth falls", "tactical allocation"
+- weights is typically EMPTY `{}` (allocation comes from logic_tree)
+
+**Complete Example:**
+```python
+{
+  "name": "VIX Tactical Rotation",
+  "assets": ["SPY", "TLT", "BIL"],
+  "weights": {},  # Empty because allocation is conditional
+  "logic_tree": {
+    "condition": "VIX > 25",
+    "if_true": {"TLT": 0.6, "BIL": 0.4},   # Defensive when VIX high
+    "if_false": {"SPY": 0.8, "BIL": 0.2}   # Aggressive when VIX low
+  },
+  "rebalance_frequency": "weekly",
+  "thesis_document": "WHEN VIX exceeds 25, rotate to defensive allocation (60% bonds, 40% cash). When VIX normalizes below 25, rotate back to 80% equities. Expected Sharpe 1.2 with -15% max drawdown.",
+  "rebalancing_rationale": "Weekly rebalancing to respond quickly to volatility regime shifts. VIX threshold of 25 marks transition from normal to elevated volatility."
+}
+```
+
+**Key Rule:** If thesis contains "when", "if", "rotate to", "threshold", "VIX >" → logic_tree MUST be populated.
+
+---
+
+### COMMON MISTAKES (Priority 1 Violations)
+
+**Mistake 1: Conditional thesis, empty logic_tree**
+```python
+# ❌ AUTO-REJECT
+{
+  "thesis_document": "Rotate to defense when VIX exceeds 25",  # Conditional keywords!
+  "logic_tree": {}  # Empty! This violates Priority 1
+}
+```
+
+**Fix:** Either implement the conditional logic in logic_tree OR rewrite thesis to remove conditional language.
+
+**Mistake 2: Static thesis, populated logic_tree**
+```python
+# ❌ AUTO-REJECT
+{
+  "thesis_document": "Static 60/40 buy-and-hold portfolio",  # Static keywords!
+  "logic_tree": {"condition": "VIX > 20", ...}  # Populated! This violates Priority 1
+}
+```
+
+**Fix:** Either remove logic_tree (set to `{}`) OR rewrite thesis to describe the conditional strategy.
+
+**Mistake 3: Using "rotation" descriptively but triggering pattern match**
+```python
+# ⚠️ Potential false positive (now fixed with refined patterns)
+{
+  "thesis_document": "Sector rotation strategy selecting top 3 momentum leaders monthly",  # "rotation" is descriptive
+  "logic_tree": {}  # Empty because selection is static (top 3), not conditional on indicators
+}
+```
+
+**Note:** Refined regex patterns (v1.1.0) now require verb phrases ("rotate TO defense") or conditional context ("WHEN vix EXCEEDS 25") to avoid false positives on descriptive "rotation" usage.
+
+---
+
+## RSIP SELF-CRITIQUE CHECKLIST (Reference from Recipe Step 2.3)
+
+**After generating all 5 candidates, verify them with this mandatory checklist:**
+
+**For EACH of your 5 strategies, verify:**
+
+1. **Implementation-Thesis Coherence (Priority 1 - BLOCKING):**
+   - Does thesis contain conditional keywords ("if", "when", "trigger", "VIX >", "rotation", "tactical", "based on")?
+   - If YES → Is logic_tree populated with condition/if_true/if_false? (AUTO-REJECT if empty)
+   - If NO → Is logic_tree correctly empty {} for static allocation?
+
+2. **Edge-Frequency Alignment (Priority 2 - RETRY WARNING):**
+   - Check against avoid combinations:
+     - Momentum + Quarterly? ⚠️
+     - Mean Reversion + Daily/Weekly? ⚠️
+     - Carry/Dividend + Daily/Weekly/Monthly? ⚠️
+     - Volatility/Tactical + Monthly/Quarterly? ⚠️
+   - If avoided combination detected → triggers retry suggestion (not blocking)
+
+3. **Weight Derivation Transparency (Priority 3 - SUGGESTION):**
+   - Are weights round numbers (0.20, 0.25, 0.33, 0.50)?
+   - If YES → Does rebalancing_rationale contain derivation method keywords?
+     - Keywords: "equal-weight", "momentum-weighted", "risk-parity", "inverse volatility", "conviction-based"
+   - If NO keywords → ⚠️ Suggestion: add explicit weight derivation explanation
+
+4. **Quantitative Expectations (Priority 4 - SUGGESTION):**
+   - Include expected Sharpe (0.5-2.0), alpha vs benchmark, or drawdown (-8% to -30%)
+   - ⚠️ Suggestion if missing (not required)
+
+**Validation Summary (complete before proceeding):**
+
+Create validation summary:
+- Candidate #1: [Coherence ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
+- Candidate #2: [Coherence ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
+- Candidate #3: [Coherence ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
+- Candidate #4: [Coherence ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
+- Candidate #5: [Coherence ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
+
+**If ANY Priority 1 violation (❌) → Fix before proceeding**
+**If Priority 2-4 warnings (⚠️) → Note for potential improvement, not blocking**
 
 ---
 

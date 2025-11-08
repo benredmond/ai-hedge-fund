@@ -127,6 +127,14 @@ Current Regime (as of Oct 27, 2025):
 
 ## PHASE 2: Charter Writing
 
+**CRITICAL LENGTH CONSTRAINTS:**
+- Keep sections concise to avoid Pydantic validation failures
+- Target 300-800 words per major section (market_thesis, strategy_selection, expected_behavior)
+- Target 100-200 words for outlook_90d
+- Target 3-8 failure modes of 30-100 words each
+- Maximum characters per field: market_thesis (5000), strategy_selection (5000), expected_behavior (5000), outlook_90d (2000)
+- **If sections exceed character limits, Pydantic validation will fail and charter will be rejected**
+
 ### Section 1: Market Thesis (500-1000 words)
 
 **Structure:**

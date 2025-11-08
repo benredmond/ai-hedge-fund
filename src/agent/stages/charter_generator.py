@@ -4,6 +4,7 @@ import asyncio
 from typing import List
 import json
 import openai
+from pydantic import ValidationError
 from src.agent.strategy_creator import (
     create_agent,
     load_prompt,
@@ -173,6 +174,7 @@ Begin by using MCP tools to gather current market data, then write the 5-section
         base_delay: float = 5.0
     ) -> Charter:
         last_error: Exception | None = None
+        length_warning_given = False
 
         for attempt in range(1, max_attempts + 1):
             try:
@@ -185,17 +187,44 @@ Begin by using MCP tools to gather current market data, then write the 5-section
                 )
 
                 async with agent_ctx as agent:
-                    result = await agent.run(prompt)
+                    # Add length reminder on retries
+                    current_prompt = prompt
+                    if attempt > 1 and length_warning_given:
+                        current_prompt = f"""IMPORTANT: Previous attempt exceeded field length limits.
+Remember the CRITICAL LENGTH CONSTRAINTS:
+- market_thesis: MAX 5000 characters (target 300-800 words)
+- strategy_selection: MAX 5000 characters (target 300-800 words)
+- expected_behavior: MAX 5000 characters (target 300-800 words)
+- outlook_90d: MAX 2000 characters (target 100-200 words)
+
+{prompt}"""
+
+                    result = await agent.run(current_prompt)
                     charter = result.output
+
+                    # Semantic validation (check for issues even if Pydantic passed)
+                    validation_warnings = self._validate_charter_semantics(charter)
+                    if validation_warnings:
+                        if attempt < max_attempts:
+                            print(f"⚠️  Charter has semantic issues (attempt {attempt}/{max_attempts}):")
+                            for warning in validation_warnings:
+                                print(f"   - {warning}")
+                            if any("approaching limit" in w or "exceeds" in w for w in validation_warnings):
+                                length_warning_given = True
+                            continue
+                        else:
+                            print(f"⚠️  Charter has warnings but proceeding (final attempt):")
+                            for warning in validation_warnings:
+                                print(f"   - {warning}")
 
                     # Check for truncation
                     if self._is_truncated(charter):
                         if attempt < max_attempts:
                             print(
                                 f"⚠️  Charter appears truncated (attempt {attempt}/{max_attempts}). "
-                                f"Retrying with exponential backoff..."
+                                f"Retrying..."
                             )
-                            continue  # Retry with existing backoff
+                            continue
                         else:
                             raise ValueError(
                                 f"Charter generation incomplete after {max_attempts} attempts. "
@@ -203,6 +232,18 @@ Begin by using MCP tools to gather current market data, then write the 5-section
                             )
 
                     return charter
+            except ValidationError as err:
+                # Pydantic validation failed (likely max_length exceeded)
+                if attempt < max_attempts:
+                    print(
+                        f"⚠️  Charter validation failed (attempt {attempt}/{max_attempts}). "
+                        f"Error: {str(err)[:200]}... "
+                        f"Retrying with length constraints reminder..."
+                    )
+                    length_warning_given = True
+                    last_error = err
+                    continue
+                raise
             except ModelHTTPError as err:
                 if getattr(err, "status_code", None) == 429 and attempt < max_attempts:
                     wait_time = base_delay * (2 ** (attempt - 1))
@@ -230,6 +271,69 @@ Begin by using MCP tools to gather current market data, then write the 5-section
             raise last_error
 
         raise RuntimeError("Charter generation failed without raising an error")
+
+    def _validate_charter_semantics(self, charter: Charter) -> List[str]:
+        """
+        Validate charter for semantic issues beyond Pydantic schema.
+
+        Checks:
+        - Field lengths approaching or exceeding limits
+        - Imbalanced sections (one field much longer than others)
+        - Incomplete content patterns
+
+        Returns:
+            List of warning messages (empty if all checks pass)
+        """
+        warnings = []
+
+        # Character limits from Charter model
+        LIMITS = {
+            'market_thesis': 5000,
+            'strategy_selection': 5000,
+            'expected_behavior': 5000,
+            'outlook_90d': 2000
+        }
+
+        # Check for fields approaching or exceeding limits
+        for field_name, limit in LIMITS.items():
+            field_value = getattr(charter, field_name)
+            field_len = len(field_value)
+
+            if field_len > limit * 0.9:  # Warn if >90% of limit
+                warnings.append(
+                    f"{field_name} approaching limit: {field_len}/{limit} chars "
+                    f"({field_len/limit*100:.0f}%). Consider condensing."
+                )
+
+            if field_len > limit:
+                warnings.append(
+                    f"{field_name} EXCEEDS limit: {field_len}/{limit} chars. "
+                    f"This will fail Pydantic validation!"
+                )
+
+        # Check for imbalanced sections (one field at max while others are short)
+        major_fields = ['market_thesis', 'strategy_selection', 'expected_behavior']
+        field_lengths = [len(getattr(charter, f)) for f in major_fields]
+        max_len = max(field_lengths)
+        min_len = min(field_lengths)
+
+        if max_len > 4000 and min_len < max_len * 0.3:
+            warnings.append(
+                f"Imbalanced sections: longest={max_len} chars, shortest={min_len} chars. "
+                f"Consider redistributing content more evenly."
+            )
+
+        # Check for incomplete bullet patterns (mid-field truncation)
+        for field_name in ['market_thesis', 'strategy_selection',
+                          'expected_behavior', 'outlook_90d']:
+            field_value = getattr(charter, field_name)
+            if field_value.rstrip().endswith((':\n- ', ':\n-', ':\n')):
+                warnings.append(
+                    f"{field_name} ends with incomplete bullet list. "
+                    f"Likely truncated mid-generation."
+                )
+
+        return warnings
 
     def _is_truncated(self, charter: Charter) -> bool:
         """
@@ -260,7 +364,7 @@ Begin by using MCP tools to gather current market data, then write the 5-section
             if not field_value.rstrip().endswith(('.', '!', '?', ':')):
                 return True
 
-        # Check minimum failure modes (expect at least 3)
+        # Check minimum failure modes (expect at least 3, not strictly required to have 5+)
         if len(charter.failure_modes) < 3:
             return True
 
