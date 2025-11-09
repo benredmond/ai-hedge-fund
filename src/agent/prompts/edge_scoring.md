@@ -484,6 +484,221 @@ Examples:
 
 ---
 
+## Special Evaluation: Leveraged Strategies (2x/3x ETFs)
+
+**CRITICAL PRINCIPLE:** Do NOT penalize leverage per se. Evaluate PROCESS QUALITY - a well-justified 3x strategy CAN score 5/5 across all dimensions, while a poorly-justified conservative strategy may score 2/5.
+
+### Leverage-Specific Evaluation Criteria
+
+When a strategy uses 2x or 3x leveraged ETFs (e.g., TQQQ, UPRO, TMF), apply these modified rubrics:
+
+---
+
+### Dimension 1: Thesis Quality (Leverage Bar)
+
+**Required Elements for ALL Leveraged Strategies (2x and 3x):**
+
+1. **Convexity Advantage**: Why leverage enhances your edge vs unleveraged version
+2. **Decay Cost Quantification**: Specific cost estimate (e.g., "2-5% annually for 3x")
+3. **Realistic Drawdown**: Historical worst-case aligned with leverage multiplier
+4. **Benchmark Comparison**: Why not just use SPY/QQQ/etc instead?
+
+**Additional Requirements for 3x Only:**
+
+5. **Stress Test**: Historical crisis analog (2022, 2020, or 2008) with drawdown data
+6. **Exit Criteria**: Specific triggers to de-risk (VIX threshold, momentum reversal, etc.)
+
+**Scoring Rubric (Leveraged):**
+
+**5/5 - Institutional Grade (3x requires ALL 6 elements; 2x requires 4 core + stress OR exit)**
+
+Example (3x):
+> "Thesis: TQQQ for AI momentum capture. **Convexity**: Edge window (2-4 weeks) shorter than decay threshold (30+ days); 3x captures spike before mean reversion. **Decay**: 2-5% annually in sideways markets; targeting 18-22% alpha vs QQQ. **Drawdown**: 2022 analog: TQQQ -80% vs QQQ -35% during rate shock. Acceptable for aggressive conviction. **Benchmark**: TQQQ vs QQQ: 3x amplifies 2-week momentum bursts (avg +15% QQQ → +45% TQQQ) before decay dominates. **Stress Test**: 2020 COVID: TQQQ -75% in 30 days vs QQQ -30%. **Exit**: If VIX >30 for 5+ days OR momentum turns negative (3-month cumulative return <0) OR AI CapEx growth <10% YoY."
+
+**4/5 - Strong (requires 4 core elements for 2x; 4 core + stress OR exit for 3x)**
+
+Example (2x):
+> "SSO for S&P momentum. Convexity: 2-3 week edge window vs 30-day decay threshold. Decay: ~0.5-1% annually. Drawdown: 2022: -40% realistic. Benchmark: SSO vs SPY targets +8-12% alpha. Exit plan less specific but present."
+
+**3/5 - Acceptable (requires 3 of 4 core elements)**
+
+Example:
+> "UPRO for bull market exposure. Mentions decay (~3% annually), drawdown estimate (-50%), and benchmark comparison. Missing convexity explanation."
+
+**2/5 - Weak (requires 2 of 4 core OR unrealistic drawdown)**
+
+Examples:
+- Only discusses decay and benchmark (missing convexity, drawdown)
+- Claims TQQQ max drawdown <30% (unrealistic - fantasy number)
+
+**1/5 - Inadequate (≤1 element OR fantasy drawdown)**
+
+Examples:
+- "TQQQ for high returns" with no justification
+- Claims 3x ETF has <20% max drawdown (impossible - violates physics)
+- No discussion of why leverage enhances edge
+
+**Red Flags (Cap Thesis Quality at Score):**
+
+- **Fantasy drawdown** (3x claiming <40% max DD) → Cap at 1/5
+- **No convexity explanation** (3x) → Cap at 2/5
+- **Missing stress test** (3x) → Cap at 3/5
+- **Missing exit criteria** (3x) → Cap at 3/5
+
+**Realistic Drawdown Bounds:**
+- **2x leverage**: 18-40% realistic range (2022: SSO -40%, QLD -55%)
+- **3x leverage**: 40-65% realistic range (2022: TQQQ -80%, UPRO -65%)
+
+---
+
+### Dimension 2: Edge Economics (Decay & Capacity)
+
+**Leverage-Specific Checks:**
+
+1. **Decay Cost Addressed**: Must explicitly mention daily rebalancing friction
+2. **Decay Quantified**: Must include specific cost estimate (0.5-1% for 2x, 2-5% for 3x)
+3. **Alpha vs Benchmark**: Must quantify expected alpha after decay costs
+4. **Capacity Limits** (bonus): Discusses strategy capacity constraints
+
+**Scoring Rubric (Leveraged):**
+
+**5/5 - Sustainable Edge (all 3 required + capacity discussion)**
+
+Example:
+> "Edge: Post-earnings drift in tech, amplified via TQQQ. **Decay**: 3x decays ~2-5% annually in sideways markets; edge magnitude 15-20% exceeds decay by 5-10x. **Alpha**: Targeting +18-22% vs QQQ after decay. **Capacity**: Viable <$10M AUM (TQQQ liquidity $500M+ daily); beyond that, slippage exceeds edge."
+
+**4/5 - Plausible Edge (all 3 required; capacity optional)**
+
+Example:
+> "Momentum edge via SSO. Decay: 0.5-1% annually. Alpha target: +8-12% vs SPY. Edge magnitude 10x decay cost justifies friction."
+
+**3/5 - Edge Claimed (decay mentioned + alpha direction stated)**
+
+Example:
+> "UPRO for bull market. Mentions decay exists (~3%), expects outperformance vs SPY. Lacks quantification of alpha magnitude."
+
+**2/5 - Dubious Edge (no decay discussion OR no alpha quantification)**
+
+Examples:
+- Claims 3x edge but doesn't discuss decay costs
+- "TQQQ will outperform" with no numbers
+
+**1/5 - No Demonstrable Edge (pure beta with no edge articulation)**
+
+Example:
+> "Buy UPRO for 3x S&P returns" (just leveraged beta, no edge)
+
+**Red Flags (Cap Edge Economics at Score):**
+
+- **No decay discussion** (3x) → Cap at 2/5
+- **Decay mentioned but not quantified** → Cap at 3/5
+- **No alpha quantification** → Cap at 3/5
+- **Edge magnitude < 5x decay** → Dubious sustainability (score 2-3)
+
+---
+
+### Dimension 3: Risk Framework (Stress & Exits)
+
+**Leverage-Specific Checks:**
+
+1. **Realistic Drawdown**: Worst-case aligned with historical crises
+2. **Stress Test** (3x only): 2022/2020/2008 analog with actual drawdown data
+3. **Exit Criteria** (3x only): Specific triggers to de-risk
+
+**Scoring Rubric (Leveraged):**
+
+**5/5 - Comprehensive (3x requires stress test + specific exit + realistic DD; 2x requires realistic DD + exit)**
+
+Example (3x):
+> "**Stress Test**: 2022 analog: TQQQ -80% vs QQQ -35% during rate shock. 2020: TQQQ -75% in 30 days. **Max Drawdown**: -65% tolerable for aggressive conviction. **Exit**: (1) VIX >30 for 5+ consecutive days, (2) momentum turns negative (3-mo cumulative return <0), (3) AI CapEx growth <10% YoY. **Position Risk**: 50% TQQQ allocation; max portfolio DD -45% in 80% TQQQ drawdown scenario."
+
+**4/5 - Strong (3x requires stress test + exit; 2x requires realistic DD)**
+
+Example (2x):
+> "**Drawdown**: SSO -40% in 2022 (vs SPY -20%). **Exit**: Rotate to SPY if VIX >28 or trend breaks (SPY <50d MA). Stress test less detailed but present."
+
+**3/5 - Basic (realistic drawdown acknowledged)**
+
+Example:
+> "UPRO expected max drawdown -50% to -60%. Aware of 2022 analog. Basic exit plan (VIX threshold)."
+
+**2/5 - Weak (unrealistic drawdown OR no stress test for 3x)**
+
+Examples:
+- TQQQ with claimed max DD of -30% (unrealistic)
+- 3x strategy with no 2022/2020/2008 reference
+
+**1/5 - Risk Unaware (claims 3x works in all conditions OR no drawdown discussion)**
+
+Examples:
+- "TQQQ for high returns with limited downside"
+- No risk discussion whatsoever
+
+**Red Flags (Cap Risk Framework at Score):**
+
+- **Fantasy drawdown** (3x <40%) → Cap at 1/5
+- **Unrealistic drawdown** (3x <50% without justification) → Cap at 2/5
+- **Missing stress test** (3x) → Cap at 2/5
+- **Missing exit plan** (3x) → Cap at 2/5
+- **Generic exit** ("stop loss" without trigger) → Cap at 3/5
+
+---
+
+### Dimension 4: Regime Awareness (Leverage Context)
+
+**No special rubric changes for leveraged strategies.** Evaluate regime fit as normal.
+
+**Note:** Leveraged strategies naturally favor low-volatility trending regimes. Acknowledge this dependency explicitly:
+- **Strong fit**: 3x momentum in `strong_bull` + `volatility_low`
+- **Moderate fit**: 2x in normal volatility
+- **Poor fit**: 3x in `volatility_spike` (unless intentionally defensive via TMF)
+
+---
+
+### Dimension 5: Strategic Coherence (Leverage Execution)
+
+**No special rubric changes for leveraged strategies.** Evaluate coherence as normal.
+
+**Leverage-Specific Coherence Checks:**
+- **Position sizing**: 3x concentration >50% requires extreme conviction
+- **Rebalancing frequency**: Higher frequency reduces decay impact (daily/weekly better)
+- **Hedge logic**: Counter-leverage hedges (e.g., TQQQ + TMF barbell) must explain correlation
+
+---
+
+## Leverage Evaluation Summary
+
+**Scoring Philosophy:**
+
+✅ **DO**: Score on PROCESS QUALITY
+- Well-justified 3x strategy with all elements → 5/5 possible
+- Poorly-justified conservative strategy → 2/5 deserved
+
+❌ **DON'T**: Penalize leverage per se
+- "3x is risky" → NOT a valid criticism without specifics
+- "I prefer unleveraged" → Irrelevant; evaluate the thesis
+
+**Examples of Fair Scoring:**
+
+| Strategy | Scores | Reasoning |
+|----------|--------|-----------|
+| 3x momentum with all 6 elements | Thesis:5, Edge:5, Risk:5 | Complete justification, realistic expectations |
+| 2x with 4 core elements | Thesis:4, Edge:4, Risk:4 | Solid justification, minor gaps |
+| 3x with fantasy drawdown (<30%) | Thesis:1, Risk:1 | Unrealistic expectations disqualify strategy |
+| Conservative with no edge | Thesis:2, Edge:1 | No leverage doesn't excuse weak reasoning |
+
+**Red Flag Thresholds:**
+
+| Issue | Dimension | Score Cap | Reasoning |
+|-------|-----------|-----------|-----------|
+| Fantasy drawdown (3x <40%) | Thesis Quality | 1/5 | Violates physics; shows no understanding |
+| No decay discussion (3x) | Edge Economics | 2/5 | Missing critical cost component |
+| No stress test (3x) | Risk Framework | 2/5 | Insufficient risk analysis |
+| No exit criteria (3x) | Risk Framework | 2/5 | No de-risk plan for extreme leverage |
+| Missing convexity explanation | Thesis Quality | 2/5 | Doesn't justify why leverage helps |
+
+---
+
 ## Output Format
 
 Return a JSON object with your evaluation:

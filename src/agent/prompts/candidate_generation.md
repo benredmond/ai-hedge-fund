@@ -144,46 +144,170 @@ composer_search_symphonies(query="defensive VIX rotation")
 [Note any additional data needs that emerged during research]
 ```
 
-**THEN proceed to Step 2.0.5 (Mandatory Planning Matrix)**
+**THEN proceed to Step 2.0.6 (Edge Quantification Schema)**
 
-### Step 2.0.5: Mandatory Planning Matrix (REQUIRED CHECKPOINT)
+---
 
-**BEFORE ideating any candidates, complete this planning matrix to commit to your conditional logic approach:**
+### Step 2.0.6: Edge Quantification Schema (REQUIRED BEFORE IDEATION)
 
-This planning matrix forces deliberate decision-making about conditional logic BEFORE generation, preventing the common pattern where agents describe conditional logic in thesis but don't implement it.
+**BEFORE ideating any strategies, define quantitative expectations to prevent unfalsifiable claims and overfitting.**
 
-| # | Archetype | Conditional? | Triggers (if conditional) | Weight Method | Frequency | Rationale |
-|---|-----------|--------------|---------------------------|---------------|-----------|-----------|
-| 1 | [momentum/mean-rev/carry/vol/directional] | YES/NO | [e.g., "VIX > 22", "sector momentum rank"] OR "N/A" | [momentum-weighted/equal/risk-parity/conviction/dynamic] | [daily/weekly/monthly/quarterly] | [1-2 sentence justification] |
-| 2 | [archetype] | YES/NO | [triggers] OR "N/A" | [method] | [frequency] | [rationale] |
-| 3 | [archetype] | YES/NO | [triggers] OR "N/A" | [method] | [frequency] | [rationale] |
-| 4 | [archetype] | YES/NO | [triggers] OR "N/A" | [method] | [frequency] | [rationale] |
-| 5 | [archetype] | YES/NO | [triggers] OR "N/A" | [method] | [frequency] | [rationale] |
+**Schema Format:**
+```
+Edge Type | Expected Sharpe (0.5-2.0) | vs Benchmark | Max DD (-8% to -30%) | Win Rate (45-65%) | Timeframe (90d)
+```
 
-**Validation Checkpoint (MANDATORY):**
-- [ ] At least 2 conditional strategies (Conditional? = YES)
-- [ ] At least 2 static strategies (Conditional? = NO)
-- [ ] All conditional strategies have specific triggers defined (not "N/A")
-- [ ] Weight methods match archetypes (momentum → momentum-weighted or buy-hold, mean-rev → equal-weight)
-- [ ] Frequencies match edge timescales (volatility → daily/weekly, carry → quarterly)
+**Instructions:**
+1. Complete this schema for ALL 5 candidates BEFORE writing any thesis or strategy details
+2. Must specify benchmark comparison (SPY, QQQ, AGG, 60/40, or factor ETF)
+3. Constraints enforce realism:
+   - Sharpe range prevents overfitting signals
+   - Drawdown range prevents "no risk" fantasy strategies
+   - Win rate prevents "always wins" claims
 
-**If Conditional? = YES with Triggers = "N/A" → STOP - Must define triggers before proceeding**
+**Example:**
+```
+Momentum      | 1.0-1.4 | vs SPY      | -18% to -25% | 52-58% | 90d
+Mean-Rev      | 0.8-1.2 | vs SPY      | -12% to -18% | 55-62% | 90d
+Volatility    | 1.2-1.8 | vs 60/40    | -10% to -15% | 48-54% | 90d
+Carry         | 0.7-1.1 | vs AGG      | -15% to -22% | 50-60% | 90d
+Directional   | 0.9-1.3 | vs QQQ      | -20% to -28% | 50-56% | 90d
+```
 
-**If Weight Method contradicts Archetype → STOP - Fix alignment before proceeding**
+**After completing quantification schema, proceed to Step 2.0.7 (Planning Matrix)**
 
-**Example Completed Matrix:**
+---
 
-| # | Archetype | Conditional? | Triggers | Weight Method | Frequency | Rationale |
-|---|-----------|--------------|----------|---------------|-----------|-----------|
-| 1 | Volatility | YES | VIX > 22 → defensive, VIX < 18 → growth | Dynamic (via logic_tree) | Daily | Fast regime shifts require daily response |
-| 2 | Momentum | NO | N/A | Momentum-weighted | Weekly | Sector momentum persistence, rerank weekly |
-| 3 | Mean Reversion | NO | N/A | Equal-weight | Monthly | Oversold sectors, equal-weight buys dips |
-| 4 | Carry | NO | N/A | Equal-weight | Quarterly | Dividend yield, low turnover preserves carry |
-| 5 | Directional | YES | Fed rate cuts (10Y yield < 4%) → financials | Static per branch | Monthly | Rate sensitivity, 1-month lag in XLF options |
+### Step 2.0.7: Planning Matrix (COMPRESSED - REQUIRED CHECKPOINT)
 
-**After completing this matrix, proceed to Step 2.2 to generate ALL 5 strategies in a single response.**
+**BEFORE ideating, plan each candidate using this inline format:**
+
+**Format:** `Archetype | Conditional? (YES/NO) | Triggers (if YES) | Weight Method | Frequency | Rationale`
+
+**Example:**
+```
+#1: Momentum | YES | VIX <20 & top 2 sectors by 30d return | Momentum-weighted | Weekly | Momentum persistence 2-4w
+#2: Mean-Rev | NO | N/A | Equal-weight | Monthly | Oversold bounce, equal-weight amplifies
+#3: Volatility | YES | VIX >22 → defense, VIX <18 → growth | Dynamic (logic_tree) | Daily | Fast regime shift response
+#4: Carry | NO | N/A | Equal-weight | Quarterly | Dividend yield, low turnover preserves carry
+#5: Directional | YES | 10Y yield <4% → financials | Static per branch | Monthly | Rate sensitivity, 1-month lag
+```
+
+**Validation (MANDATORY before proceeding):**
+- At least 2/5 conditional (YES), 2/5 static (NO)
+- All conditional strategies have triggers (not "N/A")
+- Frequency matches edge timescale (momentum=weekly, carry=quarterly, volatility=daily)
+
+**After completing planning matrix, proceed to Step 2.0.8 (Leverage Justification) if using 2x/3x ETFs.**
 
 **CRITICAL: You must output all 5 Strategy objects in a single List[Strategy] response. Do not generate them one at a time.**
+
+---
+
+### Step 2.0.8: Leverage Justification (REQUIRED if using 2x/3x ETFs)
+
+**You MAY use leveraged ETFs to amplify specific edges, but ONLY with comprehensive justification.**
+
+#### Approved Leveraged ETFs (Whitelist)
+
+**2x Leveraged** (Moderate risk amplification):
+- **Broad Market**: SSO (2x S&P), QLD (2x Nasdaq), UGL (2x Gold)
+- **Sectors**: URE (2x Real Estate), ROM (2x Tech), UYG (2x Financials)
+- **Bonds**: UST (2x 7-10Y), UBT (2x 20Y+ Treasuries)
+
+**3x Leveraged** (High risk amplification):
+- **Broad Market**: UPRO (3x S&P), TQQQ (3x Nasdaq), SPXL (3x S&P)
+- **Sectors**: SOXL (3x Semiconductors), FAS (3x Financials), TECL (3x Tech)
+- **Bonds**: TMF (3x 20Y+ Treasuries)
+- **Inverse**: SPXS, SQQQ, TZA (use sparingly, requires short conviction justification)
+
+**Only use ETFs from this whitelist.** No exotic leveraged instruments.
+
+---
+
+#### 4-Element Justification Framework (MANDATORY for all leveraged strategies)
+
+**If you include ANY 2x or 3x ETF, your thesis MUST address ALL 4 elements:**
+
+**1. Convexity Advantage**
+*Question: Why does leverage enhance your edge vs unleveraged version?*
+
+Good Example: "Momentum edge persists 2-4 weeks (institutional rebalancing lag) but mean-reverts after 30+ days. TQQQ (3x Nasdaq) captures short-term momentum spike 3x faster than QQQ before mean reversion, with edge window (2-4 weeks) significantly shorter than decay dominance threshold (30+ days persistent sideways)."
+
+Bad Example: "Leverage amplifies returns." ❌ [Obvious, not an edge explanation]
+
+**2. Decay Cost Quantification**
+*Question: What's the daily rebalancing friction, and why does edge magnitude justify it?*
+
+Guidelines:
+- **2x ETFs**: Decay ~0.5-1.0% annually in sideways markets
+- **3x ETFs**: Decay ~2-5% annually in sideways markets
+- **Justification**: Edge alpha should be ≥5-10x decay cost
+
+Good Example: "TQQQ decays ~3-4% annually in sideways markets (daily rebalancing friction). Edge target: 18-25% alpha vs QQQ annually, justifying decay cost 6-8x. In trending markets (current bull), decay is <2% while momentum persists."
+
+Bad Example: "Some decay occurs but edge compensates." ❌ [No quantification]
+
+**3. Drawdown Amplification**
+*Question: What's the realistic worst-case drawdown (must be pessimistic)?*
+
+Realistic Ranges:
+- **2x leverage**: -18% to -40% max drawdown
+- **3x leverage**: -40% to -65% max drawdown
+- **Higher if concentrated** (e.g., 100% TQQQ = -70% to -85% realistic)
+
+Good Example: "2022 analog: TQQQ -80% vs QQQ -35% during rate shock. Expected max drawdown: -50% to -65% during severe correction. Acceptable for high-conviction AI momentum thesis (2025-2026 buildout cycle)."
+
+Bad Example: "Expected drawdown: -20% to -30%." ❌ [UNREALISTIC for 3x leverage]
+
+**4. Benchmark Comparison**
+*Question: Why not just use the unleveraged version?*
+
+Benchmark Mapping:
+- TQQQ/QLD → Compare to QQQ
+- UPRO/SSO → Compare to SPY
+- SOXL → Compare to SMH (semiconductor ETF)
+- TMF → Compare to TLT
+
+Good Example: "Benchmark: TQQQ vs QQQ. QQQ: ~12% annual return, -35% max drawdown (unleveraged). TQQQ target: ~30-35% annual return (2.5-3x QQQ minus 3-4% decay), -50-65% max drawdown. Risk-reward justified by high-conviction AI infrastructure buildout (2025-2026). Why not QQQ? Unleveraged misses short-term momentum amplification edge (2-4 week window)."
+
+Bad Example: "TQQQ provides better returns than QQQ." ❌ [No alpha quantification, no risk tradeoff]
+
+---
+
+#### Additional Requirements for 3x Leverage ONLY
+
+**5. Stress Test** (2022, 2020, or 2008 historical analog)
+
+*Question: What happened to this 3x ETF during past crises?*
+
+Examples:
+- "2020 COVID Crash: TQQQ -75% in 30 days (Feb 19 - Mar 23) vs QQQ -30%. Strategy rotates to cash (BIL) when VIX > 30, limiting crisis exposure to ~10 days max. Back-test: Would have captured -40% vs -75% full exposure."
+- "2022 Rate Shock: TQQQ -80% full year vs QQQ -35%. Strategy exits when 3-month momentum turns negative (occurred May 2022), avoiding June-Oct decline. Back-test: -35% vs -80% full exposure."
+
+**6. Exit Criteria** (Specific triggers to de-risk)
+
+*Question: When do you rotate out of 3x leverage?*
+
+Example: "Exit criteria (rotate to cash/bonds if ANY trigger): 1. VIX > 30 for 5+ consecutive days (volatility spike), 2. NASDAQ 3-month momentum turns negative (trend reversal), 3. AI capital expenditure growth decelerates below 15% YoY (thesis breakdown), 4. Position down -25% from entry (stop-loss for risk management)"
+
+---
+
+#### Leverage Decision Checklist
+
+**Before using 2x ETFs:**
+- ☐ Edge timescale (2-4 weeks) < decay threshold (30+ days)?
+- ☐ Edge alpha (12-20%) justifies 0.8-1% decay cost (12-20x)?
+- ☐ Realistic drawdown (-18% to -40%)?
+- ☐ Benchmark comparison explains why not 1x?
+
+**Before using 3x ETFs:**
+- ☐ All 4 elements above + quantified
+- ☐ Stress test included (2022, 2020, or 2008)?
+- ☐ Exit criteria specified (VIX threshold, momentum reversal, stop-loss)?
+- ☐ Position sizing limits (max 50% in any single 3x ETF)?
+
+**If ANY checkbox unchecked → DO NOT use leverage for that candidate.**
 
 ---
 
@@ -208,7 +332,7 @@ Before finalizing archetype + rebalancing frequency combinations, validate again
 - ❌ Carry/Dividend + Daily/Weekly/Monthly rebalancing (excessive turnover destroys carry)
 - ❌ Volatility/Tactical + Monthly/Quarterly (too slow for regime shifts)
 
-If your planning matrix (Step 2.0.5) has any of these combinations, STOP and revise before generating.
+If your planning matrix (Step 2.0.5) has any of these combinations, revise before generating.
 
 **Example Combinations:**
 1. **Momentum + Focused + Pro-cyclical** → "Top 3 sectors by 3m momentum, monthly rebalance"
@@ -259,51 +383,17 @@ Your weights MUST be derived from your thesis mechanism, not arbitrary round num
 
 ### Step 2.3: Post-Generation Self-Critique (RSIP Reflection Checkpoint)
 
-**AFTER generating all 5 candidates, STOP and run this mandatory self-critique checklist:**
+**AFTER generating all 5 candidates, complete the RSIP Checklist from the system prompt.**
 
-This reflection checkpoint prevents common Constitutional Constraint violations by forcing explicit verification BEFORE submission.
+**Reference:** See system prompt "RSIP SELF-CRITIQUE CHECKLIST" section for complete checklist.
 
-**For EACH of your 5 strategies, verify:**
+**Summary:** Verify each strategy for:
+1. Coherence (conditional thesis → logic_tree populated)
+2. Frequency alignment (edge type matches rebalance frequency)
+3. Weight derivation (round numbers explained)
+4. Quantification (Sharpe/alpha/drawdown included)
 
-- [ ] **Implementation-Thesis Coherence (Priority 1):**
-  - Does thesis contain conditional keywords ("if", "when", "trigger", "threshold", "VIX >", "rotation", "tactical", "based on")?
-  - If YES → Is logic_tree populated with condition/if_true/if_false? (AUTO-REJECT if empty)
-  - If NO → Is logic_tree correctly empty {} for static allocation?
-
-- [ ] **Edge-Frequency Alignment (Priority 2):**
-  - Check against forbidden combinations (system prompt lines 36-46):
-    - Momentum + Quarterly? ❌
-    - Mean Reversion + Daily/Weekly? ❌
-    - Carry/Dividend + Daily/Weekly/Monthly? ❌
-    - Volatility/Tactical + Monthly/Quarterly? ❌
-  - If forbidden combination detected → STOP and revise frequency before proceeding
-
-- [ ] **Weight Derivation Transparency (Priority 3):**
-  - Are weights round numbers (0.20, 0.25, 0.33, 0.50)?
-  - If YES → Does rebalancing_rationale contain derivation method keywords? ("equal-weight", "momentum-weighted", "risk-parity", "inverse volatility", "conviction-based")
-  - If NO keywords → ❌ AUTO-REJECT - add explicit weight derivation explanation
-
-- [ ] **Quantitative Claims Validation (Priority 4):**
-  - Does thesis contain unvalidated percentage claims (e.g., "70% win rate", "15% outperformance", "60% probability")?
-  - If YES → Either cite backtesting evidence OR rephrase with hypothesis language ("may", "could", "suggests")
-  - If neither → ❌ AUTO-REJECT - revise to add evidence or soften claim
-
-- [ ] **Mean Reversion/Value Security Selection (Recipe requirement):**
-  - Is archetype "mean reversion" or "value"?
-  - If YES → Are individual stocks used [TICKER, TICKER] with documented selection workflow?
-  - If using sector ETFs (XLF, XLE) → ❌ FAIL - mean reversion requires stock-level selection (see Example 2 lines 580-658)
-
-**Validation Summary Table (complete before proceeding):**
-
-| # | Conditional Logic Match? | Frequency Valid? | Weights Derived? | Claims Validated? | Security Selection (if MR/Value)? |
-|---|-------------------------|------------------|------------------|-------------------|-----------------------------------|
-| 1 | ✅/❌ | ✅/❌ | ✅/❌ | ✅/❌ | ✅/❌/N/A |
-| 2 | ✅/❌ | ✅/❌ | ✅/❌ | ✅/❌ | ✅/❌/N/A |
-| 3 | ✅/❌ | ✅/❌ | ✅/❌ | ✅/❌ | ✅/❌/N/A |
-| 4 | ✅/❌ | ✅/❌ | ✅/❌ | ✅/❌ | ✅/❌/N/A |
-| 5 | ✅/❌ | ✅/❌ | ✅/❌ | ✅/❌ | ✅/❌/N/A |
-
-**If ANY cell shows ❌ → STOP - Fix violation before proceeding to Step 2.4**
+**Create validation summary and fix any Priority 1 violations before proceeding to Step 2.4.**
 
 ---
 
@@ -1136,6 +1226,117 @@ Candidate 5: 3 assets (XLE, XLU, XLP)
 
 ---
 
+### ❌ Anti-Pattern #6: Leverage Without Justification
+
+**BAD Example (FAIL - will be AUTO-REJECTED):**
+```python
+Strategy(
+  name="3x Tech Momentum",
+  assets=["TQQQ", "SOXL"],
+  weights={"TQQQ": 0.60, "SOXL": 0.40},
+  rebalance_frequency="daily",
+  thesis_document="""
+    Strong tech momentum from AI buildout. Using 3x leveraged ETFs
+    (TQQQ, SOXL) to amplify returns from AI buildout.
+    Expected returns: 25-30% annually. Max drawdown: -20% to -30%.
+  """
+)
+```
+
+**Why this fails:**
+1. ❌ No convexity explanation (why 3x vs 1x?)
+2. ❌ No decay cost quantification (3x decays 2-5% annually - missing)
+3. ❌ Unrealistic drawdown (-20-30% impossible with 3x; should be -40-65%)
+4. ❌ No benchmark comparison (TQQQ vs QQQ alpha?)
+5. ❌ No stress test (2022 TQQQ -80% - missing)
+6. ❌ No exit criteria (when to de-risk?)
+
+**Result:** Priority 1 AUTO-REJECT
+
+---
+
+**GOOD Example (PASS - all elements present):**
+```python
+Strategy(
+  name="Short-Duration Tech Momentum 3x",
+  assets=["TQQQ", "QQQ", "BIL"],
+  weights={"TQQQ": 0.40, "QQQ": 0.35, "BIL": 0.25},
+  logic_tree={
+    "condition": "VIX < 25 AND NASDAQ_3m_momentum > 0",
+    "if_true": {"assets": ["TQQQ", "QQQ"], "weights": {"TQQQ": 0.55, "QQQ": 0.45}},
+    "if_false": {"assets": ["BIL"], "weights": {"BIL": 1.0}}
+  },
+  thesis_document="""
+    [1. CONVEXITY ADVANTAGE]
+    AI infrastructure momentum persists 2-4 weeks (supply chain lead times create
+    institutional capital allocation lag) but mean-reverts after 30+ days.
+    TQQQ (3x Nasdaq) captures short-term momentum spike 3x faster than QQQ before
+    mean reversion dominates. Edge window (2-4 weeks) significantly shorter than
+    3x decay dominance threshold (30+ days persistent sideways movement).
+
+    [2. DECAY COST QUANTIFICATION]
+    TQQQ decays ~3-5% annually in sideways markets (daily rebalancing friction + contango).
+    In trending bull markets (current regime), decay is lower (~2%).
+    Edge target: 20-28% alpha vs QQQ annually, justifying decay cost 6-9x.
+
+    [3. DRAWDOWN AMPLIFICATION]
+    Historical evidence: 2022 rate shock: TQQQ -80% vs QQQ -35% (2.3x amplification).
+    2020 COVID crash: TQQQ -75% in 30 days vs QQQ -30% (2.5x amplification).
+    Expected max drawdown: -50% to -65% during severe market correction.
+    Acceptable for high-conviction AI momentum thesis (2025-2026 buildout cycle).
+
+    [4. BENCHMARK COMPARISON]
+    Unleveraged QQQ achieves ~12% annually with -35% max drawdown historical.
+    TQQQ targets ~30-38% annually (2.5-3x QQQ minus 3-5% decay) with -50-65% max drawdown.
+    Risk-reward justified by conviction in AI infrastructure momentum (2-4 week edge window).
+    Why not QQQ? Unleveraged captures only 12% vs 30%+ target. 3x amplification
+    enhances momentum edge before decay dominates (edge < decay threshold).
+
+    [5. STRESS TEST - 3x REQUIRED]
+    2020 COVID Crash: TQQQ -75% in 30 days (Feb 19 - Mar 23, 2020).
+    Strategy exits when VIX > 30, rotating to BIL (cash). Back-test simulation shows
+    exit on Mar 11 (VIX hit 32), limiting exposure to ~-35% vs -75% full decline.
+
+    2022 Rate Shock: TQQQ -80% full year vs QQQ -35%.
+    Strategy exits when 3-month momentum turns negative (occurred May 2022 when NASDAQ
+    broke 12-month moving average). Back-test shows exit captured -30% decline vs -80%
+    full year, avoiding June-October waterfall decline.
+
+    [6. EXIT CRITERIA - 3x REQUIRED]
+    Rotate to BIL (100% cash) if ANY trigger hit:
+    1. VIX > 30 for 5+ consecutive days (volatility spike)
+    2. NASDAQ 3-month cumulative return turns negative (momentum reversal)
+    3. AI capital expenditure growth decelerates below 15% YoY (Fortune 500 CapEx data - thesis breakdown)
+    4. TQQQ position down -30% from peak (stop-loss for risk management)
+  """,
+  rebalancing_rationale="""
+    Weekly rebalancing with VIX-based conditional allocation captures 2-4 week momentum
+    edge while limiting 3x decay exposure. When VIX < 25 and NASDAQ 3m momentum positive
+    (low volatility + trending): allocate 55% TQQQ (3x tilt) + 45% QQQ (core unleveraged anchor).
+    When VIX ≥ 25 OR momentum negative (high volatility or trend reversal): rotate 100% to BIL (cash).
+
+    Weights derived from conviction tiering: TQQQ (55% in risk-on mode) represents high conviction
+    on 2-4 week AI momentum persistence, QQQ (45%) provides unleveraged exposure reducing portfolio
+    leverage to ~2.1x effective (0.55 * 3 + 0.45 * 1 = 2.1x), BIL (25% base allocation in neutral mode)
+    provides cash for volatility spikes.
+  """
+)
+```
+
+**Why this passes:**
+- ✅ Convexity: Edge window (2-4w) < decay threshold (30d)
+- ✅ Decay: 3-5% quantified, justified by 20-28% alpha (6-9x)
+- ✅ Drawdown: -50-65% realistic (cites 2022 -80%)
+- ✅ Benchmark: TQQQ vs QQQ with specific alpha target
+- ✅ Stress test: 2020 (-75%) and 2022 (-80%) with back-test
+- ✅ Exit criteria: 4 specific triggers with thresholds
+
+**Result:** Passes all validation gates
+
+**See Step 2.0.8 for complete leverage justification framework.**
+
+---
+
 ### ✅ Good Diversity Example (PASS)
 
 ```
@@ -1246,7 +1447,7 @@ From Step 2.4 Diversity Checklist:
 - [ ] All strategies pass Planning Matrix consistency check
 - [ ] No AUTO-REJECT violations present
 
-**If ANY checkbox above is unchecked → STOP - Do not submit until fixed**
+**If ANY checkbox above is unchecked → Do not submit until fixed**
 
 ---
 

@@ -386,3 +386,4 @@ This is a **longitudinal research project**, not a quick benchmark.
 
 The dataset becomes more valuable over time as it captures multiple market regimes and builds statistical power.
 - DO NOT SWITCH MODELS TO 4o for "efficiency"
+- dont run the TestPhase5EndToEnd test

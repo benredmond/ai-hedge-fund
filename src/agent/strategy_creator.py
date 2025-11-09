@@ -10,10 +10,10 @@ This module provides:
 
 from contextlib import AsyncExitStack
 from pathlib import Path
-from typing import Type, TypeVar
+from typing import Optional, Type, TypeVar
 import os
 from pydantic import BaseModel
-from pydantic_ai import Agent
+from pydantic_ai import Agent, ModelSettings
 from pydantic_ai import messages as _messages
 from pydantic_ai.tools import RunContext
 from src.agent.mcp_config import get_mcp_servers
@@ -150,6 +150,7 @@ async def create_agent(
     system_prompt: str | None = None,
     include_composer: bool = True,
     history_limit: int = 20,
+    model_settings: Optional[ModelSettings] = None,
 ) -> AgentContext:
     """
     Create AI agent with multi-provider support and MCP tools.
@@ -263,6 +264,7 @@ async def create_agent(
         system_prompt=system_prompt,
         toolsets=toolsets,
         history_processors=[create_history_processor(max_messages=history_limit)],
+        model_settings=model_settings,
     )
 
     # Return wrapped agent with lifecycle management

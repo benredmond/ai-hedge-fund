@@ -81,6 +81,91 @@ rebalancing_rationale: "Quarterly rebalancing despite momentum archetype because
 
 ---
 
+### Priority 2B: Leverage Justification (GRADUATED ENFORCEMENT)
+
+**Applies ONLY if strategy uses 2x or 3x leveraged ETFs.**
+
+#### Approved Leveraged ETFs (Whitelist)
+
+**2x Leveraged**: SSO, QLD, UGL, URE, ROM, UYG, UST, UBT
+**3x Leveraged**: UPRO, TQQQ, SPXL, SOXL, FAS, TECL, TMF, SPXS, SQQQ, TZA
+
+**Use ONLY these instruments.** No exotic/illiquid leveraged products.
+
+---
+
+#### 4-Element Justification (MANDATORY for 2x or 3x)
+
+**ALL leveraged strategies MUST include in thesis:**
+
+1. **Convexity Advantage**: Why leverage enhances edge vs unleveraged
+   - NOT acceptable: "Leverage amplifies returns" (obvious)
+   - Example: "Edge window (2-4w) < decay threshold (30d) → 3x captures spike before decay"
+
+2. **Decay Cost**: Quantify daily rebalancing friction
+   - 2x: ~0.5-1% annually (sideways markets)
+   - 3x: ~2-5% annually (sideways markets)
+   - Must explain: Edge alpha ≥ 5-10x decay cost
+
+3. **Drawdown Amplification**: Realistic pessimistic scenario
+   - 2x: -18% to -40% max drawdown
+   - 3x: -40% to -65% max drawdown
+   - Cite historical analog (e.g., "2022 TQQQ -80%")
+
+4. **Benchmark Comparison**: Why not unleveraged version?
+   - TQQQ → Compare to QQQ
+   - UPRO/SSO → Compare to SPY
+   - Example: "TQQQ targets +20% alpha vs QQQ after 3% decay, justifying 2x drawdown risk"
+
+---
+
+#### Additional Requirements for 3x ONLY
+
+**5. Stress Test** (Historical crisis analog):
+- **Required**: 2022, 2020, OR 2008 specific example
+- Example: "2020 COVID: TQQQ -75% in 30 days vs QQQ -30%. Exit at VIX>30 limits to -35%."
+
+**6. Exit Criteria** (When to de-risk):
+- **Required**: Specific triggers (not "if markets decline")
+- Example: "Exit if VIX > 30 for 5+ days OR 3m momentum < 0 OR position down -25%"
+
+---
+
+#### Enforcement Severity
+
+| Leverage | Missing Elements | Action |
+|----------|-----------------|--------|
+| **3x** | ANY element missing | **AUTO-REJECT** (Priority 1) |
+| **2x** | 1-2 elements missing | **RETRY** with guidance (Priority 2) |
+| **2x** | 3+ elements missing | **AUTO-REJECT** (Priority 1) |
+
+**Drawdown Realism Check** (applies to ALL leverage):
+- 3x claiming <-40% max drawdown → **AUTO-REJECT** (fantasy)
+- 2x claiming <-18% max drawdown → **AUTO-REJECT** (fantasy)
+
+---
+
+#### Leverage Anti-Patterns
+
+**❌ REJECT: Generic leverage claim**
+```
+"Using TQQQ to amplify tech exposure. Drawdown: -25%."
+```
+[Missing: convexity, decay, benchmark, stress test, exit criteria]
+
+**✅ ACCEPT: Comprehensive justification**
+```
+"TQQQ captures 2-4w AI momentum before decay (edge < 30d threshold).
+Decay: 3-4% annually, edge targets 20-25% (6x justification).
+2022: TQQQ -80% vs QQQ -35%. Expected: -50-65% drawdown.
+Benchmark: +18-22% alpha vs QQQ after decay.
+Stress test: Exit when VIX>30 OR 3m momentum<0 limits 2020 to -40% vs -75%."
+```
+
+**See Recipe Step 2.0.8 for complete framework and examples.**
+
+---
+
 ### Priority 3: Weight Derivation Transparency (SUGGESTION - Non-Blocking)
 
 **Non-blocking warnings. Encourages better documentation.**
