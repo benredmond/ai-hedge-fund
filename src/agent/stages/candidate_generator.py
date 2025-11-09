@@ -740,52 +740,81 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
             syntax=syntax
         )
 
-    def _create_fix_prompt(self, validation_errors: List[str]) -> str:
+    def _create_fix_prompt(self, candidates: List[Strategy], validation_errors: List[str]) -> str:
         """
         Create targeted fix prompt from validation errors.
 
         Args:
+            candidates: Original candidates with validation errors
             validation_errors: List of validation error messages
 
         Returns:
             Prompt string with specific fix instructions
         """
         fix_prompt = "# SURGICAL VALIDATION FIX - PRESERVE STRUCTURE\n\n"
+
+        # NEW: Show concrete original values in code blocks
+        fix_prompt += "## 📋 ORIGINAL VALUES (COPY EXACTLY - IMMUTABLE)\n\n"
+        fix_prompt += "**The values below are from your original generation. You MUST copy them EXACTLY into your fixed response.**\n\n"
+
+        for i, strategy in enumerate(candidates, 1):
+            fix_prompt += f"### Candidate #{i}: {strategy.name}\n"
+            fix_prompt += "```python\n"
+            fix_prompt += f"assets = {strategy.assets}  # ❌ IMMUTABLE - Copy exactly\n"
+            fix_prompt += f"weights = {dict(strategy.weights)}  # ❌ KEYS IMMUTABLE - Keys must match assets\n"
+            fix_prompt += f"name = \"{strategy.name}\"  # ❌ IMMUTABLE - Copy exactly\n"
+            fix_prompt += f"edge_type = EdgeType.{strategy.edge_type.name}  # ❌ IMMUTABLE - Copy exactly\n"
+            fix_prompt += f"archetype = StrategyArchetype.{strategy.archetype.name}  # ❌ IMMUTABLE - Copy exactly\n"
+            fix_prompt += f"rebalance_frequency = RebalanceFrequency.{strategy.rebalance_frequency.name}  # ⚠️ Can change ONLY if archetype-frequency mismatch\n"
+            logic_tree_desc = "empty {{}}" if not strategy.logic_tree else "populated dict"
+            fix_prompt += f"logic_tree = {logic_tree_desc}  # ❌ STRUCTURE IMMUTABLE - Empty stays empty, populated stays populated\n"
+            fix_prompt += "```\n\n"
+
+        fix_prompt += "**⚠️ CRITICAL INSTRUCTION:**\n"
+        fix_prompt += "When fixing validation errors, COPY the immutable values above EXACTLY into your response.\n"
+        fix_prompt += "Only modify these fields:\n"
+        fix_prompt += "- ✅ **thesis_document**: Reword to fix coherence issues\n"
+        fix_prompt += "- ✅ **rebalancing_rationale**: Add missing explanations\n"
+        fix_prompt += "- ✅ **rebalance_frequency**: Change ONLY if archetype-frequency mismatch error\n\n"
+
         fix_prompt += "## ⚠️ CRITICAL: PRESERVE THESE FIELDS (DO NOT MODIFY)\n"
-        fix_prompt += "**These fields MUST remain EXACTLY as originally generated:**\n"
+        fix_prompt += "**These fields MUST remain EXACTLY as shown in ORIGINAL VALUES above:**\n"
         fix_prompt += "- **assets**: MUST preserve EXACT list (same tickers, same order)\n"
         fix_prompt += "- **weights**: MUST preserve EXACT dict keys (same assets as keys)\n"
         fix_prompt += "- **name**: MUST preserve EXACT string\n"
+        fix_prompt += "- **edge_type**: MUST preserve EXACT enum value\n"
+        fix_prompt += "- **archetype**: MUST preserve EXACT enum value\n"
         fix_prompt += "- **logic_tree structure**: If originally empty {}, MUST stay empty. "
-        fix_prompt += "If originally populated, preserve condition structure (only change values if needed)\n\n"
-        fix_prompt += "**❌ FORBIDDEN CHANGES:**\n"
-        fix_prompt += "- DO NOT change [XLK, XLY, XLF] to [XLK, XLV, XLU]\n"
-        fix_prompt += "- DO NOT add/remove assets from the original list\n"
-        fix_prompt += "- DO NOT change weight keys (must match assets exactly)\n"
-        fix_prompt += "- DO NOT populate empty logic_tree {} unless validation EXPLICITLY requires it\n"
-        fix_prompt += "- DO NOT change logic_tree from populated to empty\n\n"
+        fix_prompt += "If originally populated, preserve structure\n\n"
+        fix_prompt += "**❌ EXAMPLE VIOLATIONS (DO NOT DO THIS):**\n"
+        fix_prompt += "- ❌ Changing ['VYM', 'SCHD', 'NOBL'] to ['VYM', 'SCHD', 'JEPI']  # FORBIDDEN\n"
+        fix_prompt += "- ❌ Changing name from 'Strategy A' to 'Improved Strategy A'  # FORBIDDEN\n"
+        fix_prompt += "- ❌ Changing EdgeType.STRUCTURAL to EdgeType.BEHAVIORAL  # FORBIDDEN\n"
+        fix_prompt += "- ❌ Populating empty logic_tree {{}}  # FORBIDDEN (unless validation explicitly requires it)\n\n"
         fix_prompt += "**✅ VALIDATION ENFORCEMENT:**\n"
-        fix_prompt += "After this fix, programmatic checks will verify assets/weights/logic_tree structure unchanged.\n"
-        fix_prompt += "Any modification to structural fields will cause immediate failure.\n\n"
-        fix_prompt += "## ONLY REVISE TEXT CONTENT (NOT STRUCTURE):\n"
-        fix_prompt += "- **thesis_document**: Reword to match logic_tree structure (if empty logic_tree, remove conditional keywords)\n"
-        fix_prompt += "- **rebalancing_rationale**: Add weight derivation explanation if missing\n"
-        fix_prompt += "- **rebalance_frequency**: Change frequency to match edge timescale if archetype-frequency mismatch\n\n"
-        fix_prompt += "**DO NOT MODIFY** assets, weights dict keys, name, or logic_tree structure during fixes.\n\n"
+        fix_prompt += "After this fix, programmatic checks will verify ALL immutable fields unchanged.\n"
+        fix_prompt += "Any modification to structural fields will cause immediate failure with specific error message.\n\n"
 
-        fix_prompt += f"The following {len(validation_errors)} validation errors were found:\n\n"
+        fix_prompt += f"## 🐛 VALIDATION ERRORS TO FIX ({len(validation_errors)}):\n\n"
 
         for idx, error in enumerate(validation_errors, 1):
-            fix_prompt += f"{idx}. {error}\n\n"
+            fix_prompt += f"{idx}. {error}\n"
 
-        fix_prompt += "\n## REQUIRED FIXES (TEXT ONLY, PRESERVE STRUCTURE)\n\n"
+        fix_prompt += "\n## ✅ FIX STRATEGY (MANDATORY):\n\n"
         fix_prompt += "For each error above:\n"
-        fix_prompt += "1. If thesis describes conditional logic but logic_tree empty → REWORD thesis to remove conditional keywords (keep logic_tree {})\n"
-        fix_prompt += "2. If archetype-frequency mismatch → Change rebalance_frequency field only (do NOT change assets)\n"
-        fix_prompt += "3. If weights lack derivation → Add weight derivation explanation to rebalancing_rationale (do NOT change weights)\n"
-        fix_prompt += "4. If concentration warning → Add justification to rebalancing_rationale (do NOT change weights/assets)\n\n"
-        fix_prompt += "**CRITICAL**: The fix is ALWAYS textual (thesis, rationale, frequency). NEVER modify structural fields (assets, weights keys, logic_tree populated→empty or empty→populated).\n\n"
-        fix_prompt += "Return the CORRECTED List[Strategy] with all validation errors fixed.\n"
+        fix_prompt += "1. **Read the error** - Understand what's wrong\n"
+        fix_prompt += "2. **Identify the TEXT field** - Which field needs fixing (thesis/rationale/frequency)?\n"
+        fix_prompt += "3. **Fix ONLY that field** - Modify thesis/rationale text or change frequency enum\n"
+        fix_prompt += "4. **Copy structural fields** - Copy assets/weights/name/edge_type/archetype EXACTLY from ORIGINAL VALUES\n"
+        fix_prompt += "5. **Return complete list** - Return all 5 candidates with errors fixed\n\n"
+        fix_prompt += "**Examples:**\n"
+        fix_prompt += "- Error: 'Thesis describes conditional logic but logic_tree empty'\n"
+        fix_prompt += "  ✅ CORRECT FIX: Reword thesis to remove conditional keywords (keep logic_tree {{}})\n"
+        fix_prompt += "  ❌ WRONG FIX: Populate logic_tree with conditions\n\n"
+        fix_prompt += "- Error: 'Momentum archetype with quarterly rebalancing too slow'\n"
+        fix_prompt += "  ✅ CORRECT FIX: Change rebalance_frequency to WEEKLY or MONTHLY\n"
+        fix_prompt += "  ❌ WRONG FIX: Change assets or archetype\n\n"
+        fix_prompt += "Return the CORRECTED List[Strategy] with all validation errors fixed and structural fields preserved.\n"
 
         return fix_prompt
 
@@ -810,7 +839,7 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
         Returns:
             Fixed candidates (merge of passing + fixed failing)
         """
-        fix_prompt = self._create_fix_prompt(validation_errors)
+        fix_prompt = self._create_fix_prompt(candidates, validation_errors)
 
         retry_prompt = f"""You generated 5 strategies, but post-validation found issues.
 
@@ -865,7 +894,58 @@ Output List[Strategy] with all errors corrected."""
                         f"Weight keys must match assets exactly."
                     )
 
-            print("✓ Data integrity validated - assets and weights preserved")
+                # Check rebalance_frequency preserved (allow change only if archetype-frequency mismatch)
+                if fixed.rebalance_frequency != original.rebalance_frequency:
+                    # Check if validation explicitly mentioned frequency mismatch for this candidate
+                    frequency_error_exists = any(
+                        original.name in error and
+                        ("archetype-frequency" in error.lower() or
+                         "rebalance_frequency" in error.lower() or
+                         "rebalancing" in error.lower())
+                        for error in validation_errors
+                    )
+                    if not frequency_error_exists:
+                        raise ValueError(
+                            f"Retry modified rebalance_frequency for candidate {i+1} ({original.name}): "
+                            f"{original.rebalance_frequency} → {fixed.rebalance_frequency}. "
+                            f"Frequency must be preserved unless archetype-frequency mismatch error exists."
+                        )
+
+                # Check edge_type preserved
+                if fixed.edge_type != original.edge_type:
+                    raise ValueError(
+                        f"Retry modified edge_type for candidate {i+1} ({original.name}): "
+                        f"{original.edge_type} → {fixed.edge_type}. "
+                        f"Edge type must be preserved exactly."
+                    )
+
+                # Check archetype preserved
+                if fixed.archetype != original.archetype:
+                    raise ValueError(
+                        f"Retry modified archetype for candidate {i+1} ({original.name}): "
+                        f"{original.archetype} → {fixed.archetype}. "
+                        f"Archetype must be preserved exactly."
+                    )
+
+                # Check name preserved
+                if fixed.name != original.name:
+                    raise ValueError(
+                        f"Retry modified name for candidate {i+1} ({original.name}): "
+                        f"\"{original.name}\" → \"{fixed.name}\". "
+                        f"Strategy name must be preserved exactly."
+                    )
+
+                # Check logic_tree structure preserved (empty stays empty, populated stays populated)
+                original_has_logic = bool(original.logic_tree)
+                fixed_has_logic = bool(fixed.logic_tree)
+                if original_has_logic != fixed_has_logic:
+                    raise ValueError(
+                        f"Retry modified logic_tree structure for candidate {i+1} ({original.name}): "
+                        f"{'populated' if original_has_logic else 'empty'} → {'populated' if fixed_has_logic else 'empty'}. "
+                        f"Logic tree structure (empty vs populated) must be preserved."
+                    )
+
+            print("✓ Data integrity validated - all immutable fields preserved")
             return fixed_candidates
         except Exception as e:
             print(f"✗ Retry failed: {e}")
