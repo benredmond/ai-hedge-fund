@@ -7,6 +7,7 @@ from src.agent.strategy_creator import (
     DEFAULT_MODEL
 )
 from src.agent.models import Strategy, EdgeScorecard
+from src.agent.config.leverage import detect_leverage
 
 
 class EdgeScorer:
@@ -78,6 +79,55 @@ class EdgeScorer:
             regime_tags = market_context.get("regime_tags", [])
             regime_snapshot = market_context.get("regime_snapshot", {})
 
+            # Detect leveraged assets using centralized utility
+            leveraged_2x, leveraged_3x, max_leverage = detect_leverage(strategy)
+            uses_leverage = bool(leveraged_2x or leveraged_3x)
+
+            # Build leverage context section if leverage detected
+            leverage_context = ""
+            if uses_leverage:
+                leveraged_assets_list = leveraged_2x + leveraged_3x
+                leverage_labels = [
+                    f"{asset} ({('3x' if asset in leveraged_3x else '2x')})"
+                    for asset in leveraged_assets_list
+                ]
+
+                leverage_context = f"""
+
+## ⚠️ LEVERAGE PROFILE DETECTED
+
+**Uses Leverage**: Yes
+**Leveraged Assets**: {", ".join(leverage_labels)}
+**Maximum Leverage**: {max_leverage}x
+
+**CRITICAL EVALUATION INSTRUCTIONS FOR LEVERAGED STRATEGIES:**
+
+This strategy uses {max_leverage}x leveraged ETFs. You MUST apply the "Special Evaluation: Leveraged Strategies" rubric from your system prompt.
+
+**Required Elements for Scoring:**
+
+{'**For 3x Leverage - ALL 6 ELEMENTS REQUIRED for score ≥4:**' if max_leverage == 3 else '**For 2x Leverage - 4 CORE ELEMENTS REQUIRED for score ≥4:**'}
+1. ✅ Convexity Advantage: Why leverage enhances edge vs unleveraged version
+2. ✅ Decay Cost Quantification: Specific estimate ({('2-5% annually' if max_leverage == 3 else '0.5-1% annually')})
+3. ✅ Realistic Drawdown: {('40-65% range' if max_leverage == 3 else '18-40% range')} (historical worst-case)
+4. ✅ Benchmark Comparison: Why not just SPY/QQQ/etc?
+{'5. ✅ Stress Test: 2022/2020/2008 analog with drawdown data' if max_leverage == 3 else ''}
+{'6. ✅ Exit Criteria: Specific triggers (VIX threshold, momentum reversal, etc.)' if max_leverage == 3 else ''}
+
+**Scoring Caps (Red Flags):**
+- Fantasy drawdown ({('<40%' if max_leverage == 3 else '<18%')}) → Thesis Quality capped at 1/5
+- No decay discussion → Edge Economics capped at 2/5
+- Missing convexity explanation → Thesis Quality capped at 2/5
+{'- Missing stress test → Risk Framework capped at 2/5' if max_leverage == 3 else ''}
+{'- Missing exit criteria → Risk Framework capped at 2/5' if max_leverage == 3 else ''}
+
+**REMEMBER:** Do NOT penalize leverage per se. Score on PROCESS QUALITY.
+- Well-justified {max_leverage}x strategy CAN score 5/5 if all elements present
+- Poorly-justified conservative strategy deserves 2/5
+
+Check thesis_document and rebalancing_rationale for these required elements before scoring.
+"""
+
             prompt = f"""Evaluate this trading strategy on the Edge Scorecard dimensions.
 
 ## Strategy to Evaluate
@@ -90,6 +140,7 @@ class EdgeScorer:
 **Current Trend**: {regime_snapshot.get("trend_classification", "unknown")}
 **Volatility Regime**: {regime_snapshot.get("volatility_regime", "unknown")}
 **Market Breadth**: {regime_snapshot.get("market_breadth_pct", 0):.1f}% sectors above 50d MA
+{leverage_context}
 
 ## Your Task
 

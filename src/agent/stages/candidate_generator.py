@@ -3,11 +3,28 @@
 from typing import List, Dict
 import json
 import os
+import re
 from dataclasses import dataclass
 from pydantic_ai import ModelSettings
 from src.agent.strategy_creator import create_agent, load_prompt, DEFAULT_MODEL
 from src.agent.models import Strategy
 from src.agent.token_tracker import TokenTracker
+from src.agent.config.leverage import (
+    APPROVED_2X_ETFS,
+    APPROVED_3X_ETFS,
+    ALL_LEVERAGED_ETFS,
+    detect_leverage,
+    get_drawdown_bounds,
+    get_decay_cost_range,
+)
+
+
+# Pre-compiled regex patterns for validation (performance optimization)
+_DECAY_NUMBER_PATTERN = re.compile(
+    r'\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)?%?\s*(?:annual|yearly|per year|decay)'
+)
+_DRAWDOWN_PATTERN = re.compile(r'(\d+)%?\s*(?:drawdown|dd|decline|loss)')
+_EXIT_SPECIFIC_PATTERN = re.compile(r'(?:exit|rotate|stop).*(?:if|when|vix >|momentum <)')
 
 
 @dataclass
@@ -315,6 +332,232 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
 
             return candidates
 
+    def _validate_non_approved_etfs(
+        self,
+        strategy: Strategy,
+        leveraged_2x: List[str],
+        leveraged_3x: List[str]
+    ) -> List[str]:
+        """Check for non-approved leveraged tickers."""
+        errors = []
+        for asset in strategy.assets:
+            if any(indicator in asset for indicator in ["2X", "3X", "ULTRA", "TRIPLE", "DOUBLE"]):
+                if asset not in ALL_LEVERAGED_ETFS:
+                    errors.append(
+                        f"Priority 2 (RETRY): {strategy.name} uses non-approved leveraged ETF '{asset}'. "
+                        f"Approved 2x: {sorted(APPROVED_2X_ETFS)}. Approved 3x: {sorted(APPROVED_3X_ETFS)}. "
+                        f"Use only whitelisted instruments for liquidity/reliability."
+                    )
+        return errors
+
+    def _validate_convexity(
+        self,
+        strategy: Strategy,
+        max_leverage: int,
+        combined_text: str,
+        leveraged_assets_str: str
+    ) -> List[str]:
+        """Validate convexity advantage explanation."""
+        errors = []
+        convexity_keywords = ["convexity", "amplif", "leverage enhances", "edge window", "faster capture"]
+        has_convexity = any(kw in combined_text for kw in convexity_keywords)
+
+        if not has_convexity:
+            severity = "Priority 1 (HARD REJECT)" if max_leverage == 3 else "Priority 2 (RETRY)"
+            errors.append(
+                f"{severity}: {strategy.name} uses {max_leverage}x leverage ({leveraged_assets_str}) "
+                f"but doesn't explain convexity advantage. Thesis must explain: "
+                f"WHY does leverage enhance your edge vs unleveraged version? "
+                f"Example: 'Edge window (2-4 weeks) shorter than decay threshold (30+ days)' or "
+                f"'{max_leverage}x captures momentum spike faster before mean reversion.'"
+            )
+        return errors
+
+    def _validate_decay(
+        self,
+        strategy: Strategy,
+        max_leverage: int,
+        combined_text: str
+    ) -> List[str]:
+        """Validate decay cost quantification."""
+        errors = []
+        decay_keywords = ["decay", "friction", "daily rebalancing cost", "contango"]
+        has_decay = any(kw in combined_text for kw in decay_keywords)
+        has_decay_number = bool(_DECAY_NUMBER_PATTERN.search(combined_text))
+
+        if not (has_decay and has_decay_number):
+            severity = "Priority 1 (HARD REJECT)" if max_leverage == 3 else "Priority 2 (RETRY)"
+            decay_min, decay_max = get_decay_cost_range(max_leverage)
+            errors.append(
+                f"{severity}: {strategy.name} uses {max_leverage}x leverage but doesn't quantify decay cost. "
+                f"Must include: '{max_leverage}x ETFs decay ~{decay_min}-{decay_max}% annually in sideways markets.' "
+                f"Must explain why edge magnitude justifies this cost (should be 5-10x decay)."
+            )
+        return errors
+
+    def _validate_drawdown(
+        self,
+        strategy: Strategy,
+        max_leverage: int,
+        combined_text: str
+    ) -> List[str]:
+        """Validate realistic drawdown expectations."""
+        errors = []
+        drawdown_keywords = ["drawdown", "max dd", "maximum decline", "worst case"]
+        has_drawdown = any(kw in combined_text for kw in drawdown_keywords)
+
+        drawdown_numbers = _DRAWDOWN_PATTERN.findall(combined_text)
+        drawdown_values = [int(d) for d in drawdown_numbers if d.isdigit()]
+
+        min_realistic_dd, max_realistic_dd = get_drawdown_bounds(max_leverage)
+
+        if drawdown_values:
+            max_claimed_dd = max(drawdown_values)
+            if max_claimed_dd < min_realistic_dd:
+                errors.append(
+                    f"Priority 1 (HARD REJECT): {strategy.name} uses {max_leverage}x leverage "
+                    f"but claims only {max_claimed_dd}% max drawdown. UNREALISTIC. "
+                    f"{max_leverage}x leverage amplifies drawdowns non-linearly. "
+                    f"Realistic range: {min_realistic_dd}% to {max_realistic_dd}%. "
+                    f"Example: 2022 TQQQ -80% vs QQQ -35%. Be pessimistic."
+                )
+        elif not has_drawdown:
+            severity = "Priority 1 (HARD REJECT)" if max_leverage == 3 else "Priority 2 (RETRY)"
+            errors.append(
+                f"{severity}: {strategy.name} uses {max_leverage}x leverage but doesn't specify expected drawdown. "
+                f"Must include realistic worst-case: '{max_leverage}x expected max drawdown: "
+                f"{min_realistic_dd}% to {max_realistic_dd}%' with historical justification."
+            )
+        return errors
+
+    def _validate_benchmark(
+        self,
+        strategy: Strategy,
+        max_leverage: int,
+        combined_text: str,
+        leveraged_2x: List[str],
+        leveraged_3x: List[str],
+        leveraged_assets_str: str
+    ) -> List[str]:
+        """Validate benchmark comparison."""
+        errors = []
+        unleveraged_map = {
+            "SSO": "SPY", "UPRO": "SPY", "SPXL": "SPY",
+            "QLD": "QQQ", "TQQQ": "QQQ", "SQQQ": "QQQ",
+            "SOXL": "SMH", "TECL": "XLK", "FAS": "XLF",
+            "TMF": "TLT", "UBT": "TLT",
+        }
+
+        benchmark_mentioned = []
+        for lev_asset in (leveraged_2x + leveraged_3x):
+            if lev_asset in unleveraged_map:
+                benchmark = unleveraged_map[lev_asset]
+                if benchmark.lower() in combined_text:
+                    benchmark_mentioned.append(f"{lev_asset} vs {benchmark}")
+
+        if not benchmark_mentioned and (leveraged_2x or leveraged_3x):
+            severity = "Priority 2 (RETRY)" if max_leverage == 2 else "Priority 1 (HARD REJECT)"
+            example_comparisons = []
+            for lev_asset in (leveraged_2x + leveraged_3x)[:2]:
+                if lev_asset in unleveraged_map:
+                    example_comparisons.append(f"{lev_asset} vs {unleveraged_map[lev_asset]}")
+
+            errors.append(
+                f"{severity}: {strategy.name} uses leveraged ETFs ({leveraged_assets_str}) "
+                f"but doesn't compare to unleveraged alternatives. Must explain: "
+                f"Why not just use {', '.join(example_comparisons)}? "
+                f"Example: 'TQQQ vs QQQ: {max_leverage}x captures 2-4 week momentum before decay dominates, "
+                f"targeting +18-22% alpha vs QQQ after decay costs.'"
+            )
+        return errors
+
+    def _validate_stress_test(
+        self,
+        strategy: Strategy,
+        combined_text: str
+    ) -> List[str]:
+        """Validate stress test for 3x strategies."""
+        errors = []
+        stress_keywords = ["2022", "2020", "2008", "covid", "rate shock", "financial crisis"]
+        has_stress_test = any(kw in combined_text for kw in stress_keywords)
+
+        if not has_stress_test:
+            errors.append(
+                f"Priority 1 (HARD REJECT): {strategy.name} uses 3x leverage but lacks stress test. "
+                f"3x strategies MUST include historical crisis analog (2022, 2020, or 2008). "
+                f"Example: '2022 analog: TQQQ -80% vs QQQ -35% during rate shock. "
+                f"Acceptable for aggressive conviction betting on AI momentum reversal.' or "
+                f"'2020 COVID: TQQQ -75% in 30 days vs QQQ -30%. Exit at VIX >30 limits exposure.'"
+            )
+        return errors
+
+    def _validate_exit_criteria(
+        self,
+        strategy: Strategy,
+        combined_text: str
+    ) -> List[str]:
+        """Validate exit criteria for 3x strategies."""
+        errors = []
+        exit_keywords = ["exit", "stop", "de-risk", "rotate to", "if vix", "when momentum"]
+        has_exit_criteria = any(kw in combined_text for kw in exit_keywords)
+        has_specific_exit = bool(_EXIT_SPECIFIC_PATTERN.search(combined_text))
+
+        if not (has_exit_criteria and has_specific_exit):
+            errors.append(
+                f"Priority 1 (HARD REJECT): {strategy.name} uses 3x leverage but lacks exit criteria. "
+                f"3x strategies MUST specify when to de-risk. "
+                f"Example: 'Exit if VIX > 30 for 5+ consecutive days OR momentum turns negative OR "
+                f"AI CapEx growth < 10% YoY (thesis breakdown).'"
+            )
+        return errors
+
+    def _validate_leverage_justification(self, strategy: Strategy) -> List[str]:
+        """
+        Validate that leveraged ETF usage includes proper justification.
+
+        Requirements for 2x/3x ETFs:
+        1. Convexity advantage explanation
+        2. Decay cost quantification
+        3. Realistic drawdown expectations
+        4. Benchmark comparison
+
+        Additional for 3x:
+        5. Stress test (2022, 2020, or 2008 analog)
+        6. Exit criteria
+
+        This method orchestrates validation by delegating to specialized validators.
+        """
+        errors = []
+
+        # Detect leveraged assets
+        leveraged_2x, leveraged_3x, max_leverage = detect_leverage(strategy)
+
+        # Check for non-approved leveraged tickers
+        errors.extend(self._validate_non_approved_etfs(strategy, leveraged_2x, leveraged_3x))
+
+        if not (leveraged_2x or leveraged_3x):
+            return errors  # No leverage, validation passes
+
+        leveraged_assets_str = ", ".join(leveraged_2x + leveraged_3x)
+        thesis_lower = strategy.thesis_document.lower()
+        rationale_lower = strategy.rebalancing_rationale.lower()
+        combined_text = thesis_lower + " " + rationale_lower
+
+        # Validate 4 core elements (all leveraged strategies)
+        errors.extend(self._validate_convexity(strategy, max_leverage, combined_text, leveraged_assets_str))
+        errors.extend(self._validate_decay(strategy, max_leverage, combined_text))
+        errors.extend(self._validate_drawdown(strategy, max_leverage, combined_text))
+        errors.extend(self._validate_benchmark(
+            strategy, max_leverage, combined_text, leveraged_2x, leveraged_3x, leveraged_assets_str
+        ))
+
+        # Additional 2 elements for 3x only
+        if max_leverage == 3:
+            errors.extend(self._validate_stress_test(strategy, combined_text))
+            errors.extend(self._validate_exit_criteria(strategy, combined_text))
+
+        return errors
+
     def _validate_semantics(self, candidates: List[Strategy], market_context: dict) -> List[str]:
         """
         Validate semantic coherence of generated candidates.
@@ -325,6 +568,7 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
         3. Weight derivation (no arbitrary round numbers without justification)
         4. Syntax validation (weights sum, logic_tree structure)
         5. Concentration limits (single asset, sector, min assets)
+        6. Leverage justification (2x/3x ETF usage validation)
 
         Args:
             candidates: List of generated Strategy objects
@@ -343,6 +587,10 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
             # Run concentration validation (Priority 4 suggestions)
             concentration_errors = self._validate_concentration(strategy)
             errors.extend(concentration_errors)
+
+            # Run leverage justification validation
+            leverage_errors = self._validate_leverage_justification(strategy)
+            errors.extend(leverage_errors)
 
         # Continue with original semantic validation
         for idx, strategy in enumerate(candidates, 1):
