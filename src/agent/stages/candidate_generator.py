@@ -1119,11 +1119,27 @@ Output List[Strategy] with all errors corrected."""
 
             # CRITICAL: Validate that retry preserved asset structure (data integrity check)
             fixed_candidates = result.output
-            if len(fixed_candidates) != len(candidates):
+
+            # CRITICAL: Validate count against EXPECTED (5), not original length.
+            # Retry may be fixing a wrong count (e.g., 1→5), which is valid.
+            # We only reject if retry fails to produce exactly 5 candidates.
+            EXPECTED_CANDIDATE_COUNT = 5
+            if len(fixed_candidates) != EXPECTED_CANDIDATE_COUNT:
                 raise ValueError(
-                    f"Retry changed candidate count: {len(candidates)} → {len(fixed_candidates)}. "
-                    f"Must preserve exactly 5 candidates."
+                    f"Retry produced {len(fixed_candidates)} candidates (expected {EXPECTED_CANDIDATE_COUNT}). "
+                    f"Original generation had {len(candidates)} candidates. "
+                    f"Retry must always produce exactly {EXPECTED_CANDIDATE_COUNT} candidates."
                 )
+
+            # CRITICAL: Validate immutability for all candidates when counts match.
+            # When retry CORRECTS count (e.g., 1→5), we can only validate the candidates
+            # that exist in the original list. New candidates from retry cannot be
+            # validated against originals (no 1-to-1 correspondence).
+            validation_count = min(len(candidates), len(fixed_candidates))
+            if len(candidates) != len(fixed_candidates):
+                print(f"[WARNING] Retry changed count ({len(candidates)} → {len(fixed_candidates)}). "
+                      f"Validating only first {validation_count} candidate(s) for immutability. "
+                      f"New candidates from retry cannot be validated against originals.")
 
             for i, (original, fixed) in enumerate(zip(candidates, fixed_candidates)):
                 # Check assets preserved
