@@ -198,13 +198,65 @@ Directional   | 0.9-1.3 | vs QQQ      | -20% to -28% | 50-56% | 90d
 - All conditional strategies have triggers (not "N/A")
 - Frequency matches edge timescale (momentum=weekly, carry=quarterly, volatility=daily)
 
-**After completing planning matrix, proceed to Step 2.0.8 (Leverage Justification) if using 2x/3x ETFs.**
+**After completing planning matrix, proceed to Step 2.0.8 (Benchmark Comparison).**
 
 **CRITICAL: You must output all 5 Strategy objects in a single List[Strategy] response. Do not generate them one at a time.**
 
 ---
 
-### Step 2.0.8: Leverage Justification (REQUIRED if using 2x/3x ETFs)
+### Step 2.0.8: Benchmark Comparison (MANDATORY)
+
+**For EACH candidate, answer: "Why not just buy the passive alternative?"**
+
+**Format:** `Strategy | Obvious Alternative | Why Insufficient | Alpha Source`
+
+**Examples:**
+```
+#1 Momentum: Obvious=QQQ | Lacks downside protection, 100% invested | 20% cash buffer + sector timing = +150 bps vs QQQ
+#2 Mean-Rev: Obvious=SPY | No oversold signal, always invested | Buy dips only = +200 bps vs SPY
+#3 Volatility: Obvious=60/40 | Static allocation ignores regime | Dynamic tilt (VIX-based) = +180 bps vs 60/40
+#4 Sector: Obvious=Equal-weight sectors | Naive equal-weight, no leadership filter | Top 3 momentum sectors = +220 bps vs SPW
+#5 Carry: Obvious=AGG (bonds) | Duration risk unhedged | Barbell 2Y+30Y with hedges = +120 bps vs AGG
+```
+
+**Your task (for EACH strategy):**
+1. What's the lazy 1-ETF alternative? (SPY, QQQ, AGG, XLF, 60/40, risk parity)
+2. Why doesn't that work? (Specific failure mode, not vague)
+3. What's my alpha source? (Quantified edge vs benchmark, e.g., "+X bps", "outperform by Y%")
+
+**Validation:** Each thesis_document must include benchmark comparison. Generic statements ("better diversification") without quantification will trigger retry.
+
+---
+
+### Step 2.0.9: Execution Cost Budget (MANDATORY for Daily/Weekly Strategies)
+
+**IF rebalancing daily or weekly, THEN estimate friction:**
+
+**Format:** `Strategy | Turnover% | Spread+Impact bps | Annual Friction% | Net Alpha`
+
+**Example:**
+```
+#3 Volatility (daily): 250% turnover | 4 bps avg (sector ETFs) | 1.0% friction | 6% gross - 1% = 5% net
+```
+
+**Cost Guidelines:**
+- **Mega-cap stocks** (AAPL, MSFT, GOOGL): 1-2 bps per trade
+- **Sector ETFs** (XLF, XLE, XLK): 3-5 bps per trade
+- **Small-cap stocks**: 10-20 bps per trade
+- **Turnover** = Sum(|position changes|) / portfolio value annually
+- **Annual friction** = Turnover × Avg spread
+
+**Your task (for daily/weekly strategies ONLY):**
+1. Estimated annual turnover (e.g., "250%" means assets turn over 2.5x per year)
+2. Spread + impact cost per trade (bps)
+3. Total friction budget (turnover × cost)
+4. Net alpha after costs (gross alpha - friction)
+
+**Evidence:** High-frequency strategies without cost discussion will trigger retry. Costs can exceed alpha by 2-10x (e.g., VIX strategy: 10% cost vs 5% alpha = underwater).
+
+---
+
+### Step 2.0.10: Leverage Justification (REQUIRED if using 2x/3x ETFs)
 
 **You MAY use leveraged ETFs to amplify specific edges, but ONLY with comprehensive justification.**
 

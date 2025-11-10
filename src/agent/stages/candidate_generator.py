@@ -17,6 +17,7 @@ from src.agent.config.leverage import (
     get_drawdown_bounds,
     get_decay_cost_range,
 )
+from src.agent.validators import BenchmarkValidator, CostValidator
 
 
 # Pre-compiled regex patterns for validation (performance optimization)
@@ -716,6 +717,20 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
                         f"(contains: oversold/undervalued/quality/fundamental). Must use individual stocks "
                         f"[TICKER, TICKER, TICKER] with security selection workflow per Alpha vs Beta framework."
                     )
+
+        # Professional validation features (controlled by feature flag)
+        if os.getenv("ENABLE_PROFESSIONAL_VALIDATION", "false").lower() == "true":
+            benchmark_validator = BenchmarkValidator()
+            cost_validator = CostValidator()
+
+            for strategy in candidates:
+                # Benchmark comparison validation (Priority 3)
+                benchmark_errors = benchmark_validator.validate(strategy)
+                errors.extend(benchmark_errors)
+
+                # Execution cost validation (Priority 3, high-frequency only)
+                cost_errors = cost_validator.validate(strategy)
+                errors.extend(cost_errors)
 
         return errors
 
