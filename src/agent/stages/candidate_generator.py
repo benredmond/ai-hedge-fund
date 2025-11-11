@@ -1,6 +1,6 @@
 """Generate 5 candidate strategies using AI."""
 
-from typing import List, Dict
+from typing import List, Dict, Literal
 import json
 import os
 import re
@@ -81,6 +81,78 @@ class CandidateGenerator:
     - stock_get_historical_stock_prices: Specific asset data
     - fred_get_series: Macro data verification
     """
+
+    def _detect_provider(self, model: str) -> Literal["kimi", "openai", "anthropic", "deepseek", "other"]:
+        """
+        Detect LLM provider from model string.
+
+        Args:
+            model: Model identifier (e.g., "openai:gpt-4o", "openai:kimi-k2-0905-preview")
+
+        Returns:
+            Provider identifier for provider-specific handling
+        """
+        model_lower = model.lower()
+
+        # Kimi/Moonshot models
+        if "kimi" in model_lower or "moonshot" in model_lower:
+            return "kimi"
+
+        # DeepSeek models
+        if "deepseek" in model_lower:
+            return "deepseek"
+
+        # Anthropic models
+        if "claude" in model_lower or "anthropic" in model_lower:
+            return "anthropic"
+
+        # OpenAI models (default for openai: prefix)
+        if "gpt" in model_lower or model_lower.startswith("openai:"):
+            return "openai"
+
+        return "other"
+
+    def _enhance_count_instruction(self, prompt: str, provider: str) -> str:
+        """
+        Add provider-specific count enforcement to generation prompt.
+
+        Some providers (particularly kimi-k2) need more explicit count instructions
+        than others to reliably generate the correct number of candidates.
+
+        Args:
+            prompt: Original generation prompt
+            provider: Provider identifier from _detect_provider()
+
+        Returns:
+            Enhanced prompt with provider-specific count enforcement
+        """
+        if provider == "kimi":
+            # Kimi/Moonshot needs very explicit count enforcement
+            count_emphasis = """
+**🚨 CRITICAL REQUIREMENT - EXACT COUNT ENFORCEMENT 🚨**
+
+YOU MUST RETURN EXACTLY 5 STRATEGY OBJECTS. NOT 1, NOT 3, NOT 10 - EXACTLY 5.
+
+This is a hard requirement enforced by the system. Returning any other count will cause:
+- Immediate validation failure
+- Test failure
+- System rejection
+
+Structure your response as a list containing exactly these 5 items:
+[Strategy #1, Strategy #2, Strategy #3, Strategy #4, Strategy #5]
+
+DO NOT stop after generating 1-2 strategies. Continue until you have EXACTLY 5 complete strategies.
+
+"""
+            # Insert after the first line but before the main content
+            lines = prompt.split('\n', 1)
+            if len(lines) == 2:
+                return lines[0] + '\n' + count_emphasis + lines[1]
+            else:
+                return count_emphasis + prompt
+
+        # Other providers work fine with standard prompt
+        return prompt
 
     async def generate(
         self,
@@ -272,6 +344,10 @@ For static strategies, use logic_tree={{}}.
 Return all 5 candidates together in a single List[Strategy] containing exactly 5 Strategy objects.
 """
 
+            # Enhance prompt with provider-specific count enforcement
+            provider = self._detect_provider(model)
+            generate_prompt = self._enhance_count_instruction(generate_prompt, provider)
+
             # Track token usage before API call
             tracker.estimate_prompt(
                 label="Candidate Generation",
@@ -289,7 +365,21 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
 
             # Post-generation validation (Fix #1: Post-validation retry)
             candidates = result.output
-            validation_errors = self._validate_semantics(candidates, market_context)
+
+            # Pre-semantic count validation: Fail fast on wrong count before expensive validation
+            EXPECTED_CANDIDATE_COUNT = 5
+            if len(candidates) != EXPECTED_CANDIDATE_COUNT:
+                count_error = (
+                    f"Syntax Error: Generated {len(candidates)} candidates, expected {EXPECTED_CANDIDATE_COUNT}. "
+                    f"You MUST return exactly {EXPECTED_CANDIDATE_COUNT} Strategy objects in a single List[Strategy]. "
+                    f"This is a hard requirement. Please generate {EXPECTED_CANDIDATE_COUNT - len(candidates)} more "
+                    f"{'candidate' if EXPECTED_CANDIDATE_COUNT - len(candidates) == 1 else 'candidates'} to reach the required count."
+                )
+                # Trigger retry with count-specific error
+                validation_errors = [count_error]
+            else:
+                # Only run expensive semantic validation if count is correct
+                validation_errors = self._validate_semantics(candidates, market_context)
 
             if validation_errors:
                 print(f"\n[WARNING] Post-generation validation found {len(validation_errors)} issues:")
