@@ -1222,6 +1222,10 @@ Output List[Strategy] with all errors corrected."""
             result = await agent.run(retry_prompt)
             print(f"✓ Retry succeeded - received {len(result.output)} candidates")
 
+            # Debug logging: Print retry output
+            print(f"\n[DEBUG:CandidateGenerator] Retry output:")
+            print(f"{result.output}")
+
             # CRITICAL: Validate that retry preserved asset structure (data integrity check)
             fixed_candidates = result.output
 
