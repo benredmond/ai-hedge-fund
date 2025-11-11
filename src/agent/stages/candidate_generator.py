@@ -809,7 +809,7 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
                     )
 
         # Professional validation features (controlled by feature flag)
-        if os.getenv("ENABLE_PROFESSIONAL_VALIDATION", "false").lower() == "true":
+        if os.getenv("ENABLE_PROFESSIONAL_VALIDATION", "true").lower() == "true":
             benchmark_validator = BenchmarkValidator()
             cost_validator = CostValidator()
 

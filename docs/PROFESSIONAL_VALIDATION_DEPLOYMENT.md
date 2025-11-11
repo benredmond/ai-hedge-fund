@@ -96,12 +96,14 @@
 
 ## Deployment Instructions
 
-### Phase 1: Enable Professional Validation (Week 1-2)
+### Phase 1: Professional Validation (Enabled by Default)
 
-**1. Set Environment Variable**:
+**Status**: Professional validation is **ENABLED BY DEFAULT** as of this deployment.
+
+**To disable** (if needed for testing):
 ```bash
 # In .env file or environment
-export ENABLE_PROFESSIONAL_VALIDATION=true
+export ENABLE_PROFESSIONAL_VALIDATION=false
 ```
 
 **2. Run Test Workflow**:
