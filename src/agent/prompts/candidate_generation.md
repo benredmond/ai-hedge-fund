@@ -87,7 +87,7 @@ Based on Step 1.2 regime:
 
 ## PHASE 2: GENERATE (Framework-Driven)
 
-### Step 2.0: Asset Research & Exploration (Optional)
+### Step 2.1: Asset Research & Exploration (Optional)
 
 **BEFORE ideating candidates, optionally explore available assets beyond what's in the context pack:**
 
@@ -124,7 +124,7 @@ composer_search_symphonies(query="defensive VIX rotation")
 **This step is OPTIONAL.** You can:
 - Skip if using only context pack assets (sector ETFs, benchmarks)
 - Use tools now to explore before ideating
-- Use tools later during Step 2.1 if you discover data gaps mid-generation
+- Use tools later during Step 2.7 if you discover data gaps mid-generation
 
 **If you used tools in Step 2.0, document your findings:**
 
@@ -144,11 +144,11 @@ composer_search_symphonies(query="defensive VIX rotation")
 [Note any additional data needs that emerged during research]
 ```
 
-**THEN proceed to Step 2.0.6 (Edge Quantification Schema)**
+**THEN proceed to Step 2.2 (Edge Quantification Schema)**
 
 ---
 
-### Step 2.0.6: Edge Quantification Schema (REQUIRED BEFORE IDEATION)
+### Step 2.2: Edge Quantification Schema (REQUIRED BEFORE IDEATION)
 
 **BEFORE ideating any strategies, define quantitative expectations to prevent unfalsifiable claims and overfitting.**
 
@@ -174,11 +174,11 @@ Carry         | 0.7-1.1 | vs AGG      | -15% to -22% | 50-60% | 90d
 Directional   | 0.9-1.3 | vs QQQ      | -20% to -28% | 50-56% | 90d
 ```
 
-**After completing quantification schema, proceed to Step 2.0.7 (Planning Matrix)**
+**After completing quantification schema, proceed to Step 2.3 (Planning Matrix)**
 
 ---
 
-### Step 2.0.7: Planning Matrix (COMPRESSED - REQUIRED CHECKPOINT)
+### Step 2.3: Planning Matrix (COMPRESSED - REQUIRED CHECKPOINT)
 
 **BEFORE ideating, plan each candidate using this inline format:**
 
@@ -198,37 +198,59 @@ Directional   | 0.9-1.3 | vs QQQ      | -20% to -28% | 50-56% | 90d
 - All conditional strategies have triggers (not "N/A")
 - Frequency matches edge timescale (momentum=weekly, carry=quarterly, volatility=daily)
 
-**After completing planning matrix, proceed to Step 2.0.8 (Benchmark Comparison).**
+**After completing planning matrix, proceed to Step 2.4 (Benchmark Comparison).**
 
-**CRITICAL: You must output all 5 Strategy objects in a single List[Strategy] response. Do not generate them one at a time.**
-
----
-
-### Step 2.0.8: Benchmark Comparison (MANDATORY)
-
-**For EACH candidate, answer: "Why not just buy the passive alternative?"**
-
-**Format:** `Strategy | Obvious Alternative | Why Insufficient | Alpha Source`
-
-**Examples:**
-```
-#1 Momentum: Obvious=QQQ | Lacks downside protection, 100% invested | 20% cash buffer + sector timing = +150 bps vs QQQ
-#2 Mean-Rev: Obvious=SPY | No oversold signal, always invested | Buy dips only = +200 bps vs SPY
-#3 Volatility: Obvious=60/40 | Static allocation ignores regime | Dynamic tilt (VIX-based) = +180 bps vs 60/40
-#4 Sector: Obvious=Equal-weight sectors | Naive equal-weight, no leadership filter | Top 3 momentum sectors = +220 bps vs SPW
-#5 Carry: Obvious=AGG (bonds) | Duration risk unhedged | Barbell 2Y+30Y with hedges = +120 bps vs AGG
-```
-
-**Your task (for EACH strategy):**
-1. What's the lazy 1-ETF alternative? (SPY, QQQ, AGG, XLF, 60/40, risk parity)
-2. Why doesn't that work? (Specific failure mode, not vague)
-3. What's my alpha source? (Quantified edge vs benchmark, e.g., "+X bps", "outperform by Y%")
-
-**Validation:** Each thesis_document must include benchmark comparison. Generic statements ("better diversification") without quantification will trigger retry.
+**CRITICAL: You must output all 5 Strategy objects in a single List[Strategy] response. Do not generate them one at a time. Use progress markers (Step 2.6a) to track completion as you work through all 5 candidates.**
 
 ---
 
-### Step 2.0.9: Execution Cost Budget (MANDATORY for Daily/Weekly Strategies)
+### Step 2.4: Active vs Passive Tradeoff Matrix (MANDATORY)
+
+**For EACH candidate, complete this tradeoff analysis BEFORE writing the full thesis:**
+
+**Why this matters:** If your active strategy loses to a passive ETF on 5+ dimensions, you're adding cost without value. This matrix forces honest evaluation.
+
+**Tradeoff Matrix Template:**
+
+| Dimension | Passive Alternative | Your Active Strategy | Winner | Justification |
+|-----------|-------------------|---------------------|--------|---------------|
+| **Simplicity** | [1 ETF, buy-hold] | [X assets, rebalance frequency] | [Passive/Mine] | [Complexity cost in effort/failure modes] |
+| **Cost** | [Expense ratio %] | [ER% + turnover × spread = total%] | [Passive/Mine] | [Total cost difference in bps] |
+| **Downside Protection** | [Historical max DD%] | [Expected max DD%] | [Passive/Mine] | [Drawdown improvement or sacrifice] |
+| **Upside Capture** | [100% of market rally] | [X% capture (timing drag)] | [Passive/Mine] | [Upside you're willing to sacrifice] |
+| **Regime Dependency** | [Works in all regimes] | [Requires X regime] | [Passive/Mine] | [Your regime assumptions] |
+| **Alpha Potential** | [0% - pure beta] | [+X-Y% alpha target] | [Mine/Tied] | [Quantified edge in bps] |
+| **Failure Risk** | [Cannot fail - market beta] | [Thesis risk: X breaks strategy] | [Passive/Mine] | [Failure mode probability] |
+
+**Example (Sector Momentum vs SPY):**
+
+| Dimension | SPY (Passive) | Sector Momentum (Mine) | Winner | Justification |
+|-----------|---------------|----------------------|--------|---------------|
+| Simplicity | 1 ETF, 0 rebalances | 3 sector ETFs, 52 rebalances/year | Passive | 52 execution events = 52 failure opportunities |
+| Cost | 0.09% ER | 3×0.10% + 52×3bp = 0.30% + 1.56% = 1.86% | Passive | My strategy costs 20× more (186 vs 9 bps) |
+| Downside | -35% (2022 bear) | -22% (VIX rotation exits) | Mine | Defensive rotation limits bear damage by -13% |
+| Upside | 100% of bull rallies | 75% capture (weekly timing drag) | Passive | I sacrifice 25% upside for downside protection |
+| Regime | Works always (market beta) | Requires momentum regime (trend + breadth) | Passive | I only work when breadth >60%, SPY always works |
+| Alpha | 0% (pure beta exposure) | +3-5% from sector timing | Mine | IF momentum persists, I beat SPY by 300-500 bps |
+| Failure | Cannot fail (is the market) | Momentum breakdown (breadth <50%) → fails | Passive | I have thesis risk, SPY doesn't |
+
+**Decision Criteria:**
+
+- **If Passive wins ≥5 dimensions:** ❌ **REJECT strategy** - insufficient edge to justify costs
+- **If Mine wins ≥3 dimensions:** ✅ **KEEP strategy** - justifiable tradeoffs
+- **If split 3-3 or 4-3:** ⚠️ **MARGINAL** - include only if needed for diversity
+
+**Based on example above:**
+- Passive wins: Simplicity, Cost, Regime, Failure (4/7)
+- Mine wins: Downside, Alpha (2/7)
+- Tied: Upside (debatable)
+- **Assessment:** MARGINAL - Only justified if investor values -13% drawdown improvement enough to pay 20× cost and accept regime dependency
+
+**For each candidate, include this tradeoff matrix analysis in thesis_document or document separately. Strategies that fail the ≥3 wins test should be reconsidered.**
+
+---
+
+### Step 2.5: Execution Cost Budget (MANDATORY for Daily/Weekly Strategies)
 
 **IF rebalancing daily or weekly, THEN estimate friction:**
 
@@ -256,7 +278,7 @@ Directional   | 0.9-1.3 | vs QQQ      | -20% to -28% | 50-56% | 90d
 
 ---
 
-### Step 2.0.10: Leverage Justification (REQUIRED if using 2x/3x ETFs)
+### Step 2.6: Leverage Justification (REQUIRED if using 2x/3x ETFs)
 
 **You MAY use leveraged ETFs to amplify specific edges, but ONLY with comprehensive justification.**
 
@@ -363,7 +385,34 @@ Example: "Exit criteria (rotate to cash/bonds if ANY trigger): 1. VIX > 30 for 5
 
 ---
 
-### Step 2.1: Ideate 5 Candidates
+### Step 2.6a: Progress Tracking (REQUIRED)
+
+**After completing each candidate's Strategy object, output a progress marker:**
+
+```
+✓ Candidate N/5 complete: [Strategy Name]
+```
+
+**Example:**
+```
+[Generate Candidate #1...]
+
+✓ Candidate 1/5 complete: Sector Momentum Top 3 Rotation
+
+[Generate Candidate #2...]
+
+✓ Candidate 2/5 complete: Dividend Yield with VIX Protection
+
+[Continue for all 5...]
+
+✓ Candidate 5/5 complete: Market Breadth Factor Rotation
+```
+
+These progress markers help track completion and provide better diagnostics if validation fails.
+
+---
+
+### Step 2.7: Ideate 5 Candidates
 
 Using insights from the context pack and optional Step 2.0 research, brainstorm candidates across different dimensions:
 
@@ -384,7 +433,7 @@ Before finalizing archetype + rebalancing frequency combinations, validate again
 - ❌ Carry/Dividend + Daily/Weekly/Monthly rebalancing (excessive turnover destroys carry)
 - ❌ Volatility/Tactical + Monthly/Quarterly (too slow for regime shifts)
 
-If your planning matrix (Step 2.0.5) has any of these combinations, revise before generating.
+If your planning matrix (Step 2.3) has any of these combinations, revise before generating.
 
 **Example Combinations:**
 1. **Momentum + Focused + Pro-cyclical** → "Top 3 sectors by 3m momentum, monthly rebalance"
@@ -393,7 +442,7 @@ If your planning matrix (Step 2.0.5) has any of these combinations, revise befor
 4. **Structural + Focused + Counter-cyclical** → "Oversold sectors mean reversion"
 5. **Behavioral + Diversified + Pro-cyclical** → "Growth momentum with quality filter"
 
-### Step 2.2: Apply Edge Articulation Framework
+### Step 2.8: Apply Edge Articulation Framework
 
 For each candidate, complete:
 
@@ -433,23 +482,66 @@ Your weights MUST be derived from your thesis mechanism, not arbitrary round num
 **Example (GOOD):** "Weights derived using momentum-weighting: XLK 4.09% → 0.54, XLY 2.1% → 0.28, XLF 1.5% → 0.18"
 **Example (BAD):** "Weights are 0.40, 0.35, 0.25" (no derivation)
 
-### Step 2.3: Post-Generation Self-Critique (RSIP Reflection Checkpoint)
+### Step 2.9: Adversarial Self-Critique (RSIP Reflection Checkpoint)
 
-**AFTER generating all 5 candidates, complete the RSIP Checklist from the system prompt.**
+**AFTER generating all 5 candidates, assume you are a skeptical portfolio manager reviewing these strategies. Your job is to expose weaknesses, contradictions, and unjustified claims.**
 
-**Reference:** See system prompt "RSIP SELF-CRITIQUE CHECKLIST" section for complete checklist.
+**For EACH strategy, write and answer 3 critical questions:**
 
-**Summary:** Verify each strategy for:
-1. Coherence (conditional thesis → logic_tree populated)
-2. Frequency alignment (edge type matches rebalance frequency)
-3. Weight derivation (round numbers explained)
-4. Quantification (Sharpe/alpha/drawdown included)
+**Question 1: Implementation Coherence**
+"Your thesis describes [conditional logic/triggers/rotation]. Where exactly is this implemented in logic_tree?"
 
-**Create validation summary and fix any Priority 1 violations before proceeding to Step 2.4.**
+- **If thesis mentions:** "if", "when", "rotate", "defensive mode", "VIX > X", "threshold", "shift to"
+- **Then logic_tree MUST be populated** with condition/if_true/if_false
+- **If logic_tree is empty {}:** This is a **Priority 1 AUTO-REJECT violation**. Add the conditional logic OR revise thesis to describe static allocation.
+
+**Question 2: Weight Justification**
+"You claim weights are derived using [momentum-weighted/risk-parity/conviction]. Show me the calculation that produced these exact numbers."
+
+- **If weights are round numbers** (0.20, 0.25, 0.30, 0.33, 0.40, 0.50): You MUST show derivation
+- **Good answer:** "XLK 4.09% return → 4.09/(4.09+2.10+1.51) = 0.54, XLY 2.10% → 0.28, XLF 1.51% → 0.18"
+- **Bad answer:** "I used momentum-weighting" (no math shown)
+- **If you cannot derive:** Either calculate now OR change to "equal-weight" and justify
+
+**Question 3: Edge Robustness**
+"What specific market condition breaks this strategy, how quickly, and what's the expected drawdown?"
+
+- **Vague answer (BAD):** "Doesn't work in market crashes" or "High volatility hurts performance"
+- **Specific answer (GOOD):** "VIX > 30 for 10+ days → momentum reversal → expect -18-22% drawdown, exit trigger at VIX 25"
+- **If you cannot quantify failure mode:** Your edge is unfalsifiable. Add specific thresholds and expected losses.
+
+**Create a validation summary:**
+
+```markdown
+**Adversarial Self-Critique Summary:**
+
+Candidate #1 (Strategy Name):
+- Q1 Coherence: ✅ PASS - Thesis describes VIX rotation, logic_tree implements VIX < 25 condition
+- Q2 Weights: ✅ PASS - Momentum-weighted: XLK 0.54 = 4.09%/(4.09+2.10+1.51)
+- Q3 Failure: ✅ PASS - VIX > 30 for 10+ days → -20% drawdown expected
+
+Candidate #2 (Strategy Name):
+- Q1 Coherence: ❌ FAIL - Thesis says "rotate when breadth < 50%" but logic_tree is empty {}
+  **FIX REQUIRED:** Add logic_tree with breadth condition OR revise thesis to static allocation
+- Q2 Weights: ✅ PASS - Equal-weight justified (0.20 each for 5 sectors, equal conviction)
+- Q3 Failure: ⚠️ WEAK - "Market stress" too vague, needs quantification
+
+[Repeat for all 5 candidates]
+
+**Priority 1 Violations (MUST FIX before proceeding):**
+- Candidate #2: Empty logic_tree despite conditional thesis
+- [List all blocking issues]
+
+**Improvements Recommended:**
+- Candidate #3: Quantify failure mode more specifically
+- [List suggested improvements]
+```
+
+**Fix all Priority 1 violations before proceeding to Step 2.10. Revise strategies as needed.**
 
 ---
 
-### Step 2.4: Ensure Diversity
+### Step 2.10: Ensure Diversity
 
 **Diversity Checklist (run after all 5 candidates):**
 
@@ -982,119 +1074,7 @@ Strategy(
 
 ---
 
-### Example 4: Carry Archetype - Dividend Aristocrats Yield Strategy
-
-**Context Pack Data (Example):**
-- Current 10Y Treasury: 4.2%
-- Dividend Yield VYM (Vanguard High Dividend): 3.1% (from yfinance tool)
-- Dividend Yield SCHD (Schwab Dividend Equity): 3.4% (from yfinance tool)
-- Inflation CPI: 3.2% YoY, declining trend
-- Recent events: "Fed signals terminal rate reached, pivot expected in 6-12 months"
-
-**Complete Strategy Object:**
-
-```python
-Strategy(
-  name="Dividend Aristocrats Carry Harvest",
-
-  thesis_document="""
-  Market Analysis: Terminal Fed rate environment (10Y at 4.2%, Fed funds 5.25%) creates attractive dividend yield opportunity. High-quality dividend payers (VYM 3.1% yield, SCHD 3.4% yield, NOBL 3.0% aristocrats index) offer 70-80% of risk-free rate with equity upside. Inflation declining (CPI 3.2% down from 4.1% 3mo ago) improves real yield sustainability.
-
-  Edge Explanation: Dividend carry edge exists due to (1) tax inefficiency for institutions (qualified dividends taxed lower for individuals than institutions), creating individual investor advantage, (2) behavioral bias where income-focused retirees systematically undervalue dividend growth vs total return, keeping valuations attractive. Edge persists because institutional quant funds favor buybacks over dividends for tax efficiency, limiting competitive pressure.
-
-  Regime Fit: Current high absolute rates (10Y 4.2%) make dividend yields attractive on absolute basis. Fed terminal rate signal means rate stability (carry won't be eroded by rising rates compressing valuations). Declining inflation (3.2% and falling) supports real yield thesis. Not in recession (would risk dividend cuts), but mature cycle (stable/predictable payouts).
-
-  Risk Factors: Strategy fails if Fed hikes another 75+ bps (dividend yields become less attractive vs rising risk-free rate, valuations compress). Also fails in severe recession where dividend aristocrats cut payouts (breaks carry thesis). Expected max drawdown 10-15% during earnings recession or unexpected Fed hawkishness.
-  """,
-
-  rebalancing_rationale="""
-  My quarterly buy-and-hold (rebalance_frequency="quarterly") implements the carry edge by minimizing turnover and allowing dividend reinvestment to compound. Quarterly rebalancing ONLY adjusts for major drift (rebalances to equal weights if any position grows >40% or shrinks <25%), preserving carry by avoiding excessive trading costs and tax drag. This contrasts with monthly/weekly rebalancing which would destroy carry edge through transaction costs (bid-ask spread, commissions) and potential tax inefficiency. Equal weights (0.333 each) justified by thesis treating high-quality dividend payers (VYM, SCHD, NOBL) as interchangeable from yield/quality perspective - no basis for conviction-weighting within this cohort. Buy-and-hold (no rebalancing) would also work but quarterly rebalance prevents excessive concentration risk if one position significantly outperforms.
-  """,
-
-  assets=["VYM", "SCHD", "NOBL"],
-
-  weights={"VYM": 0.333, "SCHD": 0.333, "NOBL": 0.334},
-
-  rebalance_frequency="quarterly",
-
-  logic_tree={}  # Static allocation - carry strategies are buy-and-hold with periodic drift correction
-)
-```
-
-**Why This Implementation Is Coherent:**
-- ✅ Archetype (carry) matches edge (dividend yield harvest)
-- ✅ Rebalancing method (quarterly buy-and-hold) ALIGNS with carry thesis (low turnover preserves carry)
-- ✅ Frequency (quarterly) minimizes costs while preventing excessive drift
-- ✅ Explicit rejection of high-frequency rebalancing (would destroy carry via costs)
-- ✅ Equal weights justified (no differentiation within quality dividend cohort)
-
----
-
-### Example 5: Momentum Archetype - Sector Momentum Top 3 Rotation
-
-**Context Pack Data (Example):**
-- Current VIX: 15.2 (low volatility)
-- Trend: Strong bull (SPY +16.5% above 200d MA)
-- Breadth: 78% sectors above 50d MA (strong breadth)
-- Sector leaders (30d): XLK +5.1%, XLY +3.8%, XLF +2.9%
-- Sector laggards (30d): XLU -1.2%, XLP -0.8%, XLRE -0.5%
-- Factor premiums: Momentum +2.8% (30d), strong momentum environment
-
-**Complete Strategy Object:**
-
-```python
-Strategy(
-  name="Sector Momentum Top 3 Rotation",
-
-  thesis_document="""
-  Market Analysis: Current strong bull market (SPY +16.5% above 200d MA) with high breadth (78% sectors >50d MA) and low volatility (VIX 15.2) creates ideal momentum environment. Momentum factor premium at +2.8% (30d) confirms persistence regime. Cross-sectional sector momentum shows clear winners (XLK +5.1%, XLY +3.8%, XLF +2.9%) and laggards (XLU -1.2%, XLP -0.8%).
-
-  Edge Explanation: Cross-sectional momentum BETWEEN sectors persists for 4-8 weeks due to institutional capital allocation lag. Large asset managers have monthly investment committee cycles that review sector allocations quarterly, creating predictable 4-6 week flow patterns. When breadth is high (>70% sectors above 50d MA), top momentum sectors continue outperforming as institutional flows chase performance. When breadth collapses (<50%), momentum breaks down and defensive rotation is required as capital preservation dominates performance chasing.
-
-  Regime Fit: Current high breadth (78%) confirms broad market participation ideal for momentum persistence. Low VIX (15.2) provides stable environment without fear-driven reversals. SPY +16.5% above 200d MA means uptrend intact. Sector dispersion wide enough (6.3% between top/bottom) to generate meaningful momentum signals.
-
-  Risk Factors: Strategy fails when breadth collapses <50% (narrow market kills momentum), VIX spikes >25 (fear reverses momentum trends), or SPY crosses below 200d MA (trend breaks). Expected max drawdown 15-20% during sharp breadth collapse or volatility spike before defensive rotation implements.
-  """,
-
-  rebalancing_rationale="""
-  My weekly rebalancing implements conditional momentum allocation based on market breadth regime. WHEN breadth > 70% (high breadth regime): allocate 100% to top 3 momentum sectors ranked by 30d returns. Currently XLK (5.1%), XLY (3.8%), XLF (2.9%) with momentum-weighted allocation: 0.43, 0.32, 0.25 (weights proportional to returns, normalized). WHEN breadth < 50% (low breadth regime): rotate 100% defensive to utilities and consumer staples (XLU 50%, XLP 50%) to preserve capital during momentum breakdown. Weekly frequency is required because momentum edge operates on 4-8 week timescales - weekly rebalancing captures sector ranking changes faster than monthly institutional rebalancing committees, exploiting the 2-4 week decision lag. This is NOT monthly rebalancing (too slow, would miss momentum decay) or daily (too fast, whipsaw on noise). Weights derived using momentum-weighting formula: weight_i = return_i / sum(returns) for top 3, ensuring allocation proportional to momentum strength.
-  """,
-
-  assets=["XLK", "XLY", "XLF", "XLU", "XLP"],
-
-  weights={},  # Empty - allocation determined by conditional breadth logic_tree
-
-  rebalance_frequency="weekly",
-
-  logic_tree={
-    "condition": "breadth_pct_above_50dMA > 70",
-    "if_true": {
-      "comment": "High breadth - momentum allocation to top 3 sectors",
-      "assets": ["XLK", "XLY", "XLF"],
-      "weights": {"XLK": 0.43, "XLY": 0.32, "XLF": 0.25}  # Momentum-weighted: 5.1/(5.1+3.8+2.9)=0.43, etc.
-    },
-    "if_false": {
-      "comment": "Low breadth (<50%) - defensive rotation",
-      "assets": ["XLU", "XLP"],
-      "weights": {"XLU": 0.50, "XLP": 0.50}  # Equal defensive allocation
-    }
-  }
-)
-```
-
-**Why This Implementation Is Coherent:**
-- ✅ Archetype (momentum) matches edge (cross-sectional sector momentum in high breadth environments)
-- ✅ Conditional logic (breadth > 70%) creates regime-based rotation distinct from SPY trend
-- ✅ Rebalancing method ALIGNS with thesis (momentum in high breadth, defensive in low breadth)
-- ✅ Frequency (weekly) matches momentum edge timescale (4-8 weeks) and beats institutional monthly lag
-- ✅ Weights explicitly momentum-weighted (0.43, 0.32, 0.25) with derivation formula shown
-- ✅ Defensive rotation in if_false prevents drawdown during breadth collapse
-- ✅ Uses sector ETFs [XLK, XLY, XLF] per Alpha vs Beta framework (valid momentum instruments)
-- ✅ Specific failure triggers (breadth <50%, VIX >25, SPY < 200d MA) with quantified response
-
----
-
-### Example 6: Multi-Strategy Archetype - Factor Rotation Blend
+### Example 4: Multi-Strategy Archetype - Factor Rotation Blend
 
 **Context Pack Data (Example):**
 - Current regime: Bull trend (SPY +12.1% vs 200d MA), normal vol (VIX 16.3)
@@ -1385,7 +1365,7 @@ Strategy(
 
 **Result:** Passes all validation gates
 
-**See Step 2.0.8 for complete leverage justification framework.**
+**See Step 2.4 for complete leverage justification framework.**
 
 ---
 
@@ -1437,11 +1417,11 @@ Candidate 5: Multi-strategy + 8 mixed assets + threshold rebalance + risk parity
 
 ---
 
-## STEP 2.5: PRE-SUBMISSION VALIDATION SUMMARY (RSIP Plan Checkpoint)
+## STEP 2.11: PRE-SUBMISSION VALIDATION SUMMARY (RSIP Plan Checkpoint)
 
 **BEFORE submitting your final List[Strategy] output, complete this final validation summary:**
 
-This is your last checkpoint to ensure Constitutional Constraints compliance and diversity requirements are met. All prior RSIP checkpoints (Step 2.0.5 Planning Matrix, Step 2.3 Self-Critique) feed into this final verification.
+This is your last checkpoint to ensure Constitutional Constraints compliance and diversity requirements are met. All prior RSIP checkpoints (Step 2.3 Planning Matrix, Step 2.9 Self-Critique) feed into this final verification.
 
 ### Constitutional Constraints Verification (MANDATORY)
 
@@ -1457,7 +1437,7 @@ Review ALL 5 strategies against Constitutional Constraints (system prompt lines 
 - [ ] No Mean Reversion + Daily/Weekly combinations
 - [ ] No Carry/Dividend + Daily/Weekly/Monthly combinations
 - [ ] No Volatility/Tactical + Monthly/Quarterly combinations
-- [ ] All frequencies align with edge timescales (verified in Planning Matrix Step 2.0.5)
+- [ ] All frequencies align with edge timescales (verified in Planning Matrix Step 2.3)
 
 **Priority 3: Weight Derivation Transparency**
 - [ ] All strategies with round number weights (0.20, 0.25, 0.33, 0.50) have explicit derivation in rebalancing_rationale
@@ -1476,14 +1456,14 @@ Review ALL 5 strategies against Constitutional Constraints (system prompt lines 
 - [ ] Security selection workflow documented in thesis: Universe → Screening → Analysis → Ranking → Selection
 - [ ] If using sector ETFs (XLF, XLE) for Mean Reversion → ❌ FAIL - must use individual stocks
 
-**Planning Matrix Consistency (Step 2.0.5 verification):**
+**Planning Matrix Consistency (Step 2.3 verification):**
 - [ ] All conditional strategies flagged in Planning Matrix have implemented logic_tree
 - [ ] Rebalancing frequencies match Planning Matrix commitments
 - [ ] Weight methods align with archetypes as planned
 
 ### Diversity Requirements Verification
 
-From Step 2.4 Diversity Checklist:
+From Step 2.10 Diversity Checklist:
 - [ ] ≥3 different edge types (behavioral, structural, informational, risk premium)
 - [ ] ≥3 different archetypes (momentum, mean reversion, carry, directional, volatility)
 - [ ] ≥3 different rebalancing frequencies (daily/weekly/monthly/quarterly)
