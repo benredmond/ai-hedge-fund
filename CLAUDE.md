@@ -66,6 +66,7 @@ pip install -r requirements.txt
   - Format: `<provider>:<model>` (e.g., `openai:gpt-4o`, `anthropic:claude-3-opus-20240229`)
   - DeepSeek: `openai:deepseek-chat` (recommended for cost savings)
   - Kimi: `openai:moonshot-v1-128k` or `openai:kimi-k2-0905-preview` (excellent for long context)
+  - **Kimi Reasoning**: `openai:kimi-k2-thinking` (reasoning model, requires temperature=1.0, max_tokens≥16k)
   - Used by `create_strategy_workflow()` when model parameter not specified
 - **COMPOSER_API_KEY**, **COMPOSER_API_SECRET**: Required for Composer backtesting and deployment
 
