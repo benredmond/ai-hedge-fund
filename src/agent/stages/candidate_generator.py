@@ -6,7 +6,13 @@ import os
 import re
 from dataclasses import dataclass
 from pydantic_ai import ModelSettings
-from src.agent.strategy_creator import create_agent, load_prompt, DEFAULT_MODEL
+from src.agent.strategy_creator import (
+    create_agent,
+    load_prompt,
+    DEFAULT_MODEL,
+    is_reasoning_model,
+    get_model_settings,
+)
 from src.agent.models import Strategy
 from src.agent.token_tracker import TokenTracker
 from src.agent.config.leverage import (
@@ -127,21 +133,21 @@ class CandidateGenerator:
             Enhanced prompt with provider-specific count enforcement
         """
         if provider == "kimi":
-            # Kimi/Moonshot needs very explicit count enforcement
+            # Kimi/Moonshot needs very explicit count enforcement with structured guidance
             count_emphasis = """
-**🚨 CRITICAL REQUIREMENT - EXACT COUNT ENFORCEMENT 🚨**
+**🚨 GENERATE EXACTLY 5 STRATEGIES 🚨**
 
-YOU MUST RETURN EXACTLY 5 STRATEGY OBJECTS. NOT 1, NOT 3, NOT 10 - EXACTLY 5.
+Return a list with these 5 numbered items:
 
-This is a hard requirement enforced by the system. Returning any other count will cause:
-- Immediate validation failure
-- Test failure
-- System rejection
+1. Strategy #1 - [First diverse approach]
+2. Strategy #2 - [Second diverse approach]
+3. Strategy #3 - [Third diverse approach]
+4. Strategy #4 - [Fourth diverse approach]
+5. Strategy #5 - [Fifth diverse approach]
 
-Structure your response as a list containing exactly these 5 items:
-[Strategy #1, Strategy #2, Strategy #3, Strategy #4, Strategy #5]
+BEFORE submitting, verify your list contains exactly 5 Strategy objects.
 
-DO NOT stop after generating 1-2 strategies. Continue until you have EXACTLY 5 complete strategies.
+Example output: [Strategy(...), Strategy(...), Strategy(...), Strategy(...), Strategy(...)]
 
 """
             # Insert after the first line but before the main content
@@ -234,11 +240,10 @@ DO NOT stop after generating 1-2 strategies. Continue until you have EXACTLY 5 c
         Returns:
             List of exactly 5 Strategy objects
         """
-        # Fix for Pydantic AI bug #1429: Disable parallel tool calls to prevent LLM
-        # from calling final_result multiple times (once per strategy) instead of
-        # once with the complete list. This ensures all 5 strategies are generated.
-        # See: https://github.com/pydantic/pydantic-ai/issues/1429
-        model_settings = ModelSettings(parallel_tool_calls=False)
+        # Get model-specific settings (reasoning models require temperature=1.0, max_tokens=16384)
+        # Fix for Pydantic AI bug #1429: parallel_tool_calls=False prevents LLM from calling
+        # final_result multiple times. See: https://github.com/pydantic/pydantic-ai/issues/1429
+        model_settings = get_model_settings(model, stage="candidate_generation")
 
         # Create agent with all tools available (but usage optional)
         agent_ctx = await create_agent(
@@ -357,7 +362,25 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
                 notes="Single-phase generation with optional tool usage"
             )
 
+            # Debug logging: Print prompt being sent to LLM provider
+            print(f"\n[DEBUG:CandidateGenerator] Sending prompt to LLM provider")
+            print(f"[DEBUG:CandidateGenerator] System prompt: {system_prompt[:500]}... [Total: {len(system_prompt)} chars]")
+            print(f"[DEBUG:CandidateGenerator] User prompt (preview): {generate_prompt[:2000]}... [Total: {len(generate_prompt)} chars]")
+            print(f"[DEBUG:CandidateGenerator] ========== FULL USER PROMPT ==========")
+            print(generate_prompt)
+            print(f"[DEBUG:CandidateGenerator] =====================================")
+
             result = await agent.run(generate_prompt)
+
+            # Extract reasoning content for debugging (if available)
+            if hasattr(result, 'choices') and result.choices:
+                message = result.choices[0].message
+                reasoning = (
+                    getattr(message, 'reasoning_content', None) or
+                    getattr(message, 'reasoning', None)
+                )
+                if reasoning:
+                    print(f"[DEBUG] Reasoning trace: {reasoning[:200]}...")
 
             # Debug logging: Print full LLM response
             print(f"\n[DEBUG:CandidateGenerator] Full LLM response:")
@@ -1218,6 +1241,13 @@ Output List[Strategy] with all errors corrected."""
             notes="Single retry with targeted error fixes"
         )
 
+        # Debug logging: Print retry prompt being sent to LLM provider
+        print(f"\n[DEBUG:CandidateGenerator:RETRY] Sending retry prompt to LLM provider")
+        print(f"[DEBUG:CandidateGenerator:RETRY] User prompt (preview): {retry_prompt[:2000]}... [Total: {len(retry_prompt)} chars]")
+        print(f"[DEBUG:CandidateGenerator:RETRY] ========== FULL RETRY PROMPT ==========")
+        print(retry_prompt)
+        print(f"[DEBUG:CandidateGenerator:RETRY] =====================================")
+
         try:
             result = await agent.run(retry_prompt)
             print(f"✓ Retry succeeded - received {len(result.output)} candidates")
@@ -1309,9 +1339,24 @@ Output List[Strategy] with all errors corrected."""
                     )
 
                 # Check logic_tree structure preserved (empty stays empty, populated stays populated)
+                # EXCEPTION: Allow logic_tree changes when retry is fixing count error (1→5)
+                # because new candidates may have different structures than the single original
                 original_has_logic = bool(original.logic_tree)
                 fixed_has_logic = bool(fixed.logic_tree)
-                if original_has_logic != fixed_has_logic:
+
+                # Detect if count error exists in validation_errors
+                count_error_exists = any(
+                    "count" in error.lower() or
+                    "5 candidates" in error.lower() or
+                    "strategy objects" in error.lower()
+                    for error in validation_errors
+                )
+
+                # Debug logging for count error detection
+                if i == 0 and count_error_exists:
+                    print(f"[DEBUG] Count error detected in validation - allowing logic_tree structure changes")
+
+                if original_has_logic != fixed_has_logic and not count_error_exists:
                     raise ValueError(
                         f"Retry modified logic_tree structure for candidate {i+1} ({original.name}): "
                         f"{'populated' if original_has_logic else 'empty'} → {'populated' if fixed_has_logic else 'empty'}. "

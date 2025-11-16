@@ -1,10 +1,13 @@
 """Evaluate strategy using Edge Scorecard via AI agent."""
 
 import json
+from pydantic_ai import ModelSettings
 from src.agent.strategy_creator import (
     create_agent,
     load_prompt,
-    DEFAULT_MODEL
+    DEFAULT_MODEL,
+    is_reasoning_model,
+    get_model_settings,
 )
 from src.agent.models import Strategy, EdgeScorecard
 from src.agent.config.leverage import detect_leverage
@@ -52,13 +55,17 @@ class EdgeScorer:
         # Load scoring prompt
         system_prompt = load_prompt("edge_scoring.md")
 
+        # Get model-specific settings (reasoning models require temperature=1.0, max_tokens=16384)
+        model_settings = get_model_settings(model, stage="edge_scoring")
+
         # Create agent with dict output to handle rich scoring format
         # Use 10 message history limit (single evaluation, no tool usage)
         agent_ctx = await create_agent(
             model=model,
             output_type=dict,
             system_prompt=system_prompt,
-            history_limit=10
+            history_limit=10,
+            model_settings=model_settings
         )
 
         # Build evaluation prompt
@@ -150,6 +157,14 @@ Return your evaluation as a JSON object with scores for all 5 dimensions.
 
 **CRITICAL**: All dimensions must score ≥3 to pass threshold.
 """
+
+            # Debug logging: Print prompt being sent to LLM provider
+            print(f"\n[DEBUG:EdgeScorer] Sending prompt to LLM provider")
+            print(f"[DEBUG:EdgeScorer] System prompt: {system_prompt[:500]}... [Total: {len(system_prompt)} chars]")
+            print(f"[DEBUG:EdgeScorer] User prompt (preview): {prompt[:1000]}... [Total: {len(prompt)} chars]")
+            print(f"[DEBUG:EdgeScorer] ========== FULL USER PROMPT ==========")
+            print(prompt)
+            print(f"[DEBUG:EdgeScorer] =====================================")
 
             result = await agent.run(prompt)
             raw_output = result.output

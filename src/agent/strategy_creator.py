@@ -32,6 +32,87 @@ KIMI_API_KEY = os.getenv("KIMI_API_KEY")
 KIMI_BASE_URL = "https://api.moonshot.ai/v1"
 
 
+def is_reasoning_model(model: str) -> bool:
+    """
+    Check if model is reasoning-focused (extended thinking).
+
+    Reasoning models like kimi-k2-thinking, o1, o3 generate separate
+    reasoning traces before final answers, requiring specific configuration.
+
+    Args:
+        model: Model identifier (e.g., "openai:gpt-4o", "openai:kimi-k2-thinking")
+
+    Returns:
+        True if model is a reasoning model, False otherwise
+    """
+    model_name = model.split(":")[-1].lower()
+    return "thinking" in model_name or "reasoning" in model_name
+
+
+def get_model_settings(
+    model: str,
+    stage: str,
+    custom_settings: Optional[ModelSettings] = None
+) -> Optional[ModelSettings]:
+    """
+    Get stage-specific ModelSettings for given model.
+
+    Configuration rationale:
+    - temperature=0.7: Balanced creativity/consistency for reasoning models (Kimi/Moonshot)
+    - max_tokens=16384: Minimum for reasoning trace + final answer
+    - parallel_tool_calls=False: Workaround for Pydantic AI bug #1429 + reasoning models don't support parallel
+
+    Args:
+        model: Model identifier (e.g., "openai:kimi-k2-thinking")
+        stage: Workflow stage ("candidate_generation", "edge_scoring", "winner_selection", "charter_generation")
+        custom_settings: Optional custom settings to override defaults
+
+    Returns:
+        ModelSettings configured for the model and stage, or None if no special settings needed
+
+    Raises:
+        ValueError: If stage is not recognized
+    """
+    VALID_STAGES = {"candidate_generation", "edge_scoring", "winner_selection", "charter_generation"}
+    if stage not in VALID_STAGES:
+        raise ValueError(f"Invalid stage: '{stage}'. Must be one of {VALID_STAGES}")
+
+    if custom_settings:
+        return custom_settings
+
+    is_reasoning = is_reasoning_model(model)
+
+    # Stage-specific settings
+    if stage == "candidate_generation":
+        if is_reasoning:
+            return ModelSettings(
+                temperature=0.7,      # Balanced creativity/consistency for reasoning models
+                max_tokens=16384,     # Minimum for reasoning + answer
+                parallel_tool_calls=False  # Fix for Pydantic AI bug #1429
+            )
+        else:
+            return ModelSettings(parallel_tool_calls=False)  # Fix for Pydantic AI bug #1429
+
+    elif stage in ["edge_scoring", "winner_selection"]:
+        if is_reasoning:
+            return ModelSettings(
+                temperature=0.7,
+                max_tokens=16384,
+            )
+        return None
+
+    elif stage == "charter_generation":
+        if is_reasoning:
+            return ModelSettings(
+                temperature=0.7,
+                max_tokens=16384,
+            )
+        else:
+            return ModelSettings(max_tokens=20000)  # Large enough for comprehensive charter
+
+    return None
+
+
 class AgentContext:
     """
     Async context manager that wraps an agent and its MCP server lifecycle.
@@ -66,15 +147,16 @@ class AgentContext:
 PROMPT_DIR = Path(__file__).parent / "prompts"
 
 
-def load_prompt(filename: str) -> str:
+def load_prompt(filename: str, include_tools: bool = True) -> str:
     """
-    Load prompt template from prompts directory.
+    Load prompt template from prompts directory with optional tool injection.
 
     Args:
         filename: Prompt template filename (e.g., 'system_prompt.md')
+        include_tools: Whether to inject tool documentation (default: True)
 
     Returns:
-        Prompt content as string
+        Prompt content as string (with tool docs appended if requested)
 
     Raises:
         FileNotFoundError: If prompt file doesn't exist
@@ -87,7 +169,42 @@ def load_prompt(filename: str) -> str:
             f"Available prompts: {list(PROMPT_DIR.glob('*.md'))}"
         )
 
-    return prompt_path.read_text()
+    content = prompt_path.read_text()
+
+    # Auto-inject tool documentation for system prompts only
+    # System prompts define agent role/constraints and are passed to create_agent(system_prompt=...)
+    # Recipe prompts provide workflow instructions and are passed in user messages
+    is_system_prompt = filename.startswith("system/")
+
+    if include_tools and is_system_prompt:
+        tool_docs = _load_tool_documentation()
+        if tool_docs:  # Only append if we found tool docs
+            content += "\n\n---\n\n## AVAILABLE TOOLS\n\n" + tool_docs
+
+    return content
+
+
+def _load_tool_documentation() -> str:
+    """
+    Load and concatenate all tool documentation files.
+
+    Returns:
+        Combined tool documentation, or empty string if no tools found
+    """
+    tools_dir = PROMPT_DIR / "tools"
+
+    if not tools_dir.exists():
+        return ""
+
+    tool_sections = []
+
+    # Load in specific order: FRED (most important), yfinance, Composer
+    for tool_file in ["fred.md", "yfinance.md", "composer.md"]:
+        tool_path = tools_dir / tool_file
+        if tool_path.exists():
+            tool_sections.append(tool_path.read_text())
+
+    return "\n\n---\n\n".join(tool_sections)
 
 
 def create_history_processor(max_messages: int = 20):

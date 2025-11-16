@@ -5,10 +5,13 @@ from typing import List
 import json
 import openai
 from pydantic import ValidationError
+from pydantic_ai import ModelSettings
 from src.agent.strategy_creator import (
     create_agent,
     load_prompt,
-    DEFAULT_MODEL
+    DEFAULT_MODEL,
+    is_reasoning_model,
+    get_model_settings,
 )
 from src.agent.models import (
     Strategy,
@@ -178,12 +181,15 @@ Begin by using MCP tools to gather current market data, then write the 5-section
 
         for attempt in range(1, max_attempts + 1):
             try:
+                # Get model-specific settings (reasoning models require temperature=1.0, max_tokens=16384)
+                model_settings = get_model_settings(model, stage="charter_generation")
+
                 agent_ctx = await create_agent(
                     model=model,
                     output_type=Charter,
                     system_prompt=system_prompt,
                     history_limit=20,
-                    model_settings={"max_tokens": 20000}
+                    model_settings=model_settings
                 )
 
                 async with agent_ctx as agent:
@@ -198,6 +204,14 @@ Remember the CRITICAL LENGTH CONSTRAINTS:
 - outlook_90d: MAX 2000 characters (target 100-200 words)
 
 {prompt}"""
+
+                    # Debug logging: Print prompt being sent to LLM provider
+                    print(f"\n[DEBUG:CharterGenerator] Sending prompt to LLM provider (attempt {attempt}/{max_attempts})")
+                    print(f"[DEBUG:CharterGenerator] System prompt: {system_prompt[:500]}... [Total: {len(system_prompt)} chars]")
+                    print(f"[DEBUG:CharterGenerator] User prompt (preview): {current_prompt[:1000]}... [Total: {len(current_prompt)} chars]")
+                    print(f"[DEBUG:CharterGenerator] ========== FULL USER PROMPT ==========")
+                    print(current_prompt)
+                    print(f"[DEBUG:CharterGenerator] =====================================")
 
                     result = await agent.run(current_prompt)
                     charter = result.output
