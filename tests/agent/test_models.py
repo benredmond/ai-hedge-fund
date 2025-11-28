@@ -326,13 +326,24 @@ class TestEdgeScorecardModel:
         assert scorecard.thesis_quality == 4
         assert scorecard.total_score == pytest.approx(3.8, abs=0.01)
 
-    def test_dimension_below_threshold_rejected(self):
-        """Any dimension below 3 fails validation"""
+    def test_dimension_minimum_is_one(self):
+        """Dimensions can be 1-5 (filtering happens in winner_selector, not validation)"""
         from src.agent.models import EdgeScorecard
 
-        with pytest.raises(ValidationError, match="minimum threshold is 3"):
+        # Score of 1 is valid (low quality, but structurally valid)
+        scorecard = EdgeScorecard(
+            thesis_quality=1,
+            edge_economics=1,
+            risk_framework=1,
+            regime_awareness=1,
+            strategic_coherence=1
+        )
+        assert scorecard.total_score == 1.0
+
+        # Score of 0 should fail
+        with pytest.raises(ValidationError):
             EdgeScorecard(
-                thesis_quality=2,  # Below threshold
+                thesis_quality=0,  # Below minimum
                 edge_economics=3,
                 risk_framework=4,
                 regime_awareness=3,
@@ -419,21 +430,41 @@ class TestSelectionReasoningModel:
                 conviction_level=0.7
             )
 
-    def test_alternatives_wrong_count_rejected(self):
-        """Must have exactly 4 alternatives"""
+    def test_alternatives_count_bounds(self):
+        """Must have 1-4 alternatives (varies based on how many passed quality gate)"""
         from src.agent.models import SelectionReasoning
 
-        # Too few
+        # 1 alternative is valid (4 candidates, 1 passed besides winner)
+        reasoning_1 = SelectionReasoning(
+            winner_index=0,
+            why_selected="This strategy was selected because it has the highest Sharpe ratio combined with excellent regime alignment.",
+            tradeoffs_accepted="Standard tradeoffs between return and risk apply here",
+            alternatives_rejected=["A"],
+            conviction_level=0.8
+        )
+        assert len(reasoning_1.alternatives_rejected) == 1
+
+        # 4 alternatives is valid (all 4 other candidates passed quality gate)
+        reasoning_4 = SelectionReasoning(
+            winner_index=0,
+            why_selected="This strategy was selected because it has the highest Sharpe ratio combined with excellent regime alignment.",
+            tradeoffs_accepted="Standard tradeoffs between return and risk apply here",
+            alternatives_rejected=["A", "B", "C", "D"],
+            conviction_level=0.8
+        )
+        assert len(reasoning_4.alternatives_rejected) == 4
+
+        # 0 alternatives should fail (must have at least 1)
         with pytest.raises(ValidationError):
             SelectionReasoning(
                 winner_index=0,
                 why_selected="This strategy was selected because it has the highest Sharpe ratio combined with excellent regime alignment.",
                 tradeoffs_accepted="Standard tradeoffs between return and risk apply here",
-                alternatives_rejected=["A", "B"],  # Only 2
+                alternatives_rejected=[],  # Empty not allowed
                 conviction_level=0.8
             )
 
-        # Too many
+        # 5 alternatives should fail (max is 4)
         with pytest.raises(ValidationError):
             SelectionReasoning(
                 winner_index=0,
@@ -544,4 +575,76 @@ class TestWorkflowResultModel:
                 scorecards=[],
                 selection_reasoning=reasoning
             )
+
+
+class TestCandidateListModel:
+    """Test CandidateList wrapper model that enforces exactly 5 strategies."""
+
+    def _make_strategy(self, name: str) -> "Strategy":
+        """Helper to create a valid Strategy for testing."""
+        from src.agent.models import Strategy
+        return Strategy(
+            name=name,
+            assets=["SPY", "QQQ"],
+            weights={"SPY": 0.6, "QQQ": 0.4},
+            rebalance_frequency="monthly",
+            rebalancing_rationale="Monthly rebalancing maintains target weights by systematically buying dips and selling rallies, implementing contrarian exposure that captures mean-reversion across asset classes.",
+            thesis_document=""
+        )
+
+    def test_exactly_five_strategies_accepted(self):
+        """CandidateList with exactly 5 strategies passes validation"""
+        from src.agent.models import CandidateList
+
+        strategies = [self._make_strategy(f"Strategy {i}") for i in range(5)]
+        candidate_list = CandidateList(strategies=strategies)
+
+        assert len(candidate_list.strategies) == 5
+
+    def test_fewer_than_five_rejected(self):
+        """CandidateList with fewer than 5 strategies fails validation"""
+        from src.agent.models import CandidateList
+
+        # 1 strategy
+        with pytest.raises(ValidationError, match="at least 5"):
+            CandidateList(strategies=[self._make_strategy("Only One")])
+
+        # 3 strategies
+        with pytest.raises(ValidationError, match="at least 5"):
+            CandidateList(strategies=[self._make_strategy(f"Strategy {i}") for i in range(3)])
+
+        # 4 strategies
+        with pytest.raises(ValidationError, match="at least 5"):
+            CandidateList(strategies=[self._make_strategy(f"Strategy {i}") for i in range(4)])
+
+    def test_more_than_five_rejected(self):
+        """CandidateList with more than 5 strategies fails validation"""
+        from src.agent.models import CandidateList
+
+        # 6 strategies
+        with pytest.raises(ValidationError, match="at most 5"):
+            CandidateList(strategies=[self._make_strategy(f"Strategy {i}") for i in range(6)])
+
+        # 10 strategies
+        with pytest.raises(ValidationError, match="at most 5"):
+            CandidateList(strategies=[self._make_strategy(f"Strategy {i}") for i in range(10)])
+
+    def test_empty_list_rejected(self):
+        """CandidateList with empty strategies list fails validation"""
+        from src.agent.models import CandidateList
+
+        with pytest.raises(ValidationError, match="at least 5"):
+            CandidateList(strategies=[])
+
+    def test_strategies_are_accessible(self):
+        """CandidateList.strategies returns the list of Strategy objects"""
+        from src.agent.models import CandidateList
+
+        strategies = [self._make_strategy(f"Strategy {i}") for i in range(5)]
+        candidate_list = CandidateList(strategies=strategies)
+
+        # Verify each strategy is accessible and has correct name
+        for i, strategy in enumerate(candidate_list.strategies):
+            assert strategy.name == f"Strategy {i}"
+            assert len(strategy.assets) == 2
 

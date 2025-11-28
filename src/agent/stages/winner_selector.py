@@ -1,6 +1,7 @@
 """Select best strategy from candidates using composite ranking."""
 
 from typing import List, Tuple
+import os
 from pydantic_ai import ModelSettings
 from src.agent.strategy_creator import (
     create_agent,
@@ -215,14 +216,26 @@ Return structured SelectionReasoning output.
 """
 
             # Debug logging: Print prompt being sent to LLM provider
-            print(f"\n[DEBUG:WinnerSelector] Sending prompt to LLM provider")
-            print(f"[DEBUG:WinnerSelector] System prompt: {system_prompt[:500]}... [Total: {len(system_prompt)} chars]")
-            print(f"[DEBUG:WinnerSelector] User prompt (preview): {prompt[:1000]}... [Total: {len(prompt)} chars]")
-            print(f"[DEBUG:WinnerSelector] ========== FULL USER PROMPT ==========")
-            print(prompt)
-            print(f"[DEBUG:WinnerSelector] =====================================")
+            print(f"\n{'='*80}")
+            print(f"[DEBUG:WinnerSelector] Sending prompt to LLM provider")
+            print(f"[DEBUG:WinnerSelector] System prompt length: {len(system_prompt)} chars")
+            print(f"[DEBUG:WinnerSelector] User prompt length: {len(prompt)} chars")
+            print(f"{'='*80}")
+            if os.getenv("DEBUG_PROMPTS", "0") == "1":
+                print(f"\n[DEBUG:WinnerSelector] ========== FULL SYSTEM PROMPT ==========")
+                print(system_prompt)
+                print(f"[DEBUG:WinnerSelector] ========================================")
+                print(f"\n[DEBUG:WinnerSelector] ========== FULL USER PROMPT ==========")
+                print(prompt)
+                print(f"[DEBUG:WinnerSelector] ======================================")
+                print(f"{'='*80}\n")
 
             result = await agent.run(prompt)
+
+            # Extract and log full reasoning content (Kimi K2, DeepSeek R1, etc.)
+            from src.agent.stages.candidate_generator import extract_and_log_reasoning
+            extract_and_log_reasoning(result, "WinnerSelector")
+
             reasoning = result.output
 
         # Debug logging: Print full LLM response

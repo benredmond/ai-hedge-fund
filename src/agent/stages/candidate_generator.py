@@ -13,7 +13,7 @@ from src.agent.strategy_creator import (
     is_reasoning_model,
     get_model_settings,
 )
-from src.agent.models import Strategy
+from src.agent.models import Strategy, CandidateList
 from src.agent.token_tracker import TokenTracker
 from src.agent.config.leverage import (
     APPROVED_2X_ETFS,
@@ -32,6 +32,61 @@ _DECAY_NUMBER_PATTERN = re.compile(
 )
 _DRAWDOWN_PATTERN = re.compile(r'(\d+)%?\s*(?:drawdown|dd|decline|loss)')
 _EXIT_SPECIFIC_PATTERN = re.compile(r'(?:exit|rotate|stop).*(?:if|when|vix >|momentum <)')
+
+
+def extract_and_log_reasoning(result, stage_name: str) -> bool:
+    """
+    Extract and log full reasoning content from reasoning models (Kimi K2, DeepSeek R1, etc).
+
+    Kimi K2 implementation:
+    - Reasoning is in `reasoning_content` field on ChatCompletionMessage
+    - Must use hasattr() + getattr() (OpenAI SDK doesn't expose it directly)
+    - Field is at same level as `content` field
+
+    Args:
+        result: RunResult from agent.run()
+        stage_name: Stage identifier for logging (e.g., "CandidateGenerator")
+
+    Returns:
+        True if reasoning content was found and logged, False otherwise
+    """
+    try:
+        # Method 1: Access via pydantic-ai result._result (underlying model response)
+        if hasattr(result, '_result') and hasattr(result._result, 'choices'):
+            message = result._result.choices[0].message
+
+            # Check for reasoning_content (Kimi K2, DeepSeek R1 format)
+            if hasattr(message, 'reasoning_content'):
+                reasoning = getattr(message, 'reasoning_content', None)
+                if reasoning:
+                    print(f"\n{'='*80}")
+                    print(f"[DEBUG:{stage_name}] REASONING CONTENT")
+                    print(f"[DEBUG:{stage_name}] Length: {len(reasoning)} chars")
+                    print(f"{'='*80}")
+                    print(reasoning)  # FULL content, NOT truncated
+                    print(f"{'='*80}\n")
+                    return True
+
+        # Method 2: Check result.choices directly (for compatibility)
+        if hasattr(result, 'choices') and result.choices:
+            message = result.choices[0].message
+            if hasattr(message, 'reasoning_content'):
+                reasoning = getattr(message, 'reasoning_content', None)
+                if reasoning:
+                    print(f"\n{'='*80}")
+                    print(f"[DEBUG:{stage_name}] REASONING CONTENT")
+                    print(f"[DEBUG:{stage_name}] Length: {len(reasoning)} chars")
+                    print(f"{'='*80}")
+                    print(reasoning)  # FULL content
+                    print(f"{'='*80}\n")
+                    return True
+
+        # No reasoning content found (not an error - just means model doesn't produce it)
+        return False
+
+    except Exception as e:
+        print(f"[DEBUG:{stage_name}] Error extracting reasoning: {e}")
+        return False
 
 
 @dataclass
@@ -122,8 +177,8 @@ class CandidateGenerator:
         """
         Add provider-specific count enforcement to generation prompt.
 
-        Some providers (particularly kimi-k2) need more explicit count instructions
-        than others to reliably generate the correct number of candidates.
+        All providers benefit from explicit count instructions to reliably
+        generate the correct number of candidates.
 
         Args:
             prompt: Original generation prompt
@@ -132,33 +187,51 @@ class CandidateGenerator:
         Returns:
             Enhanced prompt with provider-specific count enforcement
         """
-        if provider == "kimi":
-            # Kimi/Moonshot needs very explicit count enforcement with structured guidance
-            count_emphasis = """
-**🚨 GENERATE EXACTLY 5 STRATEGIES 🚨**
+        # Universal count emphasis - positioned after the opening requirement
+        # This applies to ALL providers since count failures are common
+        count_emphasis = """
+**🚨 CRITICAL: EXACTLY 5 STRATEGIES REQUIRED 🚨**
 
-Return a list with these 5 numbered items:
+Your output MUST be a Python list with exactly 5 Strategy objects:
 
-1. Strategy #1 - [First diverse approach]
-2. Strategy #2 - [Second diverse approach]
-3. Strategy #3 - [Third diverse approach]
-4. Strategy #4 - [Fourth diverse approach]
-5. Strategy #5 - [Fifth diverse approach]
+```
+[
+    Strategy(...),  # Strategy #1
+    Strategy(...),  # Strategy #2
+    Strategy(...),  # Strategy #3
+    Strategy(...),  # Strategy #4
+    Strategy(...),  # Strategy #5
+]
+```
 
-BEFORE submitting, verify your list contains exactly 5 Strategy objects.
-
-Example output: [Strategy(...), Strategy(...), Strategy(...), Strategy(...), Strategy(...)]
+Common failure mode: Generating only 1-3 strategies then stopping.
+DO NOT STOP until you have generated all 5.
 
 """
-            # Insert after the first line but before the main content
-            lines = prompt.split('\n', 1)
-            if len(lines) == 2:
-                return lines[0] + '\n' + count_emphasis + lines[1]
-            else:
-                return count_emphasis + prompt
+        # Provider-specific additional guidance
+        if provider == "kimi":
+            count_emphasis += """
+**Kimi K2 Specific:** You tend to generate fewer than 5.
+Force yourself: After Strategy #3, keep going to #4 and #5.
+Count before submitting: 1, 2, 3, 4, 5 = ✓
 
-        # Other providers work fine with standard prompt
-        return prompt
+"""
+        elif provider == "deepseek":
+            count_emphasis += """
+**DeepSeek Specific:** Ensure your reasoning produces exactly 5 diverse strategies.
+Use different archetypes for each: Momentum, Mean Reversion, Carry, Volatility, Multi-factor.
+
+"""
+
+        # Insert after the opening OUTPUT REQUIREMENT section (after first ---)
+        # Find the first --- separator and insert after it
+        if "---" in prompt:
+            parts = prompt.split("---", 1)
+            if len(parts) == 2:
+                return parts[0] + "---\n" + count_emphasis + parts[1]
+
+        # Fallback: insert at beginning
+        return count_emphasis + prompt
 
     async def generate(
         self,
@@ -248,7 +321,7 @@ Example output: [Strategy(...), Strategy(...), Strategy(...), Strategy(...), Str
         # Create agent with all tools available (but usage optional)
         agent_ctx = await create_agent(
             model=model,
-            output_type=List[Strategy],
+            output_type=CandidateList,  # Wrapper enforces exactly 5 via JSON schema
             system_prompt=system_prompt,
             include_composer=True,  # Keep tools available
             model_settings=model_settings
@@ -257,7 +330,14 @@ Example output: [Strategy(...), Strategy(...), Strategy(...), Strategy(...), Str
         async with agent_ctx as agent:
             market_context_json = json.dumps(market_context, indent=2)
 
-            generate_prompt = f"""Generate 5 diverse trading strategy candidates.
+            generate_prompt = f"""**🎯 OUTPUT REQUIREMENT: EXACTLY 5 STRATEGIES**
+
+You MUST return a List[Strategy] containing EXACTLY 5 Strategy objects.
+Not 1. Not 3. Not 4. Exactly 5.
+
+Before finalizing, count: Strategy #1 ✓, Strategy #2 ✓, Strategy #3 ✓, Strategy #4 ✓, Strategy #5 ✓
+
+---
 
 **COMPREHENSIVE MARKET CONTEXT PACK:**
 
@@ -346,6 +426,16 @@ For static strategies, use logic_tree={{}}.
 - Citation: Reference context pack data (e.g., "VIX 18.6 per context pack")
 - Diversity: Essential - explore possibility space, don't optimize for single approach
 
+**⚠️ FINAL COUNT VERIFICATION (MANDATORY):**
+
+Before returning your output, verify:
+- [ ] Strategy #1 exists with complete thesis_document
+- [ ] Strategy #2 exists with complete thesis_document
+- [ ] Strategy #3 exists with complete thesis_document
+- [ ] Strategy #4 exists with complete thesis_document
+- [ ] Strategy #5 exists with complete thesis_document
+- [ ] Total count = 5 (not fewer, not more)
+
 Return all 5 candidates together in a single List[Strategy] containing exactly 5 Strategy objects.
 """
 
@@ -363,40 +453,56 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
             )
 
             # Debug logging: Print prompt being sent to LLM provider
-            print(f"\n[DEBUG:CandidateGenerator] Sending prompt to LLM provider")
-            print(f"[DEBUG:CandidateGenerator] System prompt: {system_prompt[:500]}... [Total: {len(system_prompt)} chars]")
-            print(f"[DEBUG:CandidateGenerator] User prompt (preview): {generate_prompt[:2000]}... [Total: {len(generate_prompt)} chars]")
-            print(f"[DEBUG:CandidateGenerator] ========== FULL USER PROMPT ==========")
-            print(generate_prompt)
-            print(f"[DEBUG:CandidateGenerator] =====================================")
+            print(f"\n{'='*80}")
+            print(f"[DEBUG:CandidateGenerator] Sending prompt to LLM provider")
+            print(f"[DEBUG:CandidateGenerator] System prompt length: {len(system_prompt)} chars")
+            print(f"[DEBUG:CandidateGenerator] User prompt length: {len(generate_prompt)} chars")
+            print(f"{'='*80}")
+            if os.getenv("DEBUG_PROMPTS", "0") == "1":
+                print(f"\n[DEBUG:CandidateGenerator] ========== FULL SYSTEM PROMPT ==========")
+                print(system_prompt)
+                print(f"[DEBUG:CandidateGenerator] ========================================")
+                print(f"\n[DEBUG:CandidateGenerator] ========== FULL USER PROMPT ==========")
+                print(generate_prompt)
+                print(f"[DEBUG:CandidateGenerator] ======================================")
+                print(f"{'='*80}\n")
 
             result = await agent.run(generate_prompt)
 
-            # Extract reasoning content for debugging (if available)
-            if hasattr(result, 'choices') and result.choices:
-                message = result.choices[0].message
-                reasoning = (
-                    getattr(message, 'reasoning_content', None) or
-                    getattr(message, 'reasoning', None)
-                )
-                if reasoning:
-                    print(f"[DEBUG] Reasoning trace: {reasoning[:200]}...")
+            # Extract and log full reasoning content (Kimi K2, DeepSeek R1, etc.)
+            extract_and_log_reasoning(result, "CandidateGenerator")
 
             # Debug logging: Print full LLM response
             print(f"\n[DEBUG:CandidateGenerator] Full LLM response:")
             print(f"{result.output}")
 
             # Post-generation validation (Fix #1: Post-validation retry)
-            candidates = result.output
+            # Extract strategies from CandidateList wrapper
+            candidates = result.output.strategies
 
             # Pre-semantic count validation: Fail fast on wrong count before expensive validation
             EXPECTED_CANDIDATE_COUNT = 5
             if len(candidates) != EXPECTED_CANDIDATE_COUNT:
+                # Provider-specific guidance for count errors
+                provider_guidance = ""
+                if provider == "kimi":
+                    provider_guidance = (
+                        "\n\nKimi K2 Reminder: You need to return a Python list with exactly 5 Strategy objects. "
+                        "Count your strategies: Strategy #1, Strategy #2, Strategy #3, Strategy #4, Strategy #5. "
+                        "Verify the list length before submitting."
+                    )
+                elif provider == "deepseek":
+                    provider_guidance = (
+                        "\n\nDeepSeek Reminder: Ensure your final output is List[Strategy] containing exactly 5 items. "
+                        "Use diverse archetypes across all 5 candidates."
+                    )
+
                 count_error = (
                     f"Syntax Error: Generated {len(candidates)} candidates, expected {EXPECTED_CANDIDATE_COUNT}. "
                     f"You MUST return exactly {EXPECTED_CANDIDATE_COUNT} Strategy objects in a single List[Strategy]. "
                     f"This is a hard requirement. Please generate {EXPECTED_CANDIDATE_COUNT - len(candidates)} more "
                     f"{'candidate' if EXPECTED_CANDIDATE_COUNT - len(candidates) == 1 else 'candidates'} to reach the required count."
+                    f"{provider_guidance}"
                 )
                 # Trigger retry with count-specific error
                 validation_errors = [count_error]
@@ -1242,22 +1348,29 @@ Output List[Strategy] with all errors corrected."""
         )
 
         # Debug logging: Print retry prompt being sent to LLM provider
-        print(f"\n[DEBUG:CandidateGenerator:RETRY] Sending retry prompt to LLM provider")
-        print(f"[DEBUG:CandidateGenerator:RETRY] User prompt (preview): {retry_prompt[:2000]}... [Total: {len(retry_prompt)} chars]")
-        print(f"[DEBUG:CandidateGenerator:RETRY] ========== FULL RETRY PROMPT ==========")
-        print(retry_prompt)
-        print(f"[DEBUG:CandidateGenerator:RETRY] =====================================")
+        print(f"\n{'='*80}")
+        print(f"[DEBUG:CandidateGenerator:RETRY] Sending retry prompt to LLM provider")
+        print(f"[DEBUG:CandidateGenerator:RETRY] System prompt: (same as initial generation)")
+        print(f"[DEBUG:CandidateGenerator:RETRY] User prompt length: {len(retry_prompt)} chars")
+        print(f"{'='*80}")
+        if os.getenv("DEBUG_PROMPTS", "0") == "1":
+            print(f"\n[DEBUG:CandidateGenerator:RETRY] ========== FULL RETRY PROMPT ==========")
+            print(retry_prompt)
+            print(f"[DEBUG:CandidateGenerator:RETRY] =======================================")
+            print(f"{'='*80}\n")
 
         try:
             result = await agent.run(retry_prompt)
-            print(f"✓ Retry succeeded - received {len(result.output)} candidates")
+            # Extract strategies from CandidateList wrapper
+            fixed_candidates = result.output.strategies
+            print(f"✓ Retry succeeded - received {len(fixed_candidates)} candidates")
+
+            # Extract and log full reasoning content from retry (Kimi K2, DeepSeek R1, etc.)
+            extract_and_log_reasoning(result, "CandidateGenerator:RETRY")
 
             # Debug logging: Print retry output
             print(f"\n[DEBUG:CandidateGenerator] Retry output:")
             print(f"{result.output}")
-
-            # CRITICAL: Validate that retry preserved asset structure (data integrity check)
-            fixed_candidates = result.output
 
             # CRITICAL: Validate count against EXPECTED (5), not original length.
             # Retry may be fixing a wrong count (e.g., 1→5), which is valid.

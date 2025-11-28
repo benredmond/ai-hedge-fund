@@ -8,16 +8,17 @@ This module provides:
 - Type-safe strategy output
 """
 
+import os
 from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Optional, Type, TypeVar
-import os
+
 from pydantic import BaseModel
 from pydantic_ai import Agent, ModelSettings
 from pydantic_ai import messages as _messages
 from pydantic_ai.tools import RunContext
-from src.agent.mcp_config import get_mcp_servers
 
+from src.agent.mcp_config import get_mcp_servers
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -50,9 +51,7 @@ def is_reasoning_model(model: str) -> bool:
 
 
 def get_model_settings(
-    model: str,
-    stage: str,
-    custom_settings: Optional[ModelSettings] = None
+    model: str, stage: str, custom_settings: Optional[ModelSettings] = None
 ) -> Optional[ModelSettings]:
     """
     Get stage-specific ModelSettings for given model.
@@ -73,7 +72,12 @@ def get_model_settings(
     Raises:
         ValueError: If stage is not recognized
     """
-    VALID_STAGES = {"candidate_generation", "edge_scoring", "winner_selection", "charter_generation"}
+    VALID_STAGES = {
+        "candidate_generation",
+        "edge_scoring",
+        "winner_selection",
+        "charter_generation",
+    }
     if stage not in VALID_STAGES:
         raise ValueError(f"Invalid stage: '{stage}'. Must be one of {VALID_STAGES}")
 
@@ -86,17 +90,19 @@ def get_model_settings(
     if stage == "candidate_generation":
         if is_reasoning:
             return ModelSettings(
-                temperature=0.7,      # Balanced creativity/consistency for reasoning models
-                max_tokens=16384,     # Minimum for reasoning + answer
-                parallel_tool_calls=False  # Fix for Pydantic AI bug #1429
+                temperature=1.0,  # Balanced creativity/consistency for reasoning models
+                max_tokens=16384,  # Minimum for reasoning + answer
+                parallel_tool_calls=False,  # Fix for Pydantic AI bug #1429
             )
         else:
-            return ModelSettings(parallel_tool_calls=False)  # Fix for Pydantic AI bug #1429
+            return ModelSettings(
+                parallel_tool_calls=False
+            )  # Fix for Pydantic AI bug #1429
 
     elif stage in ["edge_scoring", "winner_selection"]:
         if is_reasoning:
             return ModelSettings(
-                temperature=0.7,
+                temperature=1.0,
                 max_tokens=16384,
             )
         return None
@@ -104,11 +110,13 @@ def get_model_settings(
     elif stage == "charter_generation":
         if is_reasoning:
             return ModelSettings(
-                temperature=0.7,
+                temperature=1.0,
                 max_tokens=16384,
             )
         else:
-            return ModelSettings(max_tokens=20000)  # Large enough for comprehensive charter
+            return ModelSettings(
+                max_tokens=20000
+            )  # Large enough for comprehensive charter
 
     return None
 

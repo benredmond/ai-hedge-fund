@@ -194,7 +194,7 @@ def create_fred_server() -> MCPServerStdio:
         args=[FRED_MCP_PATH],
         env={"FRED_API_KEY": fred_api_key},
         tool_prefix="fred",
-        timeout=30,  # Increase from default 5s for slower environments
+        timeout=120,  # Increase from default 5s for slower environments
         process_tool_call=compress_tool_result if COMPRESS_MCP_RESULTS else None,
     )
 
@@ -223,7 +223,7 @@ def create_yfinance_server() -> MCPServerStdio:
         command=YFINANCE_VENV_PYTHON,
         args=[YFINANCE_MCP_PATH],
         tool_prefix="stock",
-        timeout=30,  # Increase from default 5s for slower environments
+        timeout=120,  # Increase from default 5s for slower environments
         process_tool_call=compress_tool_result if COMPRESS_MCP_RESULTS else None,
     )
 
@@ -261,7 +261,7 @@ def create_composer_server() -> MCPServerStreamableHTTP:
     return MCPServerStreamableHTTP(
         url=COMPOSER_MCP_URL,
         headers={"Authorization": f"Basic {encoded_credentials}"},
-        timeout=30,  # Connection timeout (increased from 5s)
+        timeout=120,  # Connection timeout (increased from 5s)
         read_timeout=300,  # Read timeout (5 minutes)
         tool_prefix="composer",
         process_tool_call=compress_tool_result if COMPRESS_MCP_RESULTS else None,
@@ -305,13 +305,14 @@ async def get_mcp_servers():
         print(f"Warning: {error_msg}")
         errors.append(error_msg)
 
-    try:
-        # Add Composer server
-        servers["composer"] = create_composer_server()
-    except (ValueError, FileNotFoundError) as e:
-        error_msg = f"Composer MCP server failed: {e}"
-        print(f"Warning: {error_msg}")
-        errors.append(error_msg)
+    # TODO: Re-enable Composer server when rate limits clear
+    # try:
+    #     # Add Composer server
+    #     servers["composer"] = create_composer_server()
+    # except (ValueError, FileNotFoundError) as e:
+    #     error_msg = f"Composer MCP server failed: {e}"
+    #     print(f"Warning: {error_msg}")
+    #     errors.append(error_msg)
 
     # Show summary of MCP server status
     if errors:

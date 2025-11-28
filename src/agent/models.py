@@ -274,6 +274,22 @@ class Strategy(BaseModel):
     # See: src/agent/stages/candidate_generator.py:_validate_semantics()
 
 
+class CandidateList(BaseModel):
+    """
+    Container for exactly 5 candidate strategies.
+
+    This wrapper enforces minItems/maxItems in JSON schema,
+    which List[Strategy] alone does not reliably do with
+    OpenAI-compatible structured outputs.
+    """
+    strategies: List[Strategy] = Field(
+        ...,
+        min_length=5,
+        max_length=5,
+        description="Exactly 5 diverse trading strategy candidates"
+    )
+
+
 class Charter(BaseModel):
     """
     Strategy charter document.

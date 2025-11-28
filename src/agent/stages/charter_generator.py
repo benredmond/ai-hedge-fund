@@ -3,6 +3,7 @@
 import asyncio
 from typing import List
 import json
+import os
 import openai
 from pydantic import ValidationError
 from pydantic_ai import ModelSettings
@@ -206,14 +207,26 @@ Remember the CRITICAL LENGTH CONSTRAINTS:
 {prompt}"""
 
                     # Debug logging: Print prompt being sent to LLM provider
-                    print(f"\n[DEBUG:CharterGenerator] Sending prompt to LLM provider (attempt {attempt}/{max_attempts})")
-                    print(f"[DEBUG:CharterGenerator] System prompt: {system_prompt[:500]}... [Total: {len(system_prompt)} chars]")
-                    print(f"[DEBUG:CharterGenerator] User prompt (preview): {current_prompt[:1000]}... [Total: {len(current_prompt)} chars]")
-                    print(f"[DEBUG:CharterGenerator] ========== FULL USER PROMPT ==========")
-                    print(current_prompt)
-                    print(f"[DEBUG:CharterGenerator] =====================================")
+                    print(f"\n{'='*80}")
+                    print(f"[DEBUG:CharterGenerator] Sending prompt to LLM provider (attempt {attempt}/{max_attempts})")
+                    print(f"[DEBUG:CharterGenerator] System prompt length: {len(system_prompt)} chars")
+                    print(f"[DEBUG:CharterGenerator] User prompt length: {len(current_prompt)} chars")
+                    print(f"{'='*80}")
+                    if os.getenv("DEBUG_PROMPTS", "0") == "1":
+                        print(f"\n[DEBUG:CharterGenerator] ========== FULL SYSTEM PROMPT ==========")
+                        print(system_prompt)
+                        print(f"[DEBUG:CharterGenerator] ========================================")
+                        print(f"\n[DEBUG:CharterGenerator] ========== FULL USER PROMPT ==========")
+                        print(current_prompt)
+                        print(f"[DEBUG:CharterGenerator] ======================================")
+                        print(f"{'='*80}\n")
 
                     result = await agent.run(current_prompt)
+
+                    # Extract and log full reasoning content (Kimi K2, DeepSeek R1, etc.)
+                    from src.agent.stages.candidate_generator import extract_and_log_reasoning
+                    extract_and_log_reasoning(result, f"CharterGenerator:Attempt{attempt}")
+
                     charter = result.output
 
                     # Semantic validation (check for issues even if Pydantic passed)
