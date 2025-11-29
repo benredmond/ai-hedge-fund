@@ -17,7 +17,8 @@ from src.agent.models import (
     EdgeScorecard,
     SelectionReasoning,
     Charter,
-    RebalanceFrequency
+    RebalanceFrequency,
+    CandidateList
 )
 
 
@@ -114,15 +115,20 @@ class TestCandidateGenerator:
 
         This is a critical safety check to ensure the workflow always
         gets exactly 5 candidates as required.
+
+        Note: Pydantic validation on CandidateList will catch wrong counts
+        before the code's manual validation, so we mock result.output.strategies
+        directly to bypass the Pydantic wrapper validation.
         """
         generator = CandidateGenerator()
 
         # Mock the agent for single-phase generation
         with patch('src.agent.stages.candidate_generator.create_agent') as mock_create:
-            # Mock single-phase generation: returns list of strategies (wrong count)
+            # Mock single-phase generation: bypass Pydantic validation by mocking .strategies directly
             mock_agent = AsyncMock()
             mock_result = AsyncMock()
-            mock_result.output = [
+            mock_output = AsyncMock()
+            mock_output.strategies = [
                 Strategy(
                     name="Only Strategy",
                     assets=["SPY"],
@@ -132,6 +138,7 @@ class TestCandidateGenerator:
                     rebalancing_rationale="Monthly rebalancing maintains target weights by systematically buying dips and selling rallies, implementing contrarian exposure that captures mean-reversion across asset classes."
                 )
             ]  # Only 1 strategy instead of 5
+            mock_result.output = mock_output
             mock_agent.run.return_value = mock_result
             mock_context = AsyncMock()
             mock_context.__aenter__.return_value = mock_agent
@@ -152,9 +159,10 @@ class TestCandidateGenerator:
 
         # Mock the agent for single-phase generation
         with patch('src.agent.stages.candidate_generator.create_agent') as mock_create:
-            # Mock single-phase generation: returns list with duplicates
+            # Mock single-phase generation: returns CandidateList with duplicates
             mock_agent = AsyncMock()
             mock_result = AsyncMock()
+            mock_output = AsyncMock()
 
             # Create 5 candidates, but 2 have same ticker set
             duplicate_candidates = []
@@ -173,7 +181,8 @@ class TestCandidateGenerator:
                     )
                 )
 
-            mock_result.output = duplicate_candidates
+            mock_output.strategies = duplicate_candidates
+            mock_result.output = mock_output
             mock_agent.run.return_value = mock_result
             mock_context = AsyncMock()
             mock_context.__aenter__.return_value = mock_agent
@@ -387,14 +396,15 @@ class TestCharterGenerator:
             mock_agent = AsyncMock()
             mock_result = AsyncMock()
             mock_result.output = Charter(
-                market_thesis="This is a bull market with normal volatility...",
-                strategy_selection="We selected this strategy because of superior Sharpe ratio...",
-                expected_behavior="We expect positive returns in bull market conditions...",
+                market_thesis="This is a bull market with normal volatility conditions. The current regime shows strong momentum across major indices with sector rotation favoring technology and growth stocks. This creates opportunities for tactical positioning.",
+                strategy_selection="We selected this strategy because of superior Sharpe ratio and drawdown control compared to alternatives. The strategy aligns well with current market conditions and demonstrates robust risk management.",
+                expected_behavior="We expect positive returns in bull market conditions with moderate volatility. The strategy should outperform during momentum regimes and show resilience during pullbacks through dynamic rebalancing.",
                 failure_modes=[
-                    "Sudden volatility spike could trigger losses",
-                    "Market regime shift to bear market"
+                    "Sudden volatility spike could trigger losses and force defensive positioning",
+                    "Market regime shift to bear market would undermine momentum assumptions",
+                    "Sector rotation away from growth could reduce returns significantly"
                 ],
-                outlook_90d="Over the next 90 days, we expect this strategy to perform well..."
+                outlook_90d="Over the next 90 days, we expect this strategy to perform well in the current market environment with continued low volatility."
             )
             mock_agent.run.return_value = mock_result
             mock_context = AsyncMock()
@@ -466,12 +476,13 @@ class TestCharterGenerator:
                 captured_prompt = prompt
                 mock_result = AsyncMock()
                 mock_result.output = Charter(
-                    market_thesis="Test thesis that meets minimum requirements",
-                    strategy_selection="Test selection explanation that meets minimum",
-                    expected_behavior="Test behavior description that meets minimum",
-                    failure_modes=["Sudden market reversal could cause losses",
-                                   "Volatility spike could trigger drawdown"],
-                    outlook_90d="Test outlook prediction that meets minimum"
+                    market_thesis="Test thesis that meets minimum character requirements for charter validation. This section describes the market analysis and investment rationale in sufficient detail.",
+                    strategy_selection="Test selection explanation that meets minimum character requirements. This section explains why this particular strategy was chosen over the alternatives based on quantitative metrics.",
+                    expected_behavior="Test behavior description that meets minimum character requirements. This section outlines expected performance patterns under various market conditions and scenarios.",
+                    failure_modes=["Sudden market reversal could cause losses and trigger defensive positioning",
+                                   "Volatility spike could trigger drawdown beyond acceptable thresholds",
+                                   "Regime shift to bear market would undermine core assumptions"],
+                    outlook_90d="Test outlook prediction that meets minimum character requirements for this field validation."
                 )
                 return mock_result
 

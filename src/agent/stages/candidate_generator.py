@@ -402,23 +402,46 @@ Generate exactly 5 Strategy objects with:
 Generate thesis_document FIRST for each strategy (before name, assets, weights).
 This enables chain-of-thought reasoning before committing to execution details.
 
-**CRITICAL logic_tree STRUCTURE (for conditional strategies):**
-If your strategy uses conditional logic, you MUST use this EXACT structure:
+**CRITICAL logic_tree STRUCTURE:**
+
+**FOR STATIC STRATEGIES (no conditional logic):**
+```python
+logic_tree={{}}  # Empty dict - weights field defines fixed allocation
+```
+
+**FOR CONDITIONAL STRATEGIES (dynamic allocation based on conditions):**
+You MUST use this EXACT nested structure with these EXACT keys:
 ```python
 logic_tree={{
-  "condition": "VIX > 22",  # String comparison expression
-  "if_true": {{              # Dictionary with assets and weights
+  "condition": "VIX > 22",  # String comparison expression (REQUIRED)
+  "if_true": {{              # Dict with allocation when condition is TRUE (REQUIRED)
     "assets": ["TLT", "GLD"],
     "weights": {{"TLT": 0.5, "GLD": 0.5}}
   }},
-  "if_false": {{             # Dictionary with assets and weights
+  "if_false": {{             # Dict with allocation when condition is FALSE (REQUIRED)
     "assets": ["SPY", "QQQ"],
     "weights": {{"SPY": 0.6, "QQQ": 0.4}}
   }}
 }}
 ```
-DO NOT use string descriptions like "true_action": "allocate 70%..." - use actual asset/weight dicts.
-For static strategies, use logic_tree={{}}.
+
+**❌ WRONG - DO NOT GENERATE FLAT PARAMETER DICTS:**
+```python
+# THIS IS WRONG - flat dict with arbitrary parameters
+logic_tree={{"momentum_threshold": 0.15, "vix_level": 22, "reversion_window": 20}}  # ❌ WRONG!
+```
+
+**✅ CORRECT - Nested conditional structure OR empty dict:**
+```python
+# Option A: Static strategy (most strategies)
+logic_tree={{}}  # ✅ CORRECT for static allocation
+
+# Option B: Conditional strategy
+logic_tree={{"condition": "...", "if_true": {{...}}, "if_false": {{...}}}}  # ✅ CORRECT
+```
+
+The logic_tree field is for CONDITIONAL ALLOCATION LOGIC ONLY, not for storing strategy parameters.
+If your strategy doesn't switch allocations based on conditions, use logic_tree={{}}.
 
 **IMPORTANT:**
 - Primary data source: Context pack above
@@ -1282,6 +1305,34 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
         for idx, error in enumerate(validation_errors, 1):
             fix_prompt += f"{idx}. {error}\n"
 
+        # Add logic_tree schema guidance if any syntax errors mention logic_tree
+        has_logic_tree_error = any("logic_tree" in error.lower() for error in validation_errors)
+        if has_logic_tree_error:
+            fix_prompt += "\n## 📐 LOGIC_TREE SCHEMA REFERENCE:\n\n"
+            fix_prompt += "**Your logic_tree has structural issues. Here is the CORRECT schema:**\n\n"
+            fix_prompt += "```python\n"
+            fix_prompt += "# FOR STATIC STRATEGIES (no conditional logic):\n"
+            fix_prompt += "logic_tree = {}  # Empty dict\n\n"
+            fix_prompt += "# FOR CONDITIONAL STRATEGIES (if you need dynamic allocation):\n"
+            fix_prompt += "logic_tree = {\n"
+            fix_prompt += '  "condition": "VIX > 22",  # String comparison expression (REQUIRED)\n'
+            fix_prompt += '  "if_true": {              # Allocation when TRUE (REQUIRED)\n'
+            fix_prompt += '    "assets": ["TLT", "GLD"],\n'
+            fix_prompt += '    "weights": {"TLT": 0.5, "GLD": 0.5}\n'
+            fix_prompt += "  },\n"
+            fix_prompt += '  "if_false": {             # Allocation when FALSE (REQUIRED)\n'
+            fix_prompt += '    "assets": ["SPY", "QQQ"],\n'
+            fix_prompt += '    "weights": {"SPY": 0.6, "QQQ": 0.4}\n'
+            fix_prompt += "  }\n"
+            fix_prompt += "}\n"
+            fix_prompt += "```\n\n"
+            fix_prompt += "**❌ WRONG (flat parameter dict):**\n"
+            fix_prompt += "```python\n"
+            fix_prompt += 'logic_tree = {"momentum_threshold": 0.15, "vix_level": 22}  # ❌ WRONG!\n'
+            fix_prompt += "```\n\n"
+            fix_prompt += "**If your strategy is STATIC (fixed allocation), use logic_tree = {}**\n"
+            fix_prompt += "**Only use nested structure if you need CONDITIONAL allocation switching.**\n\n"
+
         fix_prompt += "\n## ✅ FIX STRATEGY (MANDATORY):\n\n"
         fix_prompt += "For each error above:\n"
         fix_prompt += "1. **Read the error** - Understand what's wrong\n"
@@ -1323,19 +1374,34 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
         """
         fix_prompt = self._create_fix_prompt(candidates, validation_errors)
 
-        retry_prompt = f"""You generated 5 strategies, but post-validation found issues.
+        # Serialize previous output for context (truncate if too large to prevent token overflow)
+        previous_output_json = json.dumps(
+            [c.model_dump() for c in candidates],
+            indent=2,
+            default=str  # Handle enums
+        )
+        MAX_PREVIOUS_OUTPUT_CHARS = 8000
+        if len(previous_output_json) > MAX_PREVIOUS_OUTPUT_CHARS:
+            previous_output_json = previous_output_json[:MAX_PREVIOUS_OUTPUT_CHARS] + "\n... (truncated)"
+            print(f"[RETRY] Previous output truncated to {MAX_PREVIOUS_OUTPUT_CHARS} chars")
+
+        retry_prompt = f"""You generated strategies, but post-validation found issues. Here is your previous output for reference.
+
+**YOUR PREVIOUS OUTPUT (for context - preserve immutable fields):**
+```json
+{previous_output_json}
+```
 
 **ORIGINAL MARKET CONTEXT:**
 {market_context_json}
 
-**VALIDATION ERRORS:**
+**FIXES REQUIRED:**
 {fix_prompt}
 
 **YOUR TASK:**
-Fix ONLY the strategies with validation errors. Return complete List[Strategy] with exactly 5 candidates.
-
-**FIXES REQUIRED:**
-{fix_prompt}
+Fix ONLY the validation errors listed above. Return complete List[Strategy] with exactly 5 candidates.
+- PRESERVE all immutable fields (assets, weights keys, name, edge_type, archetype) from your previous output
+- FIX only the fields mentioned in validation errors (thesis_document, rebalancing_rationale, logic_tree structure, rebalance_frequency if archetype mismatch)
 
 Output List[Strategy] with all errors corrected."""
 
