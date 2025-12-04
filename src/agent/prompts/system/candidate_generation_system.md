@@ -390,7 +390,14 @@ weights: {"NVDA": 0.30, "AMD": 0.25, "AVGO": 0.25, "MU": 0.20}  # ✅ 4 stocks, 
    - If YES → Is logic_tree populated with condition/if_true/if_false? (Requires revision if empty)
    - If NO → Is logic_tree correctly empty {} for static allocation?
 
-2. **Edge-Frequency Alignment (Priority 2 - Recommended):**
+2. **Thesis-Implementation Value Match (Priority 1 - Required):**
+   - If thesis mentions "VIX > X" → Does logic_tree.condition contain X (within ±20%)?
+   - If thesis mentions "Y% to [asset]" → Does logic_tree.if_true/if_false have ~Y%?
+   - If archetype = momentum with rotation claims → Is logic_tree populated?
+   - If archetype = volatility → Is logic_tree populated with VIX/vol conditions?
+   - If thesis claims "momentum-weighted" → Are weights non-round numbers derived from momentum values?
+
+3. **Edge-Frequency Alignment (Priority 2 - Recommended):**
    - Check against avoid combinations:
      - Momentum + Quarterly? ⚠️
      - Mean Reversion + Daily/Weekly? ⚠️
@@ -398,24 +405,24 @@ weights: {"NVDA": 0.30, "AMD": 0.25, "AVGO": 0.25, "MU": 0.20}  # ✅ 4 stocks, 
      - Volatility/Tactical + Monthly/Quarterly? ⚠️
    - If avoided combination detected → provides improvement suggestions (non-blocking)
 
-3. **Weight Derivation Transparency (Priority 3 - Suggested):**
+4. **Weight Derivation Transparency (Priority 3 - Suggested):**
    - Are weights round numbers (0.20, 0.25, 0.33, 0.50)?
    - If YES → Does rebalancing_rationale contain derivation method keywords?
      - Keywords: "equal-weight", "momentum-weighted", "risk-parity", "inverse volatility", "conviction-based"
    - If NO keywords → ⚠️ Consider adding explicit weight derivation explanation
 
-4. **Quantitative Expectations (Priority 4 - Suggested):**
+5. **Quantitative Expectations (Priority 4 - Suggested):**
    - Include expected Sharpe (0.5-2.0), alpha vs benchmark, or drawdown (-8% to -30%)
    - ⚠️ Helpful if included (not required)
 
 **Validation Summary (complete before proceeding):**
 
 Create validation summary:
-- Candidate #1: [Coherence ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
-- Candidate #2: [Coherence ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
-- Candidate #3: [Coherence ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
-- Candidate #4: [Coherence ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
-- Candidate #5: [Coherence ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
+- Candidate #1: [Coherence ✅/❌] [ValueMatch ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
+- Candidate #2: [Coherence ✅/❌] [ValueMatch ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
+- Candidate #3: [Coherence ✅/❌] [ValueMatch ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
+- Candidate #4: [Coherence ✅/❌] [ValueMatch ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
+- Candidate #5: [Coherence ✅/❌] [ValueMatch ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
 
 **If ANY Priority 1 violation (❌) → Fix before proceeding**
 **If Priority 2-4 warnings (⚠️) → Note for potential improvement, not blocking**
