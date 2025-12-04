@@ -13,7 +13,7 @@ from src.agent.strategy_creator import (
     is_reasoning_model,
     get_model_settings,
 )
-from src.agent.models import Strategy, CandidateList
+from src.agent.models import Strategy, CandidateList, ConcentrationIntent
 from src.agent.token_tracker import TokenTracker
 from src.agent.config.leverage import (
     APPROVED_2X_ETFS,
@@ -397,6 +397,22 @@ Generate exactly 5 Strategy objects with:
    - No single asset >50%
    - Valid tickers (ETFs or stocks)
    - Rebalance frequency specified
+
+5. **Concentration Intent** (set when intentionally concentrated):
+   - `DIVERSIFIED` (default): Standard diversification (≥3 assets, no asset >40%, no sector >75%)
+   - `HIGH_CONVICTION`: Few assets (<3) with high confidence
+     Example: {{AAPL: 0.50, MSFT: 0.50}} - Two stocks from deep research
+   - `CORE_SATELLITE`: Large core position (>40%) + smaller satellites
+     Example: {{SPY: 0.50, XLK: 0.20, XLF: 0.15, XLE: 0.15}} - SPY core + sector tilts
+   - `BARBELL`: Extreme positions at both ends (risk-on + risk-off)
+     Example: {{TQQQ: 0.50, TLT: 0.50}} - Aggressive growth + defensive bonds
+   - `SECTOR_FOCUS`: Intentional single-sector concentration (>75% one sector)
+     Example: {{JPM: 0.30, BAC: 0.25, WFC: 0.25, C: 0.20}} - All financials
+
+   Set concentration_intent when your strategy *intentionally* violates diversification guidelines:
+   - Single asset >40% → CORE_SATELLITE or BARBELL
+   - <3 assets → HIGH_CONVICTION or BARBELL
+   - >75% in one sector → SECTOR_FOCUS
 
 **CRITICAL FIELD ORDERING:**
 Generate thesis_document FIRST for each strategy (before name, assets, weights).
@@ -835,6 +851,18 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
             leverage_errors = self._validate_leverage_justification(strategy)
             errors.extend(leverage_errors)
 
+            # NEW: Run archetype-logic_tree coherence validation
+            archetype_errors = self._validate_archetype_logic_tree(strategy, idx)
+            errors.extend(archetype_errors)
+
+            # NEW: Run thesis-logic_tree value coherence validation
+            thesis_coherence_errors = self._validate_thesis_logic_tree_coherence(strategy, idx)
+            errors.extend(thesis_coherence_errors)
+
+            # NEW: Run weight derivation coherence validation
+            weight_derivation_errors = self._validate_weight_derivation_coherence(strategy, idx)
+            errors.extend(weight_derivation_errors)
+
         # Continue with original semantic validation
         for idx, strategy in enumerate(candidates, 1):
             # Check 1: Conditional keywords in thesis require logic_tree
@@ -976,16 +1004,157 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
 
         return errors
 
+    def _validate_archetype_logic_tree(self, strategy: Strategy, idx: int) -> List[str]:
+        """
+        Validate that archetypes requiring dynamic behavior have logic_tree.
+
+        Momentum and volatility archetypes typically require conditional logic
+        to implement properly. This catches cases where thesis describes rotation
+        but implementation is static.
+
+        Args:
+            strategy: Strategy to validate
+            idx: Candidate index (1-based) for error messages
+
+        Returns:
+            List of validation error messages
+        """
+        errors = []
+        archetype_str = strategy.archetype.value.lower() if strategy.archetype else ""
+        thesis_lower = strategy.thesis_document.lower()
+
+        # Momentum archetype with rotation claims requires logic_tree
+        if archetype_str == "momentum":
+            rotation_patterns = [
+                r'rotat\w*\s+to', r'rotat\w*\s+into', r'rotat\w*\s+toward',
+                r'shift\s+allocation', r'reweight\s+based', r'dynamic\s+allocation'
+            ]
+            has_rotation_claim = any(re.search(p, thesis_lower) for p in rotation_patterns)
+            if has_rotation_claim and not strategy.logic_tree:
+                errors.append(
+                    f"Priority 1 (Implementation-Thesis Mismatch): Candidate #{idx} ({strategy.name}): "
+                    f"Momentum archetype with rotation claims in thesis but logic_tree is empty. "
+                    f"Rotation requires conditional logic to implement. Either populate logic_tree "
+                    f"with condition/if_true/if_false OR remove rotation language from thesis."
+                )
+
+        # Volatility archetype typically requires conditional logic
+        if archetype_str == "volatility" and not strategy.logic_tree:
+            errors.append(
+                f"Priority 1 (Implementation-Thesis Mismatch): Candidate #{idx} ({strategy.name}): "
+                f"Volatility archetype typically requires conditional logic_tree for regime response. "
+                f"Add VIX-based or volatility-based conditions, or reconsider archetype choice."
+            )
+
+        return errors
+
+    def _validate_thesis_logic_tree_coherence(self, strategy: Strategy, idx: int) -> List[str]:
+        """
+        Validate that thesis content MATCHES logic_tree implementation values.
+
+        Checks numeric thresholds in thesis match logic_tree.condition within ±20% tolerance.
+        This catches cases where thesis says "VIX > 25" but logic_tree has "VIX > 30".
+
+        Args:
+            strategy: Strategy to validate
+            idx: Candidate index (1-based) for error messages
+
+        Returns:
+            List of validation error messages
+        """
+        errors = []
+        thesis_lower = strategy.thesis_document.lower()
+
+        # Only check if logic_tree is populated
+        if not strategy.logic_tree:
+            return errors
+
+        # Extract VIX thresholds from thesis (e.g., "VIX > 25", "VIX exceeds 22", "vix above 20")
+        vix_pattern = r'vix\s*(?:>|>=|exceeds?|above|crosses?|spikes?\s+(?:above|to|past))\s*(\d+(?:\.\d+)?)'
+        thesis_vix_matches = re.findall(vix_pattern, thesis_lower)
+        thesis_vix_thresholds = [float(v) for v in thesis_vix_matches]
+
+        if thesis_vix_thresholds:
+            # Extract VIX threshold from logic_tree condition
+            condition = str(strategy.logic_tree.get("condition", "")).lower()
+            logic_tree_vix_matches = re.findall(r'vix\s*[><=]+\s*(\d+(?:\.\d+)?)', condition)
+            logic_tree_vix_thresholds = [float(v) for v in logic_tree_vix_matches]
+
+            if logic_tree_vix_thresholds:
+                # Check if ANY thesis threshold is within ±20% of ANY logic_tree threshold
+                tolerance = 0.20
+                thesis_val = thesis_vix_thresholds[0]  # Use first mentioned value
+                logic_val = logic_tree_vix_thresholds[0]
+
+                relative_diff = abs(thesis_val - logic_val) / thesis_val if thesis_val != 0 else 0
+
+                if relative_diff > tolerance:
+                    errors.append(
+                        f"Priority 1 (Value Mismatch): Candidate #{idx} ({strategy.name}): "
+                        f"Thesis mentions VIX threshold {thesis_val} but logic_tree condition "
+                        f"uses {logic_val} (deviation: {relative_diff:.0%} > {tolerance:.0%} tolerance). "
+                        f"Align thesis description with actual implementation values."
+                    )
+
+        return errors
+
+    def _validate_weight_derivation_coherence(self, strategy: Strategy, idx: int) -> List[str]:
+        """
+        Validate that weight derivation claims match actual weights.
+
+        Catches cases where thesis/rationale claims "momentum-weighted" allocation
+        but weights are all round numbers that clearly weren't derived from momentum.
+
+        Args:
+            strategy: Strategy to validate
+            idx: Candidate index (1-based) for error messages
+
+        Returns:
+            List of validation error messages
+        """
+        errors = []
+        thesis_lower = strategy.thesis_document.lower()
+        rationale_lower = strategy.rebalancing_rationale.lower()
+        combined_text = thesis_lower + " " + rationale_lower
+
+        # Check for momentum-weighted claims
+        momentum_weight_patterns = [
+            r'momentum[- ]?weighted', r'weighted\s+by\s+momentum',
+            r'proportional\s+to\s+momentum', r'momentum[- ]?based\s+weight'
+        ]
+        has_momentum_weight_claim = any(re.search(p, combined_text) for p in momentum_weight_patterns)
+
+        if has_momentum_weight_claim and strategy.weights:
+            weights_list = list(strategy.weights.values())
+
+            # Round numbers that suggest arbitrary assignment, not momentum derivation
+            round_numbers = [0.20, 0.25, 0.30, 0.333, 0.334, 0.35, 0.40, 0.45, 0.50]
+
+            all_round = all(
+                any(abs(w - rn) < 0.01 for rn in round_numbers)
+                for w in weights_list
+            )
+
+            if all_round and len(weights_list) >= 3:
+                errors.append(
+                    f"Priority 2 (Derivation Mismatch): Candidate #{idx} ({strategy.name}): "
+                    f"Claims 'momentum-weighted' allocation but weights {weights_list} are all "
+                    f"round numbers. Momentum weighting should produce non-round weights derived "
+                    f"from actual momentum values (e.g., 0.54, 0.28, 0.18 from 4.09%, 2.1%, 1.5% momentum)."
+                )
+
+        return errors
+
     def _validate_concentration(self, strategy: Strategy) -> List[str]:
         """
         Validate concentration risk limits with numeric thresholds.
 
         Priority 4 (SUGGESTION - Non-Blocking): Warnings only, not hard rejects.
 
-        Checks:
-        - Single asset concentration (max 40%, 50% OK with justification)
+        Checks (skipped if concentration_intent is non-DIVERSIFIED):
+        - Single asset concentration (max 40%)
         - Sector concentration (max 75%, 100% OK for stock selection with 4+ stocks)
-        - Minimum asset count (min 3, 2 OK for barbell/core-satellite)
+        - Minimum asset count (min 3)
 
         Args:
             strategy: Strategy to validate
@@ -995,29 +1164,29 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
         """
         errors = []
 
+        # Skip all concentration checks if intent signals intentional concentration
+        if strategy.concentration_intent != ConcentrationIntent.DIVERSIFIED:
+            return errors
+
         # Check 1: Single asset concentration
         if strategy.weights:
-            # Handle both dict and WeightsDict types
             weights_dict = dict(strategy.weights) if hasattr(strategy.weights, 'items') else strategy.weights
             max_weight = max(weights_dict.values())
             if max_weight > 0.40:
                 max_asset = max(weights_dict, key=weights_dict.get)
-
-                # Check if justification exists in rebalancing_rationale
-                rationale_lower = strategy.rebalancing_rationale.lower()
-                justification_keywords = [
-                    "core-satellite", "barbell", "high-conviction", "concentrated",
-                    "intentional", "deliberate", "justified"
-                ]
-                has_justification = any(kw in rationale_lower for kw in justification_keywords)
-
-                if not has_justification:
-                    errors.append(
-                        f"Priority 4 (SUGGESTION): {strategy.name} - Single asset concentration high: "
-                        f"{max_asset} = {max_weight:.0%} > 40% guideline. Consider adding justification "
-                        f"in rebalancing_rationale (e.g., 'core-satellite', 'high-conviction bet', "
-                        f"'barbell strategy') or diversifying further."
-                    )
+                asset_count = len(strategy.assets)
+                # Context-specific suggestion based on portfolio structure
+                if asset_count <= 2:
+                    suggestion = "BARBELL (two-position strategy) or HIGH_CONVICTION (focused bets)"
+                elif asset_count == 3:
+                    suggestion = "HIGH_CONVICTION (few high-confidence positions)"
+                else:
+                    suggestion = "CORE_SATELLITE (large core + smaller satellites)"
+                errors.append(
+                    f"Priority 4 (SUGGESTION): {strategy.name} - Single asset concentration high: "
+                    f"{max_asset} = {max_weight:.0%} > 40% guideline. If intentional, set "
+                    f"concentration_intent to {suggestion}."
+                )
 
         # Check 2: Sector concentration (requires yfinance lookup)
         try:
@@ -1034,30 +1203,24 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
                         errors.append(
                             f"Priority 4 (SUGGESTION): {strategy.name} - Sector concentration high: "
                             f"{top_sector} = {max_sector_weight:.0%} > 75% guideline with only "
-                            f"{asset_count} assets. Consider diversifying across sectors or adding "
-                            f"more stocks if this is a stock selection strategy (4+ stocks OK)."
+                            f"{asset_count} assets. Set concentration_intent to SECTOR_FOCUS if intentional, "
+                            f"or add more stocks (4+ stocks OK for stock selection strategies)."
                         )
         except Exception as e:
-            # If sector lookup fails, log warning but don't fail validation
             print(f"[WARNING] Could not validate sector concentration for {strategy.name}: {e}")
 
         # Check 3: Minimum asset count
         if len(strategy.assets) < 3:
-            # Check for barbell/core-satellite justification
-            rationale_lower = strategy.rebalancing_rationale.lower()
-            thesis_lower = strategy.thesis_document.lower()
-            barbell_keywords = ["barbell", "core-satellite", "two-asset"]
-            has_barbell_justification = any(
-                kw in rationale_lower or kw in thesis_lower
-                for kw in barbell_keywords
+            asset_count = len(strategy.assets)
+            # Context-specific suggestion based on asset count
+            if asset_count == 2:
+                suggestion = "BARBELL (two extreme positions) or HIGH_CONVICTION (two focused bets)"
+            else:  # asset_count == 1
+                suggestion = "HIGH_CONVICTION (single high-confidence position)"
+            errors.append(
+                f"Priority 4 (SUGGESTION): {strategy.name} - Low asset count ({asset_count} < 3). "
+                f"If intentional, set concentration_intent to {suggestion}."
             )
-
-            if not has_barbell_justification:
-                errors.append(
-                    f"Priority 4 (SUGGESTION): {strategy.name} - Low asset count ({len(strategy.assets)} < 3). "
-                    f"High-conviction concentrated strategies should explicitly describe the structure "
-                    f"(e.g., 'barbell', 'core-satellite') in thesis or rebalancing_rationale."
-                )
 
         return errors
 

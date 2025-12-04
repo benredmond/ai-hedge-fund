@@ -57,6 +57,16 @@ class StrategyArchetype(str, Enum):
     MULTI_STRATEGY = "multi_strategy"
 
 
+class ConcentrationIntent(str, Enum):
+    """Signals intentional portfolio concentration structure."""
+
+    DIVERSIFIED = "diversified"          # Default: standard diversification expected
+    HIGH_CONVICTION = "high_conviction"  # Few assets, high confidence
+    CORE_SATELLITE = "core_satellite"    # Large core + smaller satellites
+    BARBELL = "barbell"                  # Extreme positions at both ends
+    SECTOR_FOCUS = "sector_focus"        # Intentional sector concentration
+
+
 class Strategy(BaseModel):
     """
     Trading strategy specification.
@@ -92,6 +102,10 @@ class Strategy(BaseModel):
     archetype: StrategyArchetype = Field(
         default=StrategyArchetype.UNSPECIFIED,
         description="Strategy archetype: momentum, mean_reversion, carry, directional, volatility, multi_strategy"
+    )
+    concentration_intent: ConcentrationIntent = Field(
+        default=ConcentrationIntent.DIVERSIFIED,
+        description="Signals intentional concentration structure. Set to HIGH_CONVICTION, CORE_SATELLITE, BARBELL, or SECTOR_FOCUS to suppress concentration warnings."
     )
 
     # ========== EXECUTION FIELDS ==========
@@ -239,6 +253,15 @@ class Strategy(BaseModel):
     @classmethod
     def normalize_archetype(cls, v: StrategyArchetype | str | None) -> StrategyArchetype | str | None:
         """Normalize archetype strings to enum-compatible format."""
+        if isinstance(v, str):
+            normalized = v.strip().lower().replace(" ", "_").replace("-", "_")
+            return normalized
+        return v
+
+    @field_validator("concentration_intent", mode="before")
+    @classmethod
+    def normalize_concentration_intent(cls, v: ConcentrationIntent | str | None) -> ConcentrationIntent | str | None:
+        """Normalize concentration intent strings to enum-compatible format."""
         if isinstance(v, str):
             normalized = v.strip().lower().replace(" ", "_").replace("-", "_")
             return normalized
