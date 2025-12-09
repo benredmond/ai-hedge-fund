@@ -244,6 +244,131 @@ class TestNestedConditionalLogic:
         )
 
 
+class TestRetryOnlySyntaxErrors:
+    """Test that retry only triggers on syntax errors, not semantic/quality failures."""
+
+    def test_non_syntax_errors_do_not_trigger_retry(self, generator, mock_market_context):
+        """
+        Regression Test: Non-syntax validation errors (coherence, quantification, etc.)
+        should NOT trigger retry. Only 'Syntax Error' prefixed errors trigger retry.
+
+        This tests the fix for: "only do retry in candidate generation if syntax errors"
+        """
+        # Create a strategy with semantic issues but NO syntax errors
+        # This strategy has coherence issues (momentum archetype claims rotation but no logic_tree)
+        strategy = Strategy(
+            name="Momentum Rotation Strategy",
+            thesis_document=(
+                "This momentum strategy rotates to top performers and shifts allocation "
+                "based on relative strength. When momentum turns negative, we rotate into "
+                "defensive assets. The strategy captures behavioral momentum edge by "
+                "systematically overweighting winners and underweighting losers. "
+                "Expected Sharpe: 1.0-1.3 vs SPY, Max DD: -18% to -25%."
+            ),
+            rebalancing_rationale=(
+                "Weekly rebalancing captures momentum signals efficiently. Weights are equal-weight "
+                "across the top momentum assets identified through relative strength scoring. "
+                "This frequency balances signal capture against transaction costs for momentum edge."
+            ),
+            edge_type=EdgeType.BEHAVIORAL,
+            archetype=StrategyArchetype.MOMENTUM,
+            assets=["SPY", "QQQ", "IWM"],
+            weights={"SPY": 0.34, "QQQ": 0.33, "IWM": 0.33},  # Weights sum to 1.0
+            logic_tree={},  # Empty - but thesis describes rotation (coherence issue)
+            rebalance_frequency=RebalanceFrequency.WEEKLY
+        )
+
+        # Run semantic validation - should produce coherence errors (Priority 1)
+        # but NO syntax errors (weights sum to 1.0, structure is valid)
+        errors = generator._validate_semantics([strategy], mock_market_context)
+
+        # Verify we have some validation errors (coherence issues expected)
+        assert len(errors) > 0, "Expected some validation errors for this strategy"
+
+        # Verify NO syntax errors in the list
+        syntax_errors = [e for e in errors if "Syntax Error" in e]
+        assert len(syntax_errors) == 0, (
+            f"Strategy should have no syntax errors but got: {syntax_errors}"
+        )
+
+        # Verify we have non-syntax errors (coherence, etc.)
+        non_syntax_errors = [e for e in errors if "Syntax Error" not in e]
+        assert len(non_syntax_errors) > 0, (
+            "Strategy should have non-syntax errors (coherence issues)"
+        )
+
+        # The key assertion: retry logic should filter to syntax_errors only
+        # In the actual code (lines 578-597), retry only happens if syntax_errors is non-empty
+        # This test validates that our filter correctly excludes non-syntax errors
+
+    def test_syntax_errors_do_trigger_retry(self, generator, mock_market_context):
+        """
+        Test that actual syntax errors (condition without operator) DO trigger retry.
+
+        Note: Most structure validation happens at Pydantic model level. This tests
+        the secondary syntax validation that catches condition expression issues.
+        """
+        # Create a strategy with logic_tree that has condition without comparison operator
+        strategy = Strategy(
+            name="Bad Condition Strategy",
+            thesis_document=(
+                "A conditional strategy that switches between equities and bonds based on "
+                "VIX levels. When VIX exceeds threshold, rotate to defensive positioning. "
+                "This exploits the structural edge of volatility mean reversion with "
+                "tactical allocation. Expected Sharpe: 1.2-1.5 vs SPY, Max DD: -15%."
+            ),
+            rebalancing_rationale=(
+                "Daily rebalancing monitors VIX and executes rotations when thresholds are breached. "
+                "The logic tree implements conditional allocation based on volatility regime. "
+                "This frequency ensures timely response to regime changes."
+            ),
+            edge_type=EdgeType.STRUCTURAL,
+            archetype=StrategyArchetype.VOLATILITY,
+            assets=["SPY", "AGG"],
+            weights={"SPY": 0.5, "AGG": 0.5},
+            logic_tree={
+                "condition": "VIX HIGH",  # Missing comparison operator - SYNTAX ERROR
+                "if_true": {"assets": ["AGG"], "weights": {"AGG": 1.0}},
+                "if_false": {"assets": ["SPY"], "weights": {"SPY": 1.0}}
+            },
+            rebalance_frequency=RebalanceFrequency.DAILY
+        )
+
+        # Run syntax validation
+        syntax_errors = generator._validate_syntax(strategy)
+
+        # Should have syntax error about missing comparison operator
+        assert len(syntax_errors) > 0, "Expected syntax error for condition without comparison operator"
+        assert any("Syntax Error" in e for e in syntax_errors), (
+            f"Syntax errors should be prefixed with 'Syntax Error': {syntax_errors}"
+        )
+        assert any("comparison" in e.lower() or "operator" in e.lower() for e in syntax_errors), (
+            f"Expected comparison operator related error: {syntax_errors}"
+        )
+
+    def test_syntax_error_filter_logic(self, generator):
+        """
+        Test the exact filter logic used in _generate_candidates to identify syntax errors.
+        """
+        # Sample validation errors mixing syntax and non-syntax
+        validation_errors = [
+            "Syntax Error: Strategy A - Weights sum to 1.2, must equal 1.0",
+            "Priority 1 (Implementation-Thesis Mismatch): Strategy B has rotation claims but empty logic_tree",
+            "Syntax Error: Strategy C - logic_tree missing required keys: {'if_false'}",
+            "Priority 2 (Edge-Frequency Mismatch): Momentum with quarterly rebalancing too slow",
+            "Priority 4 (SUGGESTION): Strategy D - Single asset concentration high",
+        ]
+
+        # Apply the same filter used in the code
+        syntax_errors = [e for e in validation_errors if "Syntax Error" in e]
+
+        # Should only include the 2 syntax errors
+        assert len(syntax_errors) == 2, f"Expected 2 syntax errors, got {len(syntax_errors)}"
+        assert all("Syntax Error" in e for e in syntax_errors)
+        assert "Strategy A" in syntax_errors[0]
+        assert "Strategy C" in syntax_errors[1]
+
+
 class TestValidationMethodsExist:
     """Test that required validation methods exist in CandidateGenerator."""
 

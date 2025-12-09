@@ -575,19 +575,26 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
                     print(f"    - Diversification: {score.diversification:.2f}")
                     print(f"    - Syntax: {score.syntax:.2f}")
 
-                # Determine retry intensity based on quality
-                if avg_quality < 0.4:
-                    print("\n[RETRY INTENSITY] Low quality detected (<0.4) - providing detailed prescriptive guidance")
-                elif avg_quality < 0.6:
-                    print("\n[RETRY INTENSITY] Moderate quality (0.4-0.6) - providing specific dimension feedback")
-                else:
-                    print("\n[RETRY INTENSITY] Minor issues (>0.6) - providing targeted fixes only")
+                # Only retry on SYNTAX errors - non-syntax failures are subjective quality
+                # issues that may not improve with retry (coherence, quantification, etc.)
+                syntax_errors = [e for e in validation_errors if "Syntax Error" in e]
 
-                print("\n[RETRY] Attempting targeted fixes...")
-                fixed_candidates = await self._retry_failed_strategies(
-                    candidates, validation_errors, agent, market_context_json, tracker
-                )
-                return fixed_candidates
+                if syntax_errors:
+                    # Determine retry intensity based on quality (for logging)
+                    if avg_quality < 0.4:
+                        print("\n[RETRY INTENSITY] Low quality detected (<0.4) - providing detailed prescriptive guidance")
+                    elif avg_quality < 0.6:
+                        print("\n[RETRY INTENSITY] Moderate quality (0.4-0.6) - providing specific dimension feedback")
+                    else:
+                        print("\n[RETRY INTENSITY] Minor issues (>0.6) - providing targeted fixes only")
+
+                    print(f"\n[RETRY] Found {len(syntax_errors)} syntax error(s) - attempting targeted fixes...")
+                    fixed_candidates = await self._retry_failed_strategies(
+                        candidates, syntax_errors, agent, market_context_json, tracker
+                    )
+                    return fixed_candidates
+                else:
+                    print("\n[NO RETRY] No syntax errors found - accepting candidates with quality warnings")
 
             return candidates
 
