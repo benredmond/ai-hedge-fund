@@ -167,11 +167,9 @@ class TestStrategyModel:
             assets=["XLK", "XLF", "XLY", "XLE"],
             weights={"XLK": 0.4, "XLF": 0.6},  # Partial weights as default, logic_tree overrides
             logic_tree={
-                "filter": {
-                    "universe": ["XLK", "XLF", "XLY", "XLE"],
-                    "metric": "momentum_90d",
-                    "select": "top_2"
-                }
+                "condition": "momentum_90d > 0",
+                "if_true": {"assets": ["XLK", "XLF"], "weights": {"XLK": 0.6, "XLF": 0.4}},
+                "if_false": {"assets": ["XLY", "XLE"], "weights": {"XLY": 0.5, "XLE": 0.5}}
             },
             rebalance_frequency="monthly",
             rebalancing_rationale="Monthly rebalancing selects top 2 sectors by 90-day momentum, implementing sector rotation edge by systematically increasing allocation to recent winners and decreasing laggards, which exploits the 6-12 week institutional rebalancing lag."
@@ -218,7 +216,11 @@ class TestStrategyModel:
                 name="VIX Rotation",
                 assets=["SPY", "TLT"],
                 weights={"SPY": 0.6, "GLD": 0.4},  # GLD not in assets list
-                logic_tree={"condition": "VIX > 20"},
+                logic_tree={
+                    "condition": "VIX > 20",
+                    "if_true": {"assets": ["TLT"], "weights": {"TLT": 1.0}},
+                    "if_false": {"assets": ["SPY"], "weights": {"SPY": 1.0}}
+                },
                 rebalance_frequency="daily",
                 rebalancing_rationale="Daily VIX rotation implements volatility regime changes by checking threshold every market day and shifting allocation when VIX crosses 20, exploiting the 2-4 day institutional rebalancing lag that exists due to committee approval requirements."
             )
@@ -232,9 +234,154 @@ class TestStrategyModel:
                 name="Momentum Rotation",
                 assets=["XLK", "XLF", "XLY"],
                 weights={"XLK": 0.3, "XLF": 0.3},  # Sums to 0.6, not 1.0
-                logic_tree={"filter": {"select": "top_2"}},
+                logic_tree={
+                    "condition": "VIX > 20",
+                    "if_true": {"assets": ["XLK"], "weights": {"XLK": 1.0}},
+                    "if_false": {"assets": ["XLF", "XLY"], "weights": {"XLF": 0.5, "XLY": 0.5}}
+                },
                 rebalance_frequency="monthly",
                 rebalancing_rationale="Monthly momentum rotation selects top 2 sectors by 90-day momentum, implementing sector rotation edge by systematically increasing allocation to recent winners and decreasing laggards, exploiting institutional rebalancing lag."
+            )
+
+
+class TestLogicTreeValidation:
+    """Test logic_tree structure validation"""
+
+    def test_empty_logic_tree_accepted(self):
+        """Empty logic_tree is valid for static strategies"""
+        from src.agent.models import Strategy
+
+        strategy = Strategy(
+            name="Static Portfolio",
+            assets=["SPY", "AGG"],
+            weights={"SPY": 0.6, "AGG": 0.4},
+            logic_tree={},
+            rebalance_frequency="monthly",
+            rebalancing_rationale="Monthly rebalancing maintains target weights by systematically buying dips and selling rallies, implementing contrarian exposure that captures mean-reversion across asset classes."
+        )
+        assert strategy.logic_tree == {}
+
+    def test_valid_conditional_logic_tree_accepted(self):
+        """Valid conditional logic_tree with {condition, if_true, if_false} is accepted"""
+        from src.agent.models import Strategy
+
+        strategy = Strategy(
+            name="VIX Rotation",
+            assets=["SPY", "TLT", "GLD"],
+            weights={},
+            logic_tree={
+                "condition": "VIX > 22",
+                "if_true": {"assets": ["TLT", "GLD"], "weights": {"TLT": 0.6, "GLD": 0.4}},
+                "if_false": {"assets": ["SPY"], "weights": {"SPY": 1.0}}
+            },
+            rebalance_frequency="daily",
+            rebalancing_rationale="Daily VIX rotation implements volatility regime changes by checking threshold every market day and shifting allocation when VIX exceeds 22, exploiting institutional rebalancing lag."
+        )
+        assert "condition" in strategy.logic_tree
+        assert "if_true" in strategy.logic_tree
+        assert "if_false" in strategy.logic_tree
+
+    def test_flat_parameter_dict_rejected(self):
+        """Flat parameter dict without {condition, if_true, if_false} is rejected"""
+        from src.agent.models import Strategy
+
+        with pytest.raises(ValidationError, match="must have keys"):
+            Strategy(
+                name="Bad Strategy",
+                assets=["SPY", "TLT"],
+                weights={"SPY": 0.6, "TLT": 0.4},
+                logic_tree={"market_condition": "fed_pivot", "yield_curve": "normalizing"},
+                rebalance_frequency="monthly",
+                rebalancing_rationale="Monthly rebalancing maintains target weights."
+            )
+
+    def test_logic_tree_missing_condition_rejected(self):
+        """logic_tree with if_true/if_false but missing condition is rejected"""
+        from src.agent.models import Strategy
+
+        with pytest.raises(ValidationError, match="Missing.*condition"):
+            Strategy(
+                name="Bad Strategy",
+                assets=["SPY", "TLT"],
+                weights={},
+                logic_tree={
+                    "if_true": {"assets": ["SPY"], "weights": {"SPY": 1.0}},
+                    "if_false": {"assets": ["TLT"], "weights": {"TLT": 1.0}}
+                },
+                rebalance_frequency="monthly",
+                rebalancing_rationale="Monthly rebalancing maintains target weights."
+            )
+
+    def test_logic_tree_branch_missing_assets_rejected(self):
+        """logic_tree branch without assets key is rejected"""
+        from src.agent.models import Strategy
+
+        with pytest.raises(ValidationError, match="must have 'assets' and 'weights'"):
+            Strategy(
+                name="Bad Strategy",
+                assets=["SPY", "TLT"],
+                weights={},
+                logic_tree={
+                    "condition": "VIX > 20",
+                    "if_true": {"weights": {"SPY": 1.0}},  # Missing assets
+                    "if_false": {"assets": ["TLT"], "weights": {"TLT": 1.0}}
+                },
+                rebalance_frequency="monthly",
+                rebalancing_rationale="Monthly rebalancing maintains target weights."
+            )
+
+    def test_logic_tree_branch_not_dict_rejected(self):
+        """logic_tree branch that is not a dict is rejected"""
+        from src.agent.models import Strategy
+
+        with pytest.raises(ValidationError, match="must be a dict"):
+            Strategy(
+                name="Bad Strategy",
+                assets=["SPY", "TLT"],
+                weights={},
+                logic_tree={
+                    "condition": "VIX > 20",
+                    "if_true": "SPY",  # Not a dict
+                    "if_false": {"assets": ["TLT"], "weights": {"TLT": 1.0}}
+                },
+                rebalance_frequency="monthly",
+                rebalancing_rationale="Monthly rebalancing maintains target weights."
+            )
+
+    def test_logic_tree_branch_with_empty_assets_rejected(self):
+        """logic_tree branch with empty assets list is rejected"""
+        from src.agent.models import Strategy
+
+        with pytest.raises(ValidationError, match="must be a non-empty list"):
+            Strategy(
+                name="Bad Strategy",
+                assets=["SPY", "TLT"],
+                weights={},
+                logic_tree={
+                    "condition": "VIX > 20",
+                    "if_true": {"assets": [], "weights": {"SPY": 1.0}},  # Empty assets
+                    "if_false": {"assets": ["TLT"], "weights": {"TLT": 1.0}}
+                },
+                rebalance_frequency="monthly",
+                rebalancing_rationale="Monthly rebalancing maintains target weights."
+            )
+
+    def test_logic_tree_branch_with_empty_weights_rejected(self):
+        """logic_tree branch with empty weights dict is rejected"""
+        from src.agent.models import Strategy
+
+        with pytest.raises(ValidationError, match="must be a non-empty dict"):
+            Strategy(
+                name="Bad Strategy",
+                assets=["SPY", "TLT"],
+                weights={},
+                logic_tree={
+                    "condition": "VIX > 20",
+                    "if_true": {"assets": ["SPY"], "weights": {}},  # Empty weights
+                    "if_false": {"assets": ["TLT"], "weights": {"TLT": 1.0}}
+                },
+                rebalance_frequency="monthly",
+                rebalancing_rationale="Monthly rebalancing maintains target weights."
             )
 
 

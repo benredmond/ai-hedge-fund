@@ -125,6 +125,47 @@ class Strategy(BaseModel):
             raise ValueError("Assets list contains duplicates")
         return v
 
+    @field_validator("logic_tree")
+    @classmethod
+    def logic_tree_valid_structure(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate logic_tree has correct conditional structure if non-empty."""
+        if not v:
+            return v  # Empty dict valid for static strategies
+
+        required_keys = {"condition", "if_true", "if_false"}
+        if not required_keys.issubset(v.keys()):
+            missing = required_keys - set(v.keys())
+            raise ValueError(
+                f"Non-empty logic_tree must have keys: {required_keys}. "
+                f"Missing: {missing}. Got flat dict with keys: {set(v.keys())}. "
+                f"If strategy has no conditional logic, use logic_tree={{}}."
+            )
+
+        # Validate branches have assets and weights
+        for branch in ["if_true", "if_false"]:
+            branch_data = v[branch]
+            if not isinstance(branch_data, dict):
+                raise ValueError(f"logic_tree['{branch}'] must be a dict")
+            if "assets" not in branch_data or "weights" not in branch_data:
+                raise ValueError(f"logic_tree['{branch}'] must have 'assets' and 'weights'")
+
+            # Validate assets is non-empty list
+            assets = branch_data.get("assets")
+            if not isinstance(assets, list) or not assets:
+                raise ValueError(
+                    f"logic_tree['{branch}']['assets'] must be a non-empty list. "
+                    f"Got: {assets!r}"
+                )
+
+            # Validate weights is non-empty dict
+            weights = branch_data.get("weights")
+            if not isinstance(weights, dict) or not weights:
+                raise ValueError(
+                    f"logic_tree['{branch}']['weights'] must be a non-empty dict. "
+                    f"Got: {weights!r}"
+                )
+        return v
+
     @field_validator("weights", mode="before")
     @classmethod
     def convert_weights_to_dict(cls, v, info: ValidationInfo):

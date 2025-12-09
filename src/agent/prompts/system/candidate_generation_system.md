@@ -393,8 +393,8 @@ weights: {"NVDA": 0.30, "AMD": 0.25, "AVGO": 0.25, "MU": 0.20}  # ✅ 4 stocks, 
 2. **Thesis-Implementation Value Match (Priority 1 - Required):**
    - If thesis mentions "VIX > X" → Does logic_tree.condition contain X (within ±20%)?
    - If thesis mentions "Y% to [asset]" → Does logic_tree.if_true/if_false have ~Y%?
-   - If archetype = momentum with rotation claims → Is logic_tree populated?
-   - If archetype = volatility → Is logic_tree populated with VIX/vol conditions?
+   - If archetype = momentum with rotation claims → Does logic_tree have {condition, if_true, if_false}? (NOT flat parameter dict like {param: value})
+   - If archetype = volatility → Does logic_tree have {condition, if_true, if_false} with VIX/vol conditions? (NOT flat parameter dict)
    - If thesis claims "momentum-weighted" → Are weights non-round numbers derived from momentum values?
 
 3. **Edge-Frequency Alignment (Priority 2 - Recommended):**
