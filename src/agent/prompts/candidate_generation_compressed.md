@@ -9,35 +9,14 @@
 
 ## Phase 1: Analyze Context Pack
 
-The context pack provides ALL macro/market data you need.
+The context pack provides ALL macro/market data you need. Extract:
 
-### Step 1.1: Macro Regime Classification (REQUIRED)
-
-Analyze these indicators from context pack:
-
-| Indicator | What to Check | Classification Impact |
-|-----------|---------------|----------------------|
-| Fed Funds Rate | Hawkish (rising) vs Dovish (falling) | Risk appetite |
-| 10Y Treasury | >4% bearish bonds, <3% bullish bonds | Duration positioning |
-| 10Y-2Y Spread | Inverted = recession signal | Defensive tilt |
-| CPI Inflation | >3% = Fed hawkish, <2% = Fed dovish | Sector rotation |
-| Unemployment | <4% = tight labor, >5% = slack | Consumer discretionary |
-| GDP Growth | >2% = expansion, <0% = recession | Cyclical vs defensive |
-
-**Output:** Classify regime as one of:
-- **Expansion:** Rising GDP, low unemployment, moderate inflation → Pro-cyclical strategies
-- **Slowdown:** Falling GDP, rising unemployment → Defensive rotation
-- **Recession:** Negative GDP, high unemployment → Safe haven, counter-cyclical
-- **Recovery:** Rising GDP from low base → Early cyclical, high beta
-
-### Step 1.2: Market Regime Summary
-
-Extract from `regime_snapshot`:
-1. **Trend:** Bull/Bear (SPY vs 200d MA)
-2. **Volatility:** Low (<15)/Normal (15-20)/Elevated (20-25)/High (>25) VIX
-3. **Breadth:** % sectors above 50d MA (>70% strong, <40% weak)
-4. **Leadership:** Top/bottom 3 sectors
-5. **Factor Regime:** Value vs Growth premium, Momentum strength
+1. **Macro Regime:** Expansion, Slowdown, Recession, or Recovery
+2. **Market Trend:** Bull/Bear (SPY vs 200d MA)
+3. **Volatility:** Low/Normal/Elevated/High (VIX level)
+4. **Breadth:** % sectors above 50d MA
+5. **Sector Leadership:** Top/bottom 3 sectors
+6. **Factor Regime:** Value vs Growth, Momentum, Quality premiums
 
 **Use tools ONLY for:**
 - Individual stock data (not in context pack)
@@ -65,76 +44,7 @@ Before generating, plan each candidate:
 - All conditional strategies have triggers defined
 - Frequency matches edge timescale
 
-### Diversity Grid (Reference for Planning)
-
-Ensure your 5 candidates span multiple cells:
-
-| Edge Type | Archetype | Concentration | Regime Bet | Frequency |
-|-----------|-----------|---------------|------------|-----------|
-| Behavioral | Momentum | Focused (3-5) | Pro-cyclical | Daily |
-| Structural | Mean Reversion | Balanced (6-10) | Counter-cyclical | Weekly |
-| Informational | Carry | Diversified (10+) | Neutral | Monthly |
-| Risk Premium | Directional | - | - | Quarterly |
-| - | Volatility | - | - | - |
-
-**Target diversity across 5 candidates:**
-- ≥3 different edge types
-- ≥3 different archetypes
-- Mix of focused + diversified
-- Mix of pro-cyclical + counter-cyclical
-- ≥3 different frequencies
-
-### Step 2.2: Edge Quantification (REQUIRED)
-
-For each candidate, provide realistic expectations:
-
-| Metric | Realistic Range | Red Flags |
-|--------|-----------------|-----------|
-| Expected Sharpe | 0.5 - 2.0 | >2.5 is suspicious |
-| vs Benchmark | +0.5% to +5% | >10% alpha is unrealistic |
-| Max Drawdown | -8% to -30% | <-8% too optimistic |
-| Win Rate | 45% - 65% | >70% needs evidence |
-
-**If claiming >2.0 Sharpe or >70% win rate, MUST provide:**
-- Historical backtesting evidence, OR
-- Hypothesis language: "If edge holds, EXPECT to achieve..."
-
-### Step 2.3: Active vs Passive Tradeoff (REQUIRED)
-
-Before finalizing each candidate, compare against passive alternative:
-
-| Dimension | Your Strategy | Passive Alternative |
-|-----------|---------------|---------------------|
-| Simplicity | [1-5] | [1-5] |
-| Cost (annual %) | [X%] | [0.03-0.10%] |
-| Downside Protection | [1-5] | [1-5] |
-| Upside Capture | [1-5] | [1-5] |
-| Regime Dependency | High/Medium/Low | None |
-| Alpha Potential | [+X% expected] | 0% |
-| Failure Risk | [Describe] | Market risk only |
-
-**Decision Rule:** If passive wins ≥5 dimensions → RECONSIDER strategy value-add
-
-### Step 2.4: Cost Budget for High-Frequency Strategies
-
-**Required for Daily/Weekly strategies:**
-
-| Component | Estimate |
-|-----------|----------|
-| Turnover | [X% annual] |
-| Spread + Impact | [X bps per trade] |
-| Annual Friction | Turnover × Spread × 2 = [X%] |
-| Gross Alpha Target | [Y%] |
-| Net Alpha | Gross - Friction = [Z%] |
-
-**Caution:** Transaction costs can exceed alpha by 2-10x for high-turnover strategies.
-- Daily rebalancing: ~5-15% annual friction for liquid ETFs
-- Weekly rebalancing: ~2-5% annual friction
-- Monthly rebalancing: ~0.5-1.5% annual friction
-
-**If Net Alpha < 0 after costs → strategy is underwater, revise frequency or abandon**
-
-### Step 2.5: Generate Each Candidate
+### Step 2.2: Generate Each Candidate
 
 For each, answer:
 1. **What is the edge?** (Specific structural inefficiency)
@@ -143,7 +53,7 @@ For each, answer:
 4. **What is the archetype?** (Momentum, mean reversion, carry, directional, volatility)
 5. **What breaks it?** (Specific failure modes)
 
-### Step 2.6: Self-Critique (RSIP Checkpoint)
+### Step 2.3: Self-Critique (RSIP Checkpoint)
 
 For each candidate, verify:
 
