@@ -111,12 +111,12 @@ def get_model_settings(
         if is_reasoning:
             return ModelSettings(
                 temperature=1.0,
-                max_tokens=16384,
+                max_tokens=32768,  # Increased from 16384 to handle large charter output
             )
         else:
             return ModelSettings(
-                max_tokens=20000
-            )  # Large enough for comprehensive charter
+                max_tokens=32768  # Increased from 20000 to handle large charter output
+            )
 
     return None
 
