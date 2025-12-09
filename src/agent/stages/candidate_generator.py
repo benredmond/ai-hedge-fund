@@ -260,9 +260,9 @@ Use different archetypes for each: Momentum, Mean Reversion, Carry, Volatility, 
         enable_tracking = os.getenv("TRACK_TOKENS", "true").lower() == "true"
         tracker = TokenTracker(model=model, enabled=enable_tracking)
 
-        # Load prompts
-        system_prompt = load_prompt("system/candidate_generation_system.md")
-        recipe_prompt = load_prompt("candidate_generation.md")
+        # Load prompts (using compressed versions for better attention focus)
+        system_prompt = load_prompt("system/candidate_generation_system_compressed.md")
+        recipe_prompt = load_prompt("candidate_generation_compressed.md")
 
         # Generate candidates (single phase)
         print("Generating candidate strategies...")
