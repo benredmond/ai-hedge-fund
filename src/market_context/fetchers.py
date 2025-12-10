@@ -455,12 +455,39 @@ def fetch_macro_indicators(fred_api_key: str, anchor_date: Optional[datetime] = 
         sahm_rule_value = round(float(sahm_rule.iloc[-1]), 2) if len(sahm_rule) > 0 else None
     except:
         sahm_rule_value = None
-    
+
     try:
         nber_recession = fred.get_series('USREC', start_date=anchor_date - relativedelta(months=1), end_date=anchor_date)
         nber_recession_value = int(nber_recession.iloc[-1]) if len(nber_recession) > 0 else None
     except:
         nber_recession_value = None
+
+    # === LEADING INDICATORS (forward-looking regime signals) ===
+    # Yield curve 3m10y spread (better recession predictor than 2s10s)
+    yield_curve_3m10y_ts = _get_fred_time_series(fred, 'T10Y3M', anchor_date)
+
+    # Credit spread differential (HY - IG) - wider = credit stress
+    credit_spread_diff_ts = {}
+    if hy_spread_ts and ig_spread_ts:
+        for key in ['current', '1m_ago', '3m_ago', '6m_ago', '12m_ago']:
+            hy_val = hy_spread_ts.get(key)
+            ig_val = ig_spread_ts.get(key)
+            if hy_val is not None and ig_val is not None:
+                credit_spread_diff_ts[key] = round(hy_val - ig_val, 0)
+            else:
+                credit_spread_diff_ts[key] = None
+
+    # Leading Economic Index (Philadelphia Fed composite)
+    lei_composite_ts = _get_fred_time_series(fred, 'USSLIND', anchor_date)
+
+    # Building permits (leading indicator for construction/housing)
+    building_permits_ts = _get_fred_time_series(fred, 'PERMIT', anchor_date)
+
+    # Manufacturing new orders (leading indicator for manufacturing demand)
+    manufacturing_orders_ts = _get_fred_time_series(fred, 'AMTMNO', anchor_date)
+
+    # Convert manufacturing orders from raw to millions (already in millions from FRED)
+    # No conversion needed - FRED AMTMNO is in millions of dollars
 
     return {
         "interest_rates": {
@@ -499,6 +526,13 @@ def fetch_macro_indicators(fred_api_key: str, anchor_date: Optional[datetime] = 
         "recession_indicators": {
             "sahm_rule_value": sahm_rule_value,
             "nber_recession_binary": nber_recession_value
+        },
+        "leading_indicators": {
+            "yield_curve_3m10y": yield_curve_3m10y_ts or {"current": None, "1m_ago": None, "3m_ago": None, "6m_ago": None, "12m_ago": None},
+            "credit_spread_differential_bps": credit_spread_diff_ts or {"current": None, "1m_ago": None, "3m_ago": None, "6m_ago": None, "12m_ago": None},
+            "lei_composite": lei_composite_ts or {"current": None, "1m_ago": None, "3m_ago": None, "6m_ago": None, "12m_ago": None},
+            "building_permits_thousands": building_permits_ts or {"current": None, "1m_ago": None, "3m_ago": None, "6m_ago": None, "12m_ago": None},
+            "manufacturing_new_orders_millions": manufacturing_orders_ts or {"current": None, "1m_ago": None, "3m_ago": None, "6m_ago": None, "12m_ago": None}
         }
     }
 

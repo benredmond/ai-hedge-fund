@@ -496,15 +496,63 @@ def print_summary(context_pack):
     if 'recession_indicators' in macro:
         recession = macro['recession_indicators']
         print("⚠️  RECESSION INDICATORS")
-        
+
         sahm = recession.get('sahm_rule_value')
         if sahm is not None:
             print(f"  Sahm Rule: {sahm:.2f} {'⚠️  (≥0.50 signals recession)' if sahm >= 0.50 else '(normal)'}")
-        
+
         nber = recession.get('nber_recession_binary')
         if nber is not None:
             status = "IN RECESSION" if nber == 1 else "Expansion"
             print(f"  NBER Status: {status}")
+        print()
+
+    # Leading Indicators (forward-looking regime signals)
+    if 'leading_indicators' in macro:
+        leading = macro['leading_indicators']
+        print("🔮 LEADING INDICATORS")
+
+        yc_3m10y = leading.get('yield_curve_3m10y')
+        if yc_3m10y:
+            if isinstance(yc_3m10y, dict):
+                yc_current = yc_3m10y.get('current')
+                inverted = " (INVERTED)" if yc_current is not None and yc_current < 0 else ""
+                print(f"  Yield Curve (3m10y): {format_indicator(yc_3m10y)}{inverted}")
+            else:
+                inverted = " (INVERTED)" if yc_3m10y < 0 else ""
+                print(f"  Yield Curve (3m10y): {yc_3m10y:+.2f}%{inverted}")
+
+        credit_diff = leading.get('credit_spread_differential_bps')
+        if credit_diff:
+            if isinstance(credit_diff, dict):
+                print(f"  Credit Spread Diff (HY-IG): {format_indicator(credit_diff, ' bps', 0)}")
+            else:
+                if credit_diff is not None:
+                    print(f"  Credit Spread Diff (HY-IG): {credit_diff:.0f} bps")
+
+        lei = leading.get('lei_composite')
+        if lei:
+            if isinstance(lei, dict):
+                print(f"  Leading Economic Index: {format_indicator(lei, '%', 2)}")
+            else:
+                if lei is not None:
+                    print(f"  Leading Economic Index: {lei:.2f}%")
+
+        permits = leading.get('building_permits_thousands')
+        if permits:
+            if isinstance(permits, dict):
+                print(f"  Building Permits: {format_indicator(permits, 'k units', 0)}")
+            else:
+                if permits is not None:
+                    print(f"  Building Permits: {permits:,.0f}k units")
+
+        orders = leading.get('manufacturing_new_orders_millions')
+        if orders:
+            if isinstance(orders, dict):
+                print(f"  Manufacturing New Orders: {format_indicator(orders, 'M', 0)}")
+            else:
+                if orders is not None:
+                    print(f"  Manufacturing New Orders: {orders:,.0f}M")
         print()
 
     # Recent events

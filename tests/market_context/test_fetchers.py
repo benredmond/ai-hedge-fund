@@ -250,6 +250,63 @@ class TestFetchMacroIndicators:
         if yield_curve["current"] is not None:
             assert yield_curve["current"] == pytest.approx(-0.23, abs=0.01)
 
+    @patch('src.market_context.fetchers.Fred')
+    def test_leading_indicators_structure(self, mock_fred_class):
+        """Returns complete leading indicators with all required fields."""
+        mock_fred = Mock()
+        mock_fred_class.return_value = mock_fred
+
+        # Mock pandas Series for time series data
+        import pandas as pd
+
+        def mock_get_series(series_id, **kwargs):
+            # Return pandas Series with dates
+            dates = pd.date_range(end='2025-01-15', periods=400, freq='D')
+            if series_id == 'T10Y3M':
+                return pd.Series([0.15] * 400, index=dates)  # 15 bps spread
+            elif series_id == 'BAMLH0A0HYM2':
+                return pd.Series([4.50] * 400, index=dates)  # HY spread (4.5%)
+            elif series_id == 'BAMLC0A4CBBB':
+                return pd.Series([1.20] * 400, index=dates)  # IG spread (1.2%)
+            elif series_id == 'USSLIND':
+                return pd.Series([0.5] * 400, index=dates)   # LEI
+            elif series_id == 'PERMIT':
+                return pd.Series([1450.0] * 400, index=dates)  # Building permits
+            elif series_id == 'AMTMNO':
+                return pd.Series([550000.0] * 400, index=dates)  # Manufacturing orders
+            return pd.Series([0.0] * 400, index=dates)
+
+        mock_fred.get_series.side_effect = mock_get_series
+
+        result = fetch_macro_indicators(fred_api_key="test_key")
+
+        # Verify leading_indicators section exists
+        assert "leading_indicators" in result
+        leading = result["leading_indicators"]
+
+        # Check all 5 indicators are present
+        assert "yield_curve_3m10y" in leading
+        assert "credit_spread_differential_bps" in leading
+        assert "lei_composite" in leading
+        assert "building_permits_thousands" in leading
+        assert "manufacturing_new_orders_millions" in leading
+
+        # Verify time series structure for each indicator
+        for indicator_name in ["yield_curve_3m10y", "lei_composite", "building_permits_thousands", "manufacturing_new_orders_millions"]:
+            indicator = leading[indicator_name]
+            assert isinstance(indicator, dict)
+            assert "current" in indicator
+            assert "1m_ago" in indicator
+            assert "12m_ago" in indicator
+
+        # Verify credit spread differential is calculated (HY - IG in bps)
+        credit_diff = leading["credit_spread_differential_bps"]
+        assert isinstance(credit_diff, dict)
+        assert "current" in credit_diff
+        # HY (450 bps) - IG (120 bps) = 330 bps
+        if credit_diff["current"] is not None:
+            assert credit_diff["current"] == pytest.approx(330, abs=5)
+
 
 class TestFetchRecentEvents:
     """Test event loader from JSON fixture."""
