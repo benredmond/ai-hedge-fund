@@ -1,9 +1,16 @@
 # Charter Creation Recipe (Compressed v1.0)
 
+## CRITICAL: Date Grounding
+
+**Use `metadata.anchor_date` from context pack for ALL dates.**
+- The anchor_date is the current date for this charter
+- 90-day outlook = anchor_date + 90 days
+- DO NOT guess dates or use training data dates
+
 ## Workflow Overview
 
 1. **PARSE**: Extract SelectionReasoning + Edge Scorecard from prior stages
-2. **ANALYZE**: Review context pack for current regime data
+2. **ANALYZE**: Review context pack for current regime data (note anchor_date)
 3. **WRITE**: Create 5-section charter following templates
 4. **VALIDATE**: Run quality gates before returning
 
@@ -85,23 +92,26 @@
 
 **Structure:**
 
-**Best Case** (100-150 words)
+**Best Case (if current regime continues)** (100-150 words)
 - Market conditions: Regime continuation
 - Expected performance: vs SPY, QQQ, AGG
 - Mechanism: WHY this scenario favors strategy
-- Probability: X% likelihood
 
-**Base Case** (100-150 words)
+**Base Case (most likely path)** (100-150 words)
 - Market conditions: Most likely path
 - Expected performance: Sharpe ratio range
 - Key risks to monitor
-- Probability: X% likelihood
 
-**Worst Case** (100-150 words)
+**Worst Case (adverse regime shift)** (100-150 words)
 - Market conditions: Adverse scenario
 - Expected drawdown: [-X% to -Y%]
 - Recovery mechanism
-- Probability: X% likelihood
+
+**DO NOT include arbitrary probabilities (25%/50%/25%).**
+Instead, use one of:
+- Historical base rates: "Bull markets historically persist 65% of time after reaching this premium to 200d MA"
+- Explicit uncertainty: "We assign roughly equal probability to continuation and transition, with base-rate favor to continuation"
+- No probabilities: Just describe the scenarios without likelihood claims
 
 **Regime Transitions** (100 words)
 - VIX spike (>25): Expected behavior
