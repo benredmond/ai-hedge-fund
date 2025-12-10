@@ -60,9 +60,9 @@ class CharterGenerator:
         Returns:
             Complete Charter document with 5 sections
         """
-        # Load prompts
-        system_prompt = load_prompt("system/charter_creation_system.md")
-        recipe_prompt = load_prompt("charter_creation.md")
+        # Load prompts (compressed versions for token efficiency)
+        system_prompt = load_prompt("system/charter_creation_system_compressed.md")
+        recipe_prompt = load_prompt("charter_creation_compressed.md")
 
         # Build selection context
         winner_idx = reasoning.winner_index
@@ -313,24 +313,18 @@ Remember the CRITICAL LENGTH CONSTRAINTS:
         """
         warnings = []
 
-        # Character limits from Charter model
+        # Character limits from Charter model (relaxed limits)
         LIMITS = {
-            'market_thesis': 5000,
-            'strategy_selection': 5000,
-            'expected_behavior': 5000,
-            'outlook_90d': 2000
+            'market_thesis': 8000,
+            'strategy_selection': 8000,
+            'expected_behavior': 8000,
+            'outlook_90d': 4000
         }
 
-        # Check for fields approaching or exceeding limits
+        # Only warn if actually exceeding limits (not approaching)
         for field_name, limit in LIMITS.items():
             field_value = getattr(charter, field_name)
             field_len = len(field_value)
-
-            if field_len > limit * 0.9:  # Warn if >90% of limit
-                warnings.append(
-                    f"{field_name} approaching limit: {field_len}/{limit} chars "
-                    f"({field_len/limit*100:.0f}%). Consider condensing."
-                )
 
             if field_len > limit:
                 warnings.append(
@@ -366,32 +360,24 @@ Remember the CRITICAL LENGTH CONSTRAINTS:
         """
         Detect if charter was truncated during generation.
 
-        Uses heuristic checks:
-        - Minimum field lengths (market_thesis ≥100, outlook_90d ≥50)
-        - Sentence completion (fields end with punctuation)
+        Uses minimal heuristic checks - only catch obvious truncation:
+        - Minimum field lengths (very short = clearly incomplete)
         - Minimum failure modes count (≥3 expected)
 
         Returns:
             True if charter appears incomplete, False otherwise
         """
-        # Check minimum field lengths
-        if len(charter.market_thesis) < 100:
+        # Check minimum field lengths (very lenient - just catch empty/near-empty)
+        if len(charter.market_thesis) < 50:
             return True
-        if len(charter.strategy_selection) < 100:
+        if len(charter.strategy_selection) < 50:
             return True
-        if len(charter.expected_behavior) < 100:
+        if len(charter.expected_behavior) < 50:
             return True
-        if len(charter.outlook_90d) < 50:
+        if len(charter.outlook_90d) < 30:
             return True
 
-        # Check sentence completion (all fields should end with punctuation)
-        for field_name in ['market_thesis', 'strategy_selection',
-                           'expected_behavior', 'outlook_90d']:
-            field_value = getattr(charter, field_name)
-            if not field_value.rstrip().endswith(('.', '!', '?', ':')):
-                return True
-
-        # Check minimum failure modes (expect at least 3, not strictly required to have 5+)
+        # Check minimum failure modes (expect at least 3)
         if len(charter.failure_modes) < 3:
             return True
 

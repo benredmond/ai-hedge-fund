@@ -366,11 +366,11 @@ class Charter(BaseModel):
         outlook_90d: 90-day forward outlook
     """
 
-    market_thesis: str = Field(..., min_length=10, max_length=5000)
-    strategy_selection: str = Field(..., min_length=10, max_length=5000)
-    expected_behavior: str = Field(..., min_length=10, max_length=5000)
+    market_thesis: str = Field(..., min_length=10, max_length=8000)
+    strategy_selection: str = Field(..., min_length=10, max_length=8000)
+    expected_behavior: str = Field(..., min_length=10, max_length=8000)
     failure_modes: List[str] = Field(..., min_length=1, max_length=20)
-    outlook_90d: str = Field(..., min_length=10, max_length=2000)
+    outlook_90d: str = Field(..., min_length=10, max_length=4000)
 
     @field_validator("failure_modes")
     @classmethod
