@@ -18,12 +18,12 @@
 
 ## Pre-Work: Parse Selection Context
 
-### SelectionReasoning (cite in Section 2)
+### SelectionReasoning (validate and enhance in Section 2)
 ```python
 {
   "winner_index": 2,
-  "why_selected": "Strong edge economics (4.5/5)...",  # Use verbatim
-  "tradeoffs_accepted": "Accepted higher volatility...",  # Use verbatim
+  "why_selected": "Strong edge economics (4.5/5)...",  # Starting point - validate, enhance if weak
+  "tradeoffs_accepted": "Accepted higher volatility...",  # Reference, may clarify
   "alternatives_rejected": ["C0: weak differentiation", ...],  # List all 4
   "conviction_level": 0.85
 }
@@ -60,9 +60,13 @@
    - Leadership: Top/bottom sectors (`regime_snapshot.sector_leadership`)
    - Factors: Momentum, value vs growth (`regime_snapshot.factor_regime`)
 
-3. **Why This Matters** (100-200 words)
-   - Connect regime to strategy's edge
-   - Explain alignment with current conditions
+3. **Why This Matters for THIS Strategy** (100-200 words)
+   - What CATALYST will trigger the edge in the next 90 days? (Not just "conditions are favorable")
+   - If mean-reversion: What evidence shows this level historically reverts? (not just "oversold")
+   - If momentum: What sustains the trend vs exhaustion risk?
+   - If regime contradicts performance (e.g., "value regime" but strategy underperforming): Address explicitly
+   - **Horizon Check**: If edge typically requires > 90 days (e.g., value mean-reversion ~2-3 years), explain what compresses the timeline here
+   - REQUIRED: Specific calendar catalyst (e.g., "FOMC Dec 18", "Tech earnings Nov 12-26", "Year-end rebalancing Dec 15-31") - not just "favorable conditions"
 
 **Data Citation Example:**
 "VIX at 17.44 (per `regime_snapshot.volatility.VIX_current.current`), indicating normal volatility regime favorable for momentum persistence."
@@ -72,12 +76,19 @@
 **Structure:**
 1. **Selection Summary** (100-150 words)
    - Strategy name and edge type
-   - Use SelectionReasoning.why_selected verbatim
+   - Reference SelectionReasoning.why_selected as starting point (you may enhance/clarify)
    - Edge Scorecard total score + conviction level
+   - **CRITICAL**: If thesis claims regime X favors this strategy BUT strategy is currently underperforming in that regime, you MUST address this contradiction:
+     (a) Explain why underperformance is temporary (with evidence), OR
+     (b) Acknowledge thesis weakness and adjust expectations accordingly
 
 2. **Edge Validation** (150-250 words)
    - Cite 2-3 highest dimension scores
-   - Explain institutional credibility
+   - **REQUIRED - Quantify the edge**:
+     - What alpha (%) do you expect vs benchmark over 90 days? Provide range, not point estimate (e.g., "base +3%, range -1% to +7%")
+     - What are estimated transaction costs + slippage?
+     - Is expected alpha > costs? (If marginal, acknowledge weak edge)
+   - If claiming behavioral edge (e.g., "institutional rebalancing flows"): What evidence suggests this is exploitable at retail scale?
    - Connect to regime alignment
 
 3. **Comparative Analysis** (100-200 words)
@@ -183,16 +194,18 @@ Instead, use one of:
 
 ## Quality Gates
 
-### Gate 1: Selection Context
-- [ ] Referenced SelectionReasoning.why_selected
+### Gate 1: Selection Context + Validation
+- [ ] Referenced and validated SelectionReasoning.why_selected (addressed contradictions if any)
 - [ ] Cited Edge Scorecard total + 2-3 dimensions
+- [ ] Quantified expected alpha vs transaction costs
 - [ ] Listed all 4 rejected alternatives
 - [ ] Compared scores vs alternatives
 
-### Gate 2: Data Citation
+### Gate 2: Data Citation + Catalyst
 - [ ] Context pack used as primary source
 - [ ] Specific values cited (not vague claims)
 - [ ] Tools called ONLY for gaps
+- [ ] Concrete catalyst identified with 90-day timeline (not just "conditions favorable")
 
 ### Gate 3: Failure Modes
 - [ ] 3-8 modes total
@@ -218,8 +231,10 @@ Instead, use one of:
 **Missing data citation:**
 - "Volatility is low" → "VIX at 14.2 per context pack"
 
-**Ignoring selection context:**
-- Not using why_selected, alternatives_rejected verbatim
+**Uncritical pass-through:**
+- Citing upstream reasoning without validating contradictions
+- Claiming edges without quantifying expected alpha vs costs
+- "Oversold" or "favorable conditions" without specific catalyst/timeline
 
 **Exceeding character limits:**
 - market_thesis > 8000 chars = Pydantic validation failure
