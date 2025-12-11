@@ -53,8 +53,8 @@ class EdgeScorer:
             >>> scorecard = await scorer.score(strategy, context)
             >>> print(f"Total score: {scorecard.total_score:.1f}/5")
         """
-        # Load scoring prompt
-        system_prompt = load_prompt("edge_scoring.md")
+        # Load scoring prompt (compressed version)
+        system_prompt = load_prompt("edge_scoring_compressed.md")
 
         # Get model-specific settings (reasoning models require temperature=1.0, max_tokens=16384)
         model_settings = get_model_settings(model, stage="edge_scoring")
