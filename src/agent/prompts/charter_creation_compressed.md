@@ -236,6 +236,12 @@ Instead, use one of:
 - Claiming edges without quantifying expected alpha vs costs
 - "Oversold" or "favorable conditions" without specific catalyst/timeline
 
+**Unrealistic return expectations:**
+- Factor premiums are 2-8% *annually*, not monthly (quality ~2-4%, momentum ~5-8%)
+- 90-day alpha: typically +0.5-2% vs SPY for factor strategies (annual ÷ 4)
+- Sharpe >2.0 is rare; >1.5 requires justification (regime fit, leverage, structural edge)
+- Exceptional claims need historical analog—not just "conditions favorable"
+
 **Exceeding character limits:**
 - market_thesis > 8000 chars = Pydantic validation failure
 
