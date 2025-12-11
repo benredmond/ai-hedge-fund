@@ -187,22 +187,35 @@ Return your evaluation as a JSON object with scores for all 5 dimensions.
         print(f"{raw_output}")
 
         # Unwrap nested response if model wraps in single-key dict (e.g., Kimi K2 uses "evaluation")
-        # This handles provider differences while preserving GPT-4o flat format compatibility
+        # Dynamic detection: unwrap if inner dict contains the expected scorecard dimensions
         if isinstance(raw_output, dict) and len(raw_output) == 1:
             wrapper_key = list(raw_output.keys())[0]
-            # Check if it's a known wrapper pattern (not a legitimate single-field response)
-            known_wrappers = ["evaluation", "result", "data", "output", "response"]
-            if wrapper_key in known_wrappers:
-                print(f"[DEBUG:EdgeScorer] Unwrapping '{wrapper_key}' wrapper from LLM response")
-                raw_output = raw_output[wrapper_key]
-                print(f"[DEBUG:EdgeScorer] After unwrap - keys: {list(raw_output.keys()) if isinstance(raw_output, dict) else 'not-dict'}")
+            inner = raw_output[wrapper_key]
+            expected_keys = {"thesis_quality", "edge_economics", "risk_framework", "regime_awareness", "strategic_coherence"}
+            if isinstance(inner, dict) and expected_keys.issubset(inner.keys()):
+                print(f"[DEBUG:EdgeScorer] Unwrapping '{wrapper_key}' wrapper (detected expected scorecard keys)")
+                raw_output = inner
+                print(f"[DEBUG:EdgeScorer] After unwrap - keys: {list(raw_output.keys())}")
 
         # Parse the rich output format from the new prompt
         # The prompt returns: {dimension: {score: X, reasoning: ..., evidence_cited: ..., ...}}
         # We need to extract just the scores to create EdgeScorecard
 
+        # Expected scorecard dimension keys
+        expected_keys = {"thesis_quality", "edge_economics", "risk_framework", "regime_awareness", "strategic_coherence"}
+
         # Handle both old simple format and new rich format
         if isinstance(raw_output, dict):
+            # Validate response contains expected scorecard keys
+            if not expected_keys.issubset(raw_output.keys()):
+                missing = expected_keys - raw_output.keys()
+                unexpected = set(raw_output.keys()) - expected_keys
+                raise ValueError(
+                    f"Edge scoring returned invalid structure - LLM did not follow instructions.\n"
+                    f"Missing required keys: {missing}\n"
+                    f"Unexpected keys: {list(unexpected)[:5]}{'...' if len(unexpected) > 5 else ''}\n"
+                    f"This usually means the model returned raw context data instead of scores."
+                )
             # Check if it's the new rich format (has nested dicts with 'score' key)
             if any(isinstance(v, dict) and 'score' in v for v in raw_output.values()):
                 # New rich format - extract scores
