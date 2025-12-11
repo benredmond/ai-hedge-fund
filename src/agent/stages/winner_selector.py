@@ -250,12 +250,6 @@ Return structured SelectionReasoning output.
 
         winner = filtered_candidates[reasoning.winner_index]
 
-        # Set alternatives_rejected if not properly set
-        if not reasoning.alternatives_rejected or len(reasoning.alternatives_rejected) < (num_candidates - 1):
-            reasoning.alternatives_rejected = [
-                c.name for i, c in enumerate(filtered_candidates) if i != reasoning.winner_index
-            ]
-
         # Set tradeoffs_accepted if empty (fallback)
         if not reasoning.tradeoffs_accepted or len(reasoning.tradeoffs_accepted) < 50:
             reasoning.tradeoffs_accepted = "Accepting the documented risks in favor of expected returns under current market regime."
@@ -271,6 +265,12 @@ Return structured SelectionReasoning output.
         # This is critical for charter_generator.py which expects indices to reference the original candidates/scorecards arrays
         original_winner_index = filtered_indices[reasoning.winner_index]
         reasoning.winner_index = original_winner_index
+
+        # Set alternatives_rejected if not properly set (must be after winner_index remapping)
+        if not reasoning.alternatives_rejected or len(reasoning.alternatives_rejected) < (len(candidates) - 1):
+            reasoning.alternatives_rejected = [
+                c.name for i, c in enumerate(candidates) if i != reasoning.winner_index
+            ]
 
         # Defensive assertions to catch index mapping bugs early
         assert 0 <= original_winner_index < len(candidates), \
