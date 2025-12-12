@@ -507,3 +507,135 @@ class TestCharterGenerator:
             assert reasoning.why_selected in captured_prompt, "Prompt should include selection reasoning"
             assert sample_market_context["metadata"]["anchor_date"] in captured_prompt, "Prompt should include market context date"
             assert "regime_tags" in captured_prompt, "Prompt should reference regime"
+
+    @pytest.mark.asyncio
+    async def test_detects_json_key_fragments_in_failure_modes(
+        self,
+        sample_candidates,
+        sample_scorecards,
+        sample_market_context
+    ):
+        """
+        Validate that charter generator detects when failure_modes contains
+        JSON key fragments instead of actual descriptions.
+
+        This happens when pydantic-ai coerces a dict to list via list(dict.keys()).
+        """
+        generator = CharterGenerator()
+
+        reasoning = SelectionReasoning(
+            why_selected="Selected for best risk-adjusted returns in the current market regime, with superior Sharpe ratio and drawdown control compared to alternatives.",
+            winner_index=0,
+            tradeoffs_accepted="Accepting slightly higher volatility for better long-term returns.",
+            alternatives_rejected=["Strategy 2", "Strategy 3", "Strategy 4", "Strategy 5"],
+            conviction_level=0.85
+        )
+
+        with patch('src.agent.stages.charter_generator.create_agent') as mock_create:
+            mock_agent = AsyncMock()
+            mock_result = AsyncMock()
+            # Simulate malformed failure_modes (JSON keys instead of descriptions)
+            mock_result.output = Charter(
+                market_thesis="This is a bull market with normal volatility conditions. The current regime shows strong momentum across major indices.",
+                strategy_selection="We selected this strategy because of superior Sharpe ratio and drawdown control compared to alternatives.",
+                expected_behavior="We expect positive returns in bull market conditions with moderate volatility.",
+                failure_modes=[
+                    'outlook_90d": ',  # JSON key fragment (14 chars)
+                    'market_thesis',   # Field name (13 chars)
+                    'strategy_selection'  # Field name (18 chars)
+                ],
+                outlook_90d="Over the next 90 days, we expect this strategy to perform well."
+            )
+            mock_agent.run.return_value = mock_result
+            mock_context = AsyncMock()
+            mock_context.__aenter__.return_value = mock_agent
+            mock_create.return_value = mock_context
+
+            # Should raise ValueError after max retries
+            with pytest.raises(ValueError, match="appears to be a JSON key"):
+                await generator.generate(
+                    sample_candidates[0],
+                    reasoning,
+                    sample_candidates,
+                    sample_scorecards,
+                    sample_market_context,
+                    model="openai:gpt-4o"
+                )
+
+    @pytest.mark.asyncio
+    async def test_retries_on_malformed_failure_modes(
+        self,
+        sample_candidates,
+        sample_scorecards,
+        sample_market_context
+    ):
+        """
+        Validate that charter generator retries when failure_modes are malformed,
+        and succeeds if retry returns valid data.
+        """
+        generator = CharterGenerator()
+
+        reasoning = SelectionReasoning(
+            why_selected="Selected for best risk-adjusted returns in the current market regime, with superior Sharpe ratio and drawdown control compared to alternatives.",
+            winner_index=0,
+            tradeoffs_accepted="Accepting slightly higher volatility for better long-term returns.",
+            alternatives_rejected=["Strategy 2", "Strategy 3", "Strategy 4", "Strategy 5"],
+            conviction_level=0.85
+        )
+
+        call_count = 0
+
+        with patch('src.agent.stages.charter_generator.create_agent') as mock_create:
+            mock_agent = AsyncMock()
+
+            async def mock_run(prompt):
+                nonlocal call_count
+                call_count += 1
+                mock_result = AsyncMock()
+
+                if call_count == 1:
+                    # First call: return malformed failure_modes
+                    mock_result.output = Charter(
+                        market_thesis="Bull market with normal volatility conditions and strong momentum across indices.",
+                        strategy_selection="Selected for superior Sharpe ratio and drawdown control versus alternatives.",
+                        expected_behavior="Expect positive returns in bull conditions with moderate volatility levels.",
+                        failure_modes=[
+                            'outlook_90d": ',  # JSON key fragment
+                            'market_thesis',
+                            'expected_behavior'
+                        ],
+                        outlook_90d="Over the next 90 days, expect strong performance in current environment."
+                    )
+                else:
+                    # Second call: return valid failure_modes
+                    mock_result.output = Charter(
+                        market_thesis="Bull market with normal volatility conditions and strong momentum across indices.",
+                        strategy_selection="Selected for superior Sharpe ratio and drawdown control versus alternatives.",
+                        expected_behavior="Expect positive returns in bull conditions with moderate volatility levels.",
+                        failure_modes=[
+                            "Sudden volatility spike could trigger losses and force defensive positioning",
+                            "Market regime shift to bear market would undermine momentum assumptions",
+                            "Sector rotation away from growth could reduce returns significantly"
+                        ],
+                        outlook_90d="Over the next 90 days, expect strong performance in current environment."
+                    )
+                return mock_result
+
+            mock_agent.run.side_effect = mock_run
+            mock_context = AsyncMock()
+            mock_context.__aenter__.return_value = mock_agent
+            mock_create.return_value = mock_context
+
+            charter = await generator.generate(
+                sample_candidates[0],
+                reasoning,
+                sample_candidates,
+                sample_scorecards,
+                sample_market_context,
+                model="openai:gpt-4o"
+            )
+
+            # Should have retried and succeeded
+            assert call_count == 2, "Should have retried once"
+            assert len(charter.failure_modes) == 3
+            assert all(len(mode) > 20 for mode in charter.failure_modes)

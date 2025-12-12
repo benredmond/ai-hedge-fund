@@ -229,6 +229,22 @@ Remember the CRITICAL LENGTH CONSTRAINTS:
 
                     charter = result.output
 
+                    # Validate failure_modes are actual descriptions, not dict keys
+                    # (pydantic may coerce dict to list via list(dict.keys()))
+                    charter_field_names = {'outlook_90d', 'market_thesis', 'strategy_selection', 'expected_behavior', 'failure_modes'}
+                    for i, mode in enumerate(charter.failure_modes):
+                        is_json_key_fragment = (
+                            len(mode) < 20 and (
+                                '": ' in mode or
+                                mode.strip('"').lower() in charter_field_names
+                            )
+                        )
+                        if is_json_key_fragment:
+                            raise ValueError(
+                                f"failure_modes[{i}] appears to be a JSON key, not a description: '{mode}'\n"
+                                f"LLM likely returned failure_modes as dict instead of List[str]."
+                            )
+
                     # Semantic validation (check for issues even if Pydantic passed)
                     validation_warnings = self._validate_charter_semantics(charter)
                     if validation_warnings:
@@ -244,18 +260,30 @@ Remember the CRITICAL LENGTH CONSTRAINTS:
                             for warning in validation_warnings:
                                 print(f"   - {warning}")
 
+                    # Debug: Log charter field lengths
+                    print(
+                        f"[DEBUG] Charter field lengths: "
+                        f"thesis={len(charter.market_thesis)}, "
+                        f"selection={len(charter.strategy_selection)}, "
+                        f"behavior={len(charter.expected_behavior)}, "
+                        f"outlook={len(charter.outlook_90d)}, "
+                        f"failure_modes={len(charter.failure_modes)}"
+                    )
+
                     # Check for truncation
-                    if self._is_truncated(charter):
+                    is_truncated, truncation_reasons = self._is_truncated(charter)
+                    if is_truncated:
                         if attempt < max_attempts:
-                            print(
-                                f"⚠️  Charter appears truncated (attempt {attempt}/{max_attempts}). "
-                                f"Retrying..."
-                            )
+                            print(f"⚠️  Charter appears truncated (attempt {attempt}/{max_attempts}):")
+                            for reason in truncation_reasons:
+                                print(f"   - {reason}")
+                            print("   Retrying...")
                             continue
                         else:
+                            reasons_str = "; ".join(truncation_reasons)
                             raise ValueError(
                                 f"Charter generation incomplete after {max_attempts} attempts. "
-                                f"Possible causes: token limit, validation rejection, or network timeout."
+                                f"Failed checks: {reasons_str}"
                             )
 
                     return charter
@@ -268,6 +296,17 @@ Remember the CRITICAL LENGTH CONSTRAINTS:
                         f"Retrying with length constraints reminder..."
                     )
                     length_warning_given = True
+                    last_error = err
+                    continue
+                raise
+            except ValueError as err:
+                # Structure validation failed (e.g., failure_modes malformed)
+                if attempt < max_attempts:
+                    print(
+                        f"⚠️  Charter structure invalid (attempt {attempt}/{max_attempts}). "
+                        f"Error: {str(err)[:200]}... "
+                        f"Retrying..."
+                    )
                     last_error = err
                     continue
                 raise
@@ -356,7 +395,7 @@ Remember the CRITICAL LENGTH CONSTRAINTS:
 
         return warnings
 
-    def _is_truncated(self, charter: Charter) -> bool:
+    def _is_truncated(self, charter: Charter) -> tuple[bool, list[str]]:
         """
         Detect if charter was truncated during generation.
 
@@ -365,20 +404,22 @@ Remember the CRITICAL LENGTH CONSTRAINTS:
         - Minimum failure modes count (≥3 expected)
 
         Returns:
-            True if charter appears incomplete, False otherwise
+            Tuple of (is_truncated, list of failure reasons)
         """
+        reasons = []
+
         # Check minimum field lengths (very lenient - just catch empty/near-empty)
         if len(charter.market_thesis) < 50:
-            return True
+            reasons.append(f"market_thesis: {len(charter.market_thesis)} chars (min 50)")
         if len(charter.strategy_selection) < 50:
-            return True
+            reasons.append(f"strategy_selection: {len(charter.strategy_selection)} chars (min 50)")
         if len(charter.expected_behavior) < 50:
-            return True
+            reasons.append(f"expected_behavior: {len(charter.expected_behavior)} chars (min 50)")
         if len(charter.outlook_90d) < 30:
-            return True
+            reasons.append(f"outlook_90d: {len(charter.outlook_90d)} chars (min 30)")
 
         # Check minimum failure modes (expect at least 3)
         if len(charter.failure_modes) < 3:
-            return True
+            reasons.append(f"failure_modes: {len(charter.failure_modes)} items (min 3)")
 
-        return False
+        return (len(reasons) > 0, reasons)
