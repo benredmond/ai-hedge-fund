@@ -37,17 +37,24 @@ class TestPhase5EndToEnd:
     """
     End-to-end workflow test with real MCPs and AI model.
 
-    Tests all 4 stages:
+    Tests all 5 stages:
     1. Generate 5 candidates (AI + FRED/yfinance data)
     2. Evaluate Edge Scorecard (quality filter, min 3.0/5)
     3. Select winner (composite ranking + AI reasoning)
     4. Generate charter (full context)
+    5. Deploy to Composer (symphony creation via MCP)
 
     Expected behavior:
     - May need retries if AI generates weak candidates (Edge Scorecard rejects < 3.0)
     - Costs ~$1-2 in OpenAI API calls
-    - Takes 30-60 seconds
+    - Takes 60-120 seconds
     - Skips gracefully if Composer auth fails
+
+    Symphony Deployment Notes:
+    - The save_symphony MCP tool requires hierarchical symphony_score structure
+    - Every node must have `weight: null` (root, weighting, asset nodes)
+    - Asset nodes use raw ticker + exchange, not EQUITIES::TICKER//USD format
+    - Required arguments: symphony_score, color (#HEX), hashtag (#TAG)
     """
 
     @pytest.mark.asyncio
@@ -59,7 +66,7 @@ class TestPhase5EndToEnd:
         - Real context pack (data/context_packs/latest.json)
         - FRED MCP: Economic data (stdio)
         - yfinance MCP: Market data (stdio)
-        - Composer MCP: Available for future deployment (HTTP at https://mcp.composer.trade/mcp/)
+        - Composer MCP: Symphony deployment (HTTP at https://mcp.composer.trade/mcp/)
         - OpenAI GPT-4o: Strategy generation, reasoning, charter
 
         Assertions verify:
@@ -68,6 +75,7 @@ class TestPhase5EndToEnd:
         - Edge Scorecard diversity (not all identical)
         - Winner selection with detailed reasoning
         - Complete charter with all 5 sections
+        - Symphony deployed to Composer with valid symphony_id
         """
         # Validate environment
         required_vars = ['OPENAI_API_KEY', 'FRED_API_KEY', 'COMPOSER_API_KEY', 'COMPOSER_API_SECRET']
@@ -221,6 +229,37 @@ class TestPhase5EndToEnd:
         assert market_references, "Charter should reference actual market conditions"
 
         # ===================================================================
+        # VALIDATION 6: Symphony Deployment (Composer MCP)
+        # ===================================================================
+        #
+        # The save_symphony MCP tool requires:
+        # - Hierarchical symphony_score structure (root → weighting → assets)
+        # - `weight: null` on EVERY node (root, weighting, and asset nodes)
+        # - Asset nodes with raw ticker + exchange (not EQUITIES::TICKER//USD)
+        # - Required arguments: symphony_score, color (#HEX), hashtag (#TAG)
+        #
+        # The deployment extracts symphony_id from ToolReturnPart in messages,
+        # not from result.output (which is typically None for tool-based workflows).
+
+        assert result.symphony_id is not None, (
+            "Symphony should be deployed to Composer. "
+            "If this fails, check:\n"
+            "  1. Composer credentials (COMPOSER_API_KEY, COMPOSER_API_SECRET)\n"
+            "  2. LLM is generating correct symphony_score schema\n"
+            "  3. All nodes have weight: null (root, wt-cash-*, asset)\n"
+            "  4. Asset nodes use ticker/exchange, not EQUITIES::TICKER//USD format"
+        )
+
+        # Validate symphony_id format (Composer IDs are 20-char alphanumeric)
+        assert len(result.symphony_id) >= 10, (
+            f"Symphony ID '{result.symphony_id}' seems too short - may be invalid"
+        )
+
+        # Validate deployed_at timestamp
+        assert result.deployed_at is not None, "Should have deployment timestamp"
+        assert "T" in result.deployed_at, "deployed_at should be ISO-8601 format"
+
+        # ===================================================================
         # SUCCESS - Print Summary
         # ===================================================================
 
@@ -233,6 +272,8 @@ class TestPhase5EndToEnd:
         print(f"Winner: {result.strategy.name}")
         print(f"Winner Assets: {', '.join(result.strategy.assets)}")
         print(f"Winner Edge Score: {result.scorecards[result.selection_reasoning.winner_index].total_score:.1f}/5")
+        print(f"\nComposer Symphony ID: {result.symphony_id}")
+        print(f"Deployed At: {result.deployed_at}")
         print("=" * 80)
 
 
