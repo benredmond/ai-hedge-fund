@@ -305,14 +305,13 @@ async def get_mcp_servers():
         print(f"Warning: {error_msg}")
         errors.append(error_msg)
 
-    # TODO: Re-enable Composer server when rate limits clear
-    # try:
-    #     # Add Composer server
-    #     servers["composer"] = create_composer_server()
-    # except (ValueError, FileNotFoundError) as e:
-    #     error_msg = f"Composer MCP server failed: {e}"
-    #     print(f"Warning: {error_msg}")
-    #     errors.append(error_msg)
+    try:
+        # Add Composer server
+        servers["composer"] = create_composer_server()
+    except (ValueError, FileNotFoundError) as e:
+        error_msg = f"Composer MCP server failed: {e}"
+        print(f"Warning: {error_msg}")
+        errors.append(error_msg)
 
     # Show summary of MCP server status
     if errors:

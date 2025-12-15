@@ -77,6 +77,7 @@ def get_model_settings(
         "edge_scoring",
         "winner_selection",
         "charter_generation",
+        "composer_deployment",
     }
     if stage not in VALID_STAGES:
         raise ValueError(f"Invalid stage: '{stage}'. Must be one of {VALID_STAGES}")
@@ -116,6 +117,19 @@ def get_model_settings(
         else:
             return ModelSettings(
                 max_tokens=32768  # Increased from 20000 to handle large charter output
+            )
+
+    elif stage == "composer_deployment":
+        # Deployment needs tools, similar to candidate generation
+        if is_reasoning:
+            return ModelSettings(
+                temperature=1.0,
+                max_tokens=16384,
+                parallel_tool_calls=False,
+            )
+        else:
+            return ModelSettings(
+                parallel_tool_calls=False
             )
 
     return None

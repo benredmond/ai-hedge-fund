@@ -5,9 +5,9 @@ Create, backtest, and deploy automated trading strategies (symphonies).
 ## Available Tools
 
 **Strategy Creation:**
-- `composer_create_symphony(config)` - Define new strategy
+- `composer_create_symphony(symphony_score)` - Validate symphony structure
 - `composer_search_symphonies(query)` - Search 1000+ existing strategies
-- `composer_save_symphony(symphony)` - Save strategy
+- `composer_save_symphony(symphony_score, color, hashtag)` - Save strategy (returns symphony_id)
 
 **Backtesting:**
 - `composer_backtest_symphony(symphony_config)` - Test strategy with risk metrics
@@ -18,32 +18,59 @@ Create, backtest, and deploy automated trading strategies (symphonies).
 - `composer_get_account_holdings(account_id)` - Current positions
 - `composer_get_symphony_daily_performance(symphony_id)` - Performance tracking
 
-## Symphony Structure
+## symphony_score Structure (CRITICAL)
 
-Symphonies are built from composable blocks:
+Symphonies use a hierarchical tree structure. **Every node MUST have `weight: null`**.
 
-**Assets:** `EQUITIES::AAPL//USD`, `CRYPTO::BTC//USD`
-**Weighting:** Equal, specified, inverse volatility, market cap
-**Conditionals:** IF-THEN-ELSE based on technical indicators
-**Filters:** Dynamic selection from asset pools
+```json
+{
+  "step": "root",
+  "name": "Strategy Name",
+  "description": "Strategy description",
+  "rebalance": "monthly",
+  "rebalance-corridor-width": null,
+  "weight": null,
+  "children": [
+    {
+      "step": "wt-cash-equal",
+      "weight": null,
+      "children": [
+        {
+          "ticker": "SPY",
+          "exchange": "XNYS",
+          "name": "SPDR S&P 500 ETF Trust",
+          "step": "asset",
+          "weight": null
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Node types:**
+- `root` - Top level (required)
+- `wt-cash-equal` - Equal weight children
+- `wt-cash-specified` - Custom weights (add `allocation` to children)
+- `asset` - Individual security
+
+**Exchange codes:** XNYS (NYSE), XNGS (NASDAQ), ARCX (ARCA)
 
 ## Usage Patterns
 
-**Learn from existing strategies:**
+**Search for inspiration:**
 ```python
 composer_search_symphonies("momentum tech")
 composer_search_symphonies("defensive rotation")
 ```
 
-**Backtest candidate:**
+**Save a symphony:**
 ```python
-symphony = {
-  "name": "Tech Momentum",
-  "assets": ["EQUITIES::NVDA//USD", "EQUITIES::MSFT//USD"],
-  "weights": {"NVDA": 0.6, "MSFT": 0.4},
-  "rebalance_frequency": "monthly"
-}
-composer_backtest_symphony(symphony)
+composer_save_symphony(
+    symphony_score={...},  # Hierarchical structure above
+    color="#AEC3C6",
+    hashtag="#MOMENTUM"
+)
 ```
 
 ## Composer Constraints

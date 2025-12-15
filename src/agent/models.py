@@ -369,15 +369,15 @@ class Charter(BaseModel):
     market_thesis: str = Field(..., min_length=10, max_length=8000)
     strategy_selection: str = Field(..., min_length=10, max_length=8000)
     expected_behavior: str = Field(..., min_length=10, max_length=8000)
-    failure_modes: List[str] = Field(..., min_length=1, max_length=20)
+    failure_modes: List[str] = Field(..., min_length=3, max_length=20)
     outlook_90d: str = Field(..., min_length=10, max_length=4000)
 
     @field_validator("failure_modes")
     @classmethod
     def failure_modes_meaningful(cls, v: List[str]) -> List[str]:
         """Ensure each failure mode is meaningful (not too short)"""
-        if not v:
-            raise ValueError("Charter must have at least 1 failure mode")
+        if len(v) < 3:
+            raise ValueError(f"Charter must have at least 3 failure modes, got {len(v)}")
 
         for i, mode in enumerate(v):
             if len(mode) < 10:
@@ -545,6 +545,8 @@ class WorkflowResult(BaseModel):
         all_candidates: All 5 generated candidates
         scorecards: Edge Scorecard evaluations for all candidates
         selection_reasoning: Why winner was chosen
+        symphony_id: Composer symphony ID if deployed (None if deployment skipped/failed)
+        deployed_at: Deployment timestamp ISO-8601 (None if deployment skipped/failed)
     """
 
     strategy: Strategy
@@ -552,6 +554,8 @@ class WorkflowResult(BaseModel):
     all_candidates: List[Strategy] = Field(min_length=5, max_length=5)
     scorecards: List[EdgeScorecard] = Field(min_length=5, max_length=5)
     selection_reasoning: SelectionReasoning
+    symphony_id: str | None = Field(default=None, description="Composer symphony ID if deployed")
+    deployed_at: str | None = Field(default=None, description="Deployment timestamp (ISO-8601)")
 
     @field_validator("all_candidates")
     @classmethod

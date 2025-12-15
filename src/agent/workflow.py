@@ -18,6 +18,7 @@ from src.agent.stages import (
     EdgeScorer,
     WinnerSelector,
     CharterGenerator,
+    ComposerDeployer,
 )
 
 
@@ -32,6 +33,7 @@ async def create_strategy_workflow(
     2. Evaluate Edge Scorecard (AI scoring)
     3. Select winner (composite ranking + AI reasoning)
     4. Generate charter (AI with full context)
+    5. Deploy to Composer (optional, graceful degradation if unavailable)
 
     Args:
         market_context: Market context pack (from src.market_context.assembler)
@@ -62,9 +64,10 @@ async def create_strategy_workflow(
     edge_scorer = EdgeScorer()
     selector = WinnerSelector()
     charter_gen = CharterGenerator()
+    deployer = ComposerDeployer()
 
     # Stage 1: Generate 5 candidates (single-phase with optional tool usage)
-    print("Stage 1/4: Generating candidates...")
+    print("Stage 1/5: Generating candidates...")
     candidates = await candidate_gen.generate(market_context, model)
     print(f"✓ Generated {len(candidates)} candidates")
 
@@ -86,7 +89,7 @@ async def create_strategy_workflow(
     print("="*80 + "\n")
 
     # Stage 2: Evaluate Edge Scorecard (parallel scoring)
-    print("Stage 2/4: Evaluating Edge Scorecard...")
+    print("Stage 2/5: Evaluating Edge Scorecard...")
     scoring_tasks = [
         edge_scorer.score(candidate, market_context, model)
         for candidate in candidates
@@ -110,14 +113,14 @@ async def create_strategy_workflow(
     print(f"✓ {len(passing_indices)}/5 candidates passed Edge Scorecard (avg: {sum(s.total_score for s in scorecards) / 5:.1f}/5)")
 
     # Stage 3: Select winner
-    print("Stage 3/4: Selecting winner...")
+    print("Stage 3/5: Selecting winner...")
     winner, reasoning = await selector.select(
         candidates, scorecards, market_context, model
     )
     print(f"✓ Selected: {winner.name}")
 
     # Stage 4: Generate charter
-    print("Stage 4/4: Creating charter...")
+    print("Stage 4/5: Creating charter...")
     charter = await charter_gen.generate(
         winner,
         reasoning,
@@ -128,8 +131,13 @@ async def create_strategy_workflow(
     )
     print(f"✓ Charter created ({len(charter.failure_modes)} failure modes)")
 
-    # NOTE: Deployment to Composer not yet implemented
-    # To enable: call composer_deploy_symphony after charter generation
+    # Stage 5: Deploy to Composer (optional, graceful degradation)
+    print("Stage 5/5: Deploying to Composer...")
+    symphony_id, deployed_at = await deployer.deploy(winner, charter, market_context, model)
+    if symphony_id:
+        print(f"✓ Deployed symphony: {symphony_id}")
+    else:
+        print("⚠️  Deployment skipped (Composer unavailable)")
 
     # Return complete result
     return WorkflowResult(
@@ -138,4 +146,6 @@ async def create_strategy_workflow(
         all_candidates=candidates,
         scorecards=scorecards,
         selection_reasoning=reasoning,
+        symphony_id=symphony_id,
+        deployed_at=deployed_at,
     )
