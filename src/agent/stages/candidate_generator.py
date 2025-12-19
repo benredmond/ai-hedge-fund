@@ -1333,7 +1333,8 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
                 unlisted = tree_assets - assets_set
                 errors.append(
                     f"Syntax Error: {strategy.name} - logic_tree references assets not in global list: "
-                    f"{unlisted}. Add to assets: {strategy.assets}"
+                    f"{unlisted}. PREFERRED FIX: Remove {unlisted} from logic_tree branches. "
+                    f"Alternative: Add to assets (but assets are immutable during retry)."
                 )
 
         return errors
@@ -1503,6 +1504,29 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
             fix_prompt += "**If your strategy is STATIC (fixed allocation), use logic_tree = {}**\n"
             fix_prompt += "**Only use nested structure if you need CONDITIONAL allocation switching.**\n\n"
 
+            # Add asset removal guidance if error mentions unlisted assets
+            has_asset_error = any("not in global list" in error.lower() for error in validation_errors)
+            if has_asset_error:
+                fix_prompt += "## 🚨 ASSET MISMATCH FIX (CRITICAL):\n\n"
+                fix_prompt += "**Your logic_tree references assets that aren't in your global assets list.**\n\n"
+                fix_prompt += "**✅ CORRECT FIX: Remove unlisted assets from logic_tree branches:**\n"
+                fix_prompt += "```python\n"
+                fix_prompt += "# BEFORE (WRONG - SPY not in assets list):\n"
+                fix_prompt += 'logic_tree = {\n'
+                fix_prompt += '  "condition": "VIX > 22",\n'
+                fix_prompt += '  "if_true": {"assets": ["TLT", "GLD"], "weights": {"TLT": 0.5, "GLD": 0.5}},\n'
+                fix_prompt += '  "if_false": {"assets": ["SPY", "QQQ"], "weights": {"SPY": 0.6, "QQQ": 0.4}}  # ❌ SPY not in assets!\n'
+                fix_prompt += '}\n\n'
+                fix_prompt += "# AFTER (CORRECT - use only assets from your global assets list):\n"
+                fix_prompt += 'logic_tree = {\n'
+                fix_prompt += '  "condition": "VIX > 22",\n'
+                fix_prompt += '  "if_true": {"assets": ["TLT", "GLD"], "weights": {"TLT": 0.5, "GLD": 0.5}},\n'
+                fix_prompt += '  "if_false": {"assets": ["TLT", "GLD"], "weights": {"TLT": 0.4, "GLD": 0.6}}  # ✅ Uses same assets!\n'
+                fix_prompt += '}\n'
+                fix_prompt += "```\n\n"
+                fix_prompt += "**❌ WRONG FIX: Adding assets to the global assets list (assets are IMMUTABLE)**\n"
+                fix_prompt += "**You CANNOT add new assets during retry - only modify logic_tree to use existing assets.**\n\n"
+
         fix_prompt += "\n## ✅ FIX STRATEGY (MANDATORY):\n\n"
         fix_prompt += "For each error above:\n"
         fix_prompt += "1. **Read the error** - Understand what's wrong\n"
@@ -1544,16 +1568,12 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
         """
         fix_prompt = self._create_fix_prompt(candidates, validation_errors)
 
-        # Serialize previous output for context (truncate if too large to prevent token overflow)
+        # Serialize previous output for context (full output needed for LLM to preserve immutable fields)
         previous_output_json = json.dumps(
             [c.model_dump() for c in candidates],
             indent=2,
             default=str  # Handle enums
         )
-        MAX_PREVIOUS_OUTPUT_CHARS = 8000
-        if len(previous_output_json) > MAX_PREVIOUS_OUTPUT_CHARS:
-            previous_output_json = previous_output_json[:MAX_PREVIOUS_OUTPUT_CHARS] + "\n... (truncated)"
-            print(f"[RETRY] Previous output truncated to {MAX_PREVIOUS_OUTPUT_CHARS} chars")
 
         retry_prompt = f"""You generated strategies, but post-validation found issues. Here is your previous output for reference.
 
@@ -1716,5 +1736,10 @@ Output List[Strategy] with all errors corrected."""
             return fixed_candidates
         except Exception as e:
             print(f"✗ Retry failed: {e}")
+            print(f"  Exception type: {type(e).__name__}")
+            if "assets" in str(e).lower():
+                print("  💡 Hint: LLM likely added assets to fix logic_tree references.")
+                print("     The error message instructs removing from logic_tree instead.")
+                print("     If this persists, check if the fix prompt guidance is being followed.")
             print("  Returning original candidates (with validation warnings)")
             return candidates

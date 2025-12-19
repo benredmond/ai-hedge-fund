@@ -183,17 +183,18 @@ class TestNestedConditionalLogic:
             thesis_document=(
                 "This tactical allocation strategy rotates between equities (SPY) and "
                 "bonds (AGG) based on VIX regime with hysteresis to reduce whipsaw. "
-                "When VIX crosses above 25, we rotate to 100% bonds (risk-off). We stay "
-                "defensive until VIX drops below 18 (the lower threshold), then rotate "
-                "back to 100% equities (risk-on). This exploits the structural edge that "
-                "volatility is mean-reverting but exhibits momentum at extremes. The "
-                "hysteresis band (18-25) prevents overtrading during sideways VIX. "
+                "When VIX crosses above 25, we rotate to 100% bonds (risk-off). When VIX "
+                "drops back below 18 (the lower threshold), we rotate back to 100% equities "
+                "(risk-on). This exploits the structural edge that volatility is mean-reverting "
+                "but exhibits momentum at extremes. The hysteresis band (18-25) prevents "
+                "overtrading during sideways VIX by requiring clear regime breaks. "
                 "Expected Sharpe: 1.2-1.6 vs SPY, Max DD: -12% to -18% (better than SPY)."
             ),
             rebalancing_rationale=(
                 "Daily rebalancing checks VIX levels and executes rotations when thresholds "
-                "are breached. The logic is: IF VIX > 25 → 100% AGG (risk-off), ELSE IF "
-                "VIX < 18 → 100% SPY (risk-on), ELSE maintain current state (hysteresis). "
+                "are breached. The logic is: IF VIX > 25 → 100% AGG (risk-off), ELSE → "
+                "100% SPY (risk-on when VIX normalizes below 25). The hysteresis is implicit "
+                "in that we only de-risk when VIX spikes above 25, not at lower levels. "
                 "This dynamic allocation implements the volatility edge by mechanically "
                 "de-risking during spikes and re-risking after normalization. The weights "
                 "are intentionally binary (0% or 100%) to maximize regime differentiation."
@@ -210,17 +211,9 @@ class TestNestedConditionalLogic:
                     "reason": "Risk-off: High volatility regime"
                 },
                 "if_false": {
-                    "condition": "VIX < 18",
-                    "if_true": {
-                        "assets": ["SPY"],
-                        "weights": {"SPY": 1.0},
-                        "reason": "Risk-on: Low volatility regime"
-                    },
-                    "if_false": {
-                        "assets": ["SPY", "AGG"],  # Could be previous state
-                        "weights": {"SPY": 0.5, "AGG": 0.5},  # Default: balanced
-                        "reason": "Hysteresis zone: maintain current allocation"
-                    }
+                    "assets": ["SPY"],
+                    "weights": {"SPY": 1.0},
+                    "reason": "Risk-on: VIX below panic threshold"
                 }
             },
             rebalance_frequency=RebalanceFrequency.DAILY
