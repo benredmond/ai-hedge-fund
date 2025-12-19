@@ -121,6 +121,28 @@ Charter(
 )
 ```
 
+### ⚠️ CRITICAL: failure_modes Format (READ CAREFULLY)
+
+`failure_modes` MUST be a **JSON array of strings**, NOT a dict/object.
+
+❌ **WRONG** (causes validation failure):
+```json
+{
+  "failure_mode_1": "Yield curve inverts...",
+  "failure_mode_2": "VIX spikes above 30..."
+}
+```
+
+✅ **CORRECT** (required format):
+```json
+[
+  "1. YIELD CURVE INVERSION\n   Condition: 10Y-2Y spread < -50bps for 5+ days\n   Impact: Expected drawdown 10-15%\n   Early Warning: Spread approaches zero",
+  "2. VOLATILITY SPIKE\n   Condition: VIX > 30 for 10+ consecutive days\n   Impact: Momentum signals fail, expect 15-20% drawdown\n   Early Warning: VIX crosses 25"
+]
+```
+
+Each failure mode is a **single string** containing the full 3-part format (Condition + Impact + Early Warning).
+
 ---
 
 ## Pre-Submission Checklist
