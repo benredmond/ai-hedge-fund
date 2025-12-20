@@ -25,11 +25,8 @@ T = TypeVar("T", bound=BaseModel)
 # Default model from environment variable
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "openai:gpt-4o")
 
-# Provider-specific configuration for cheaper alternatives
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+# Provider-specific base URLs for cheaper alternatives
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
-
-KIMI_API_KEY = os.getenv("KIMI_API_KEY")
 KIMI_BASE_URL = "https://api.moonshot.ai/v1"
 
 
@@ -87,6 +84,9 @@ def get_model_settings(
 
     is_reasoning = is_reasoning_model(model)
 
+    # Default timeout for all API calls (5 minutes for slow providers like Kimi)
+    DEFAULT_TIMEOUT = 300.0
+
     # Stage-specific settings
     if stage == "candidate_generation":
         if is_reasoning:
@@ -94,29 +94,34 @@ def get_model_settings(
                 temperature=1.0,  # Balanced creativity/consistency for reasoning models
                 max_tokens=16384,  # Minimum for reasoning + answer
                 parallel_tool_calls=False,  # Fix for Pydantic AI bug #1429
+                timeout=DEFAULT_TIMEOUT,
             )
         else:
             return ModelSettings(
-                parallel_tool_calls=False
-            )  # Fix for Pydantic AI bug #1429
+                parallel_tool_calls=False,  # Fix for Pydantic AI bug #1429
+                timeout=DEFAULT_TIMEOUT,
+            )
 
     elif stage in ["edge_scoring", "winner_selection"]:
         if is_reasoning:
             return ModelSettings(
                 temperature=1.0,
                 max_tokens=16384,
+                timeout=DEFAULT_TIMEOUT,
             )
-        return None
+        return ModelSettings(timeout=DEFAULT_TIMEOUT)
 
     elif stage == "charter_generation":
         if is_reasoning:
             return ModelSettings(
                 temperature=1.0,
                 max_tokens=32768,  # Increased from 16384 to handle large charter output
+                timeout=DEFAULT_TIMEOUT,
             )
         else:
             return ModelSettings(
-                max_tokens=32768  # Increased from 20000 to handle large charter output
+                max_tokens=32768,  # Increased from 20000 to handle large charter output
+                timeout=DEFAULT_TIMEOUT,
             )
 
     elif stage == "composer_deployment":
@@ -126,13 +131,15 @@ def get_model_settings(
                 temperature=1.0,
                 max_tokens=16384,
                 parallel_tool_calls=False,
+                timeout=DEFAULT_TIMEOUT,
             )
         else:
             return ModelSettings(
-                parallel_tool_calls=False
+                parallel_tool_calls=False,
+                timeout=DEFAULT_TIMEOUT,
             )
 
-    return None
+    return ModelSettings(timeout=DEFAULT_TIMEOUT)
 
 
 class AgentContext:
@@ -353,19 +360,21 @@ async def create_agent(
     if provider == "openai":
         # DeepSeek uses OpenAI-compatible API
         if model_name.startswith("deepseek"):
-            if not DEEPSEEK_API_KEY:
+            deepseek_key = os.getenv("DEEPSEEK_API_KEY")
+            if not deepseek_key:
                 raise ValueError(
                     "DEEPSEEK_API_KEY environment variable required for DeepSeek models"
                 )
-            os.environ["OPENAI_API_KEY"] = DEEPSEEK_API_KEY
+            os.environ["OPENAI_API_KEY"] = deepseek_key
             os.environ["OPENAI_BASE_URL"] = DEEPSEEK_BASE_URL
         # Kimi/Moonshot uses OpenAI-compatible API
         elif model_name.startswith("moonshot") or model_name.startswith("kimi"):
-            if not KIMI_API_KEY:
+            kimi_key = os.getenv("KIMI_API_KEY")
+            if not kimi_key:
                 raise ValueError(
                     "KIMI_API_KEY environment variable required for Kimi/Moonshot models"
                 )
-            os.environ["OPENAI_API_KEY"] = KIMI_API_KEY
+            os.environ["OPENAI_API_KEY"] = kimi_key
             os.environ["OPENAI_BASE_URL"] = KIMI_BASE_URL
 
     # Load system prompt if not provided

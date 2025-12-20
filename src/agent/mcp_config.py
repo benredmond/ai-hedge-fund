@@ -24,7 +24,7 @@ from pydantic_ai.tools import RunContext
 
 # MCP Server Paths - configurable via environment variables
 FRED_MCP_PATH = os.getenv(
-    "FRED_MCP_PATH", str(Path.home() / "dev/fred-mcp-server/build/index.js")
+    "FRED_MCP_PATH", str(Path.home() / "dev/mcp/fred-mcp-server/build/index.js")
 )
 YFINANCE_MCP_PATH = os.getenv(
     "YFINANCE_MCP_PATH", str(Path.home() / "dev/mcp/yahoo-finance-mcp/server.py")
