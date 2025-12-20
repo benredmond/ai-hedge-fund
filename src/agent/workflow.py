@@ -20,10 +20,13 @@ from src.agent.stages import (
     CharterGenerator,
     ComposerDeployer,
 )
+from src.agent.persistence import save_workflow_result
 
 
 async def create_strategy_workflow(
-    market_context: dict, model: str = DEFAULT_MODEL
+    market_context: dict,
+    model: str = DEFAULT_MODEL,
+    cohort_id: str | None = None,
 ) -> WorkflowResult:
     """
     Execute complete strategy creation workflow.
@@ -40,6 +43,8 @@ async def create_strategy_workflow(
             Should include comprehensive regime analysis, sector data, and
             optional manual Composer pattern examples for pattern inspiration.
         model: LLM model identifier (default: from DEFAULT_MODEL env var or 'openai:gpt-4o')
+        cohort_id: Optional cohort identifier for persistence (e.g., "2025-Q1").
+            If provided, saves WorkflowResult to data/cohorts/{cohort_id}/strategies.json.
 
     Returns:
         WorkflowResult with strategy, charter, and all intermediate results
@@ -139,8 +144,8 @@ async def create_strategy_workflow(
     else:
         print("⚠️  Deployment skipped (Composer unavailable)")
 
-    # Return complete result
-    return WorkflowResult(
+    # Build complete result
+    result = WorkflowResult(
         strategy=winner,
         charter=charter,
         all_candidates=candidates,
@@ -149,3 +154,9 @@ async def create_strategy_workflow(
         symphony_id=symphony_id,
         deployed_at=deployed_at,
     )
+
+    # Persist to cohort file if cohort_id provided
+    if cohort_id:
+        save_workflow_result(result, cohort_id)
+
+    return result
