@@ -242,40 +242,44 @@ class TestRetryOnlySyntaxErrors:
 
     def test_non_syntax_errors_do_not_trigger_retry(self, generator, mock_market_context):
         """
-        Regression Test: Non-syntax validation errors (coherence, quantification, etc.)
+        Regression Test: Non-syntax validation errors (archetype-frequency mismatch)
         should NOT trigger retry. Only 'Syntax Error' prefixed errors trigger retry.
 
         This tests the fix for: "only do retry in candidate generation if syntax errors"
+
+        Note: Thesis-logic coherence violations (conditional language + empty logic_tree)
+        are now classified as Syntax Errors to trigger targeted retry. This test uses
+        archetype-frequency mismatch instead, which remains a non-syntax error.
         """
-        # Create a strategy with semantic issues but NO syntax errors
-        # This strategy has coherence issues (momentum archetype claims rotation but no logic_tree)
+        # Create a strategy with archetype-frequency mismatch (not a syntax error)
+        # Momentum archetype with quarterly rebalancing is too slow (momentum decays faster)
         strategy = Strategy(
-            name="Momentum Rotation Strategy",
+            name="Momentum Buy-Hold Strategy",
             thesis_document=(
-                "This momentum strategy rotates to top performers and shifts allocation "
-                "based on relative strength. When momentum turns negative, we rotate into "
-                "defensive assets. The strategy captures behavioral momentum edge by "
-                "systematically overweighting winners and underweighting losers. "
+                "This momentum strategy maintains exposure to momentum factor ETFs. "
+                "The strategy captures behavioral momentum edge by systematically "
+                "holding assets with strongest trailing returns. Static allocation "
+                "to momentum factor ETFs provides efficient exposure without timing. "
                 "Expected Sharpe: 1.0-1.3 vs SPY, Max DD: -18% to -25%."
             ),
             rebalancing_rationale=(
-                "Weekly rebalancing captures momentum signals efficiently. Weights are equal-weight "
-                "across the top momentum assets identified through relative strength scoring. "
-                "This frequency balances signal capture against transaction costs for momentum edge."
+                "Quarterly rebalancing maintains momentum exposure efficiently. Weights are "
+                "fixed across momentum ETFs to capture factor premium with low turnover. "
+                "This frequency balances factor exposure against transaction costs."
             ),
             edge_type=EdgeType.BEHAVIORAL,
             archetype=StrategyArchetype.MOMENTUM,
-            assets=["SPY", "QQQ", "IWM"],
-            weights={"SPY": 0.34, "QQQ": 0.33, "IWM": 0.33},  # Weights sum to 1.0
-            logic_tree={},  # Empty - but thesis describes rotation (coherence issue)
-            rebalance_frequency=RebalanceFrequency.WEEKLY
+            assets=["MTUM", "QMOM", "IMOM"],
+            weights={"MTUM": 0.34, "QMOM": 0.33, "IMOM": 0.33},  # Weights sum to 1.0
+            logic_tree={},  # Static strategy, no conditional language in thesis
+            rebalance_frequency=RebalanceFrequency.QUARTERLY  # Too slow for momentum (semantic error)
         )
 
-        # Run semantic validation - should produce coherence errors (Priority 1)
+        # Run semantic validation - should produce archetype-frequency mismatch
         # but NO syntax errors (weights sum to 1.0, structure is valid)
         errors = generator._validate_semantics([strategy], mock_market_context)
 
-        # Verify we have some validation errors (coherence issues expected)
+        # Verify we have some validation errors (archetype-frequency mismatch expected)
         assert len(errors) > 0, "Expected some validation errors for this strategy"
 
         # Verify NO syntax errors in the list
@@ -284,10 +288,10 @@ class TestRetryOnlySyntaxErrors:
             f"Strategy should have no syntax errors but got: {syntax_errors}"
         )
 
-        # Verify we have non-syntax errors (coherence, etc.)
+        # Verify we have non-syntax errors (archetype-frequency mismatch)
         non_syntax_errors = [e for e in errors if "Syntax Error" not in e]
         assert len(non_syntax_errors) > 0, (
-            "Strategy should have non-syntax errors (coherence issues)"
+            "Strategy should have non-syntax errors (archetype-frequency mismatch)"
         )
 
         # The key assertion: retry logic should filter to syntax_errors only
@@ -360,6 +364,54 @@ class TestRetryOnlySyntaxErrors:
         assert all("Syntax Error" in e for e in syntax_errors)
         assert "Strategy A" in syntax_errors[0]
         assert "Strategy C" in syntax_errors[1]
+
+    def test_thesis_logic_coherence_triggers_retry(self, generator, mock_market_context):
+        """
+        Test that thesis-logic coherence violations (conditional language + empty logic_tree)
+        are now classified as Syntax Errors and trigger retry.
+
+        This tests the fix for: "Thesis-implementation coherence violations should trigger retry"
+        """
+        # Create a strategy with conditional language in thesis but empty logic_tree
+        strategy = Strategy(
+            name="Rotation Strategy",
+            thesis_document=(
+                "This strategy rotates to top performers when momentum triggers positive signals. "
+                "When regime shifts, we rotate into defensive assets based on volatility thresholds. "
+                "The tactical rotation captures behavioral edge by dynamically shifting allocation. "
+                "Expected Sharpe: 1.2-1.5 vs SPY, Max DD: -15% to -20%."
+            ),
+            rebalancing_rationale=(
+                "Weekly rebalancing enables tactical rotation based on momentum and volatility signals. "
+                "Weights adjust dynamically as rotation triggers fire. This frequency balances "
+                "signal capture against transaction costs for tactical strategies that need to "
+                "respond to regime changes quickly while avoiding excessive turnover."
+            ),
+            edge_type=EdgeType.BEHAVIORAL,
+            archetype=StrategyArchetype.DIRECTIONAL,  # Not momentum to avoid archetype check
+            assets=["SPY", "QQQ", "TLT"],
+            weights={"SPY": 0.40, "QQQ": 0.30, "TLT": 0.30},
+            logic_tree={},  # Empty - but thesis describes rotation (coherence issue)
+            rebalance_frequency=RebalanceFrequency.WEEKLY
+        )
+
+        # Run semantic validation
+        errors = generator._validate_semantics([strategy], mock_market_context)
+
+        # Verify we have syntax errors (thesis-logic coherence is now a syntax error)
+        syntax_errors = [e for e in errors if "Syntax Error" in e]
+        assert len(syntax_errors) > 0, (
+            f"Thesis-logic coherence violation should produce Syntax Error, got: {errors}"
+        )
+
+        # Verify the error message mentions conditional logic
+        coherence_error = syntax_errors[0]
+        assert "conditional logic" in coherence_error.lower(), (
+            f"Error should mention conditional logic: {coherence_error}"
+        )
+        assert "logic_tree is empty" in coherence_error.lower(), (
+            f"Error should mention empty logic_tree: {coherence_error}"
+        )
 
 
 class TestValidationMethodsExist:

@@ -912,9 +912,10 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
 
             if has_conditional_keywords and not has_static_match and not strategy.logic_tree:
                 errors.append(
-                    f"Candidate #{idx} ({strategy.name}): Thesis describes conditional logic "
-                    f"(matched patterns: {matched_keywords[:3]}), "
-                    f"but logic_tree is empty. Must implement conditional logic or revise thesis."
+                    f"Syntax Error: {strategy.name} - Thesis describes conditional logic "
+                    f"(matched patterns: {matched_keywords[:3]}), but logic_tree is empty. "
+                    f"PREFERRED FIX: Remove conditional language from thesis (keep static allocation). "
+                    f"Alternative: Populate logic_tree with condition/if_true/if_false structure."
                 )
 
             # Check 2: Archetype-frequency alignment
@@ -1535,9 +1536,9 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
         fix_prompt += "4. **Copy structural fields** - Copy assets/weights/name/edge_type/archetype EXACTLY from ORIGINAL VALUES\n"
         fix_prompt += "5. **Return complete list** - Return all 5 candidates with errors fixed\n\n"
         fix_prompt += "**Examples:**\n"
-        fix_prompt += "- Error: 'Thesis describes conditional logic but logic_tree empty'\n"
+        fix_prompt += "- Error: 'Syntax Error: Strategy - Thesis describes conditional logic...but logic_tree is empty'\n"
         fix_prompt += "  ✅ CORRECT FIX: Reword thesis to remove conditional keywords (keep logic_tree {{}})\n"
-        fix_prompt += "  ❌ WRONG FIX: Populate logic_tree with conditions\n\n"
+        fix_prompt += "  ❌ WRONG FIX: Populate logic_tree with conditions (structure is immutable)\n\n"
         fix_prompt += "- Error: 'Momentum archetype with quarterly rebalancing too slow'\n"
         fix_prompt += "  ✅ CORRECT FIX: Change rebalance_frequency to WEEKLY or MONTHLY\n"
         fix_prompt += "  ❌ WRONG FIX: Change assets or archetype\n\n"
