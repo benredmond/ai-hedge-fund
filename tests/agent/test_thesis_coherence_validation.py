@@ -47,8 +47,14 @@ class TestValidateArchetypeLogicTree:
             rebalance_frequency=RebalanceFrequency.MONTHLY,
             logic_tree={
                 "condition": "SPY_momentum > QQQ_momentum",
-                "if_true": {"SPY": 0.6, "QQQ": 0.3, "IWM": 0.1},
-                "if_false": {"SPY": 0.2, "QQQ": 0.6, "IWM": 0.2}
+                "if_true": {
+                    "assets": ["SPY", "QQQ", "IWM"],
+                    "weights": {"SPY": 0.6, "QQQ": 0.3, "IWM": 0.1}
+                },
+                "if_false": {
+                    "assets": ["SPY", "QQQ", "IWM"],
+                    "weights": {"SPY": 0.2, "QQQ": 0.6, "IWM": 0.2}
+                }
             },
             rebalancing_rationale="Monthly rebalancing rotates into top momentum sectors based on 3-month trailing returns, exploiting momentum persistence that typically lasts 6-12 months. This rotation mechanism systematically shifts capital toward sectors with strongest relative strength to capture momentum premium.",
             thesis_document="Strategy rotates toward sectors with strongest momentum signals, shifting allocation dynamically based on relative strength trends. In current market conditions with sector dispersion elevated, momentum rotation captures performance spread between leaders and laggards. The strategy shifts allocation monthly toward top momentum sectors, exploiting the well-documented momentum persistence effect that typically extends 6-12 months across equity sectors.",
@@ -108,8 +114,14 @@ class TestValidateArchetypeLogicTree:
             rebalance_frequency=RebalanceFrequency.DAILY,
             logic_tree={
                 "condition": "VIX > 25",
-                "if_true": {"VXX": 0.8, "SVXY": 0.2},
-                "if_false": {"VXX": 0.2, "SVXY": 0.8}
+                "if_true": {
+                    "assets": ["VXX", "SVXY"],
+                    "weights": {"VXX": 0.8, "SVXY": 0.2}
+                },
+                "if_false": {
+                    "assets": ["VXX", "SVXY"],
+                    "weights": {"VXX": 0.2, "SVXY": 0.8}
+                }
             },
             rebalancing_rationale="Daily rebalancing shifts allocation based on VIX regime threshold at 25, exploiting volatility mean-reversion at extreme levels. When VIX exceeds 25 (high volatility regime), strategy tilts toward long volatility positions anticipating mean-reversion. Below 25, tilts toward short volatility to capture term structure premium.",
             thesis_document="Dynamically adjust volatility exposure based on VIX levels to capture mean-reversion premium from extreme volatility regimes. In current market with VIX around 15-20 range, regime-based allocation allows systematic capture of volatility mean-reversion patterns. Historical analysis shows VIX above 25 typically reverts within 30-60 days, providing asymmetric opportunities for regime-aware volatility strategies.",
@@ -152,8 +164,14 @@ class TestValidateThesisLogicTreeCoherence:
             rebalance_frequency=RebalanceFrequency.DAILY,
             logic_tree={
                 "condition": "VIX > 25",
-                "if_true": {"SPY": 0.0, "BIL": 1.0},
-                "if_false": {"SPY": 1.0, "BIL": 0.0}
+                "if_true": {
+                    "assets": ["SPY", "BIL"],
+                    "weights": {"SPY": 0.0, "BIL": 1.0}
+                },
+                "if_false": {
+                    "assets": ["SPY", "BIL"],
+                    "weights": {"SPY": 1.0, "BIL": 0.0}
+                }
             },
             rebalancing_rationale="Daily rebalancing shifts to cash when VIX exceeds 25, implementing regime-aware risk management based on volatility threshold. This defensive rotation protects capital during high volatility periods when equity drawdowns typically accelerate. Cash position maintained until VIX normalizes below 25 threshold.",
             thesis_document="When VIX > 25, market enters high volatility regime requiring defensive positioning until volatility normalizes. Historical analysis shows VIX above 25 signals elevated market stress with average subsequent 30-day equity returns significantly negative. The strategy implements tactical risk-off positioning during these periods, rotating to cash equivalents to preserve capital and re-entering equities once volatility subsides.",
@@ -173,8 +191,14 @@ class TestValidateThesisLogicTreeCoherence:
             rebalance_frequency=RebalanceFrequency.DAILY,
             logic_tree={
                 "condition": "VIX > 22",
-                "if_true": {"SPY": 0.0, "BIL": 1.0},
-                "if_false": {"SPY": 1.0, "BIL": 0.0}
+                "if_true": {
+                    "assets": ["SPY", "BIL"],
+                    "weights": {"SPY": 0.0, "BIL": 1.0}
+                },
+                "if_false": {
+                    "assets": ["SPY", "BIL"],
+                    "weights": {"SPY": 1.0, "BIL": 0.0}
+                }
             },
             rebalancing_rationale="Daily rebalancing shifts to cash when VIX exceeds 22, implementing regime-aware risk management based on volatility threshold. This defensive rotation protects capital during high volatility periods when equity drawdowns typically accelerate. Cash position maintained until VIX normalizes below threshold.",
             thesis_document="When VIX > 25, market enters high volatility regime requiring defensive positioning until volatility normalizes. Historical analysis shows VIX above 25 signals elevated market stress with average subsequent 30-day equity returns significantly negative. The strategy implements tactical risk-off positioning during these periods, rotating to cash equivalents to preserve capital and re-entering equities once volatility subsides.",
@@ -194,8 +218,14 @@ class TestValidateThesisLogicTreeCoherence:
             rebalance_frequency=RebalanceFrequency.DAILY,
             logic_tree={
                 "condition": "VIX > 35",
-                "if_true": {"SPY": 0.0, "BIL": 1.0},
-                "if_false": {"SPY": 1.0, "BIL": 0.0}
+                "if_true": {
+                    "assets": ["SPY", "BIL"],
+                    "weights": {"SPY": 0.0, "BIL": 1.0}
+                },
+                "if_false": {
+                    "assets": ["SPY", "BIL"],
+                    "weights": {"SPY": 1.0, "BIL": 0.0}
+                }
             },
             rebalancing_rationale="Daily rebalancing shifts to cash when VIX exceeds 35, implementing regime-aware risk management based on volatility threshold. This defensive rotation protects capital during extreme volatility periods when equity drawdowns typically accelerate. Cash position maintained until VIX normalizes below threshold.",
             thesis_document="When VIX > 25, market enters high volatility regime requiring defensive positioning until volatility normalizes. Historical analysis shows VIX above 25 signals elevated market stress with average subsequent 30-day equity returns significantly negative. The strategy implements tactical risk-off positioning during these periods, rotating to cash equivalents to preserve capital and re-entering equities once volatility subsides.",
@@ -220,8 +250,14 @@ class TestValidateThesisLogicTreeCoherence:
             rebalance_frequency=RebalanceFrequency.DAILY,
             logic_tree={
                 "condition": "VIX > 18",
-                "if_true": {"SPY": 0.0, "BIL": 1.0},
-                "if_false": {"SPY": 1.0, "BIL": 0.0}
+                "if_true": {
+                    "assets": ["SPY", "BIL"],
+                    "weights": {"SPY": 0.0, "BIL": 1.0}
+                },
+                "if_false": {
+                    "assets": ["SPY", "BIL"],
+                    "weights": {"SPY": 1.0, "BIL": 0.0}
+                }
             },
             rebalancing_rationale="Daily rebalancing shifts to cash when VIX exceeds 18, implementing regime-aware risk management based on volatility threshold. This defensive rotation protects capital during elevated volatility periods when equity drawdowns risk increases substantially. Strategy re-enters equities once VIX normalizes below threshold.",
             thesis_document="When VIX exceeds 20, market volatility signals elevated risk requiring defensive positioning. Historical analysis demonstrates VIX above 20 correlates with increased drawdown probability and reduced risk-adjusted returns. The strategy implements tactical cash rotation during these periods to preserve capital, exploiting the mean-reverting nature of volatility spikes to time equity re-entry when conditions stabilize.",
@@ -241,8 +277,14 @@ class TestValidateThesisLogicTreeCoherence:
             rebalance_frequency=RebalanceFrequency.MONTHLY,
             logic_tree={
                 "condition": "MTUM_return_3m > VLUE_return_3m",
-                "if_true": {"MTUM": 0.7, "VLUE": 0.3},
-                "if_false": {"MTUM": 0.3, "VLUE": 0.7}
+                "if_true": {
+                    "assets": ["MTUM", "VLUE"],
+                    "weights": {"MTUM": 0.7, "VLUE": 0.3}
+                },
+                "if_false": {
+                    "assets": ["MTUM", "VLUE"],
+                    "weights": {"MTUM": 0.3, "VLUE": 0.7}
+                }
             },
             rebalancing_rationale="Monthly rebalancing tilts toward factor with strongest recent 3-month performance, exploiting factor momentum persistence that typically extends 6-12 months. Dynamic allocation increases exposure to outperforming factor while maintaining diversified factor exposure, capturing factor rotation premium through systematic rebalancing.",
             thesis_document="Rotate between momentum and value factors based on 3-month relative performance, capturing factor rotation premium. In current market environment with cyclical factor leadership patterns, dynamic factor allocation exploits performance persistence while avoiding concentrated bets. Historical analysis shows factors exhibit medium-term momentum, making 3-month lookback optimal for rotation timing without excessive whipsaw.",
