@@ -44,6 +44,7 @@ def validate_cohort_id(cohort_id: str) -> None:
 def save_workflow_result(
     result: WorkflowResult,
     cohort_id: str,
+    model: str | None = None,
     base_dir: Path | None = None,
 ) -> Path | None:
     """
@@ -55,6 +56,7 @@ def save_workflow_result(
     Args:
         result: WorkflowResult to persist
         cohort_id: Cohort identifier (e.g., "2025-Q1")
+        model: LLM model identifier (e.g., "openai:gpt-4o")
         base_dir: Override base directory (for testing). Defaults to data/cohorts.
 
     Returns:
@@ -90,6 +92,7 @@ def save_workflow_result(
 
         # Serialize new result
         result_dict = result.model_dump(mode="json")
+        result_dict["model"] = model
         strategies.append(result_dict)
 
         # Prepare output data

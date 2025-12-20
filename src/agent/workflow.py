@@ -157,6 +157,6 @@ async def create_strategy_workflow(
 
     # Persist to cohort file if cohort_id provided
     if cohort_id:
-        save_workflow_result(result, cohort_id)
+        save_workflow_result(result, cohort_id, model=model)
 
     return result

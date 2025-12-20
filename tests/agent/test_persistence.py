@@ -287,6 +287,33 @@ class TestSaveWorkflowResult:
         assert "\n" in content
         assert "  " in content  # 2-space indent
 
+    def test_saves_model_with_strategy(self, tmp_path, sample_workflow_result):
+        """Model identifier should be saved with each strategy entry."""
+        result_path = save_workflow_result(
+            sample_workflow_result,
+            cohort_id="model-test",
+            model="openai:gpt-4o",
+            base_dir=tmp_path,
+        )
+
+        with open(result_path) as f:
+            data = json.load(f)
+
+        assert data["strategies"][0]["model"] == "openai:gpt-4o"
+
+    def test_model_none_when_not_provided(self, tmp_path, sample_workflow_result):
+        """Model should be None if not provided (backward compat)."""
+        result_path = save_workflow_result(
+            sample_workflow_result,
+            cohort_id="no-model-test",
+            base_dir=tmp_path,
+        )
+
+        with open(result_path) as f:
+            data = json.load(f)
+
+        assert data["strategies"][0]["model"] is None
+
 
 class TestCohortIdPattern:
     """Tests for the COHORT_ID_PATTERN regex."""
