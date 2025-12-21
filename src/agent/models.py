@@ -556,6 +556,7 @@ class WorkflowResult(BaseModel):
     selection_reasoning: SelectionReasoning
     symphony_id: str | None = Field(default=None, description="Composer symphony ID if deployed")
     deployed_at: str | None = Field(default=None, description="Deployment timestamp (ISO-8601)")
+    strategy_summary: str | None = Field(default=None, description="AI-generated strategy summary for website display")
 
     @field_validator("all_candidates")
     @classmethod
@@ -573,3 +574,78 @@ class WorkflowResult(BaseModel):
         if candidates and v not in candidates:
             raise ValueError("Selected strategy must be one of the 5 candidates")
         return v
+
+
+class WorkflowStage(str, Enum):
+    """Workflow execution stages for checkpoint/resume."""
+
+    CANDIDATES = "candidates"    # Stage 1: Generate 5 candidates
+    SCORING = "scoring"          # Stage 2: Edge Scorecard evaluation
+    SELECTION = "selection"      # Stage 3: Winner selection
+    CHARTER = "charter"          # Stage 4: Charter generation
+    DEPLOYMENT = "deployment"    # Stage 5: Composer deployment
+    COMPLETE = "complete"        # All stages finished
+
+
+class WorkflowCheckpoint(BaseModel):
+    """
+    Checkpoint state for resumable workflow execution.
+
+    Stores intermediate results after each stage to enable resume on failure.
+    Uses atomic writes to prevent corruption.
+
+    Attributes:
+        last_completed_stage: Most recently completed workflow stage
+        created_at: ISO-8601 timestamp when checkpoint was first created
+        updated_at: ISO-8601 timestamp of last update
+        model: LLM model identifier used for this workflow
+        cohort_id: Cohort identifier for persistence
+        market_context: Original market context pack (frozen at checkpoint creation)
+        candidates: Stage 1 output (List[Strategy])
+        scorecards: Stage 2 output (List[EdgeScorecard])
+        winner: Stage 3 output - selected strategy
+        selection_reasoning: Stage 3 output - reasoning
+        charter: Stage 4 output
+        symphony_id: Stage 5 output - Composer deployment ID
+        deployed_at: Stage 5 output - deployment timestamp
+        strategy_summary: Stage 5 output - AI-generated summary
+    """
+
+    last_completed_stage: WorkflowStage
+    created_at: str = Field(..., description="ISO-8601 timestamp of checkpoint creation")
+    updated_at: str = Field(..., description="ISO-8601 timestamp of last update")
+    model: str = Field(..., description="LLM model identifier")
+    cohort_id: str = Field(..., description="Cohort identifier")
+    market_context: Dict[str, Any] = Field(..., description="Original market context pack")
+
+    # Stage outputs (None until that stage completes)
+    candidates: List[Strategy] | None = None
+    scorecards: List[EdgeScorecard] | None = None
+    winner: Strategy | None = None
+    selection_reasoning: SelectionReasoning | None = None
+    charter: Charter | None = None
+    symphony_id: str | None = None
+    deployed_at: str | None = None
+    strategy_summary: str | None = None
+
+    def get_resume_stage(self) -> WorkflowStage | None:
+        """
+        Determine which stage to resume from.
+
+        Returns the next stage after last_completed_stage,
+        or None if workflow is complete.
+        """
+        stage_order = [
+            WorkflowStage.CANDIDATES,
+            WorkflowStage.SCORING,
+            WorkflowStage.SELECTION,
+            WorkflowStage.CHARTER,
+            WorkflowStage.DEPLOYMENT,
+            WorkflowStage.COMPLETE,
+        ]
+
+        if self.last_completed_stage == WorkflowStage.COMPLETE:
+            return None
+
+        current_idx = stage_order.index(self.last_completed_stage)
+        return stage_order[current_idx + 1]

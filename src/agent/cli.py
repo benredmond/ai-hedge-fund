@@ -2,6 +2,7 @@
 """CLI for AI trading strategy workflow execution.
 
 Execute the complete strategy creation workflow from the command line.
+Supports checkpoint/resume for fault tolerance.
 
 Examples:
     # Run workflow with defaults
@@ -15,6 +16,9 @@ Examples:
 
     # Run with validation checks (optional assertions)
     python -m src.agent.cli run --validate
+
+    # Resume from checkpoint after failure
+    python -m src.agent.cli run --cohort-id 2025-Q1 --resume
 """
 
 import argparse
@@ -28,6 +32,7 @@ from dotenv import load_dotenv
 
 from src.agent.workflow import create_strategy_workflow
 from src.agent.strategy_creator import DEFAULT_MODEL
+from src.agent.persistence import load_checkpoint
 
 
 def load_env_vars():
@@ -83,42 +88,80 @@ async def run_workflow_async(args):
             - model: LLM model identifier (optional)
             - cohort_id: Cohort identifier for persistence (optional)
             - validate: Whether to run validation checks
+            - resume: Whether to resume from checkpoint
 
     Returns:
         WorkflowResult with strategy, charter, and deployment info
     """
-    # Load context pack
-    context_pack_path = Path(args.context_pack)
+    resume_checkpoint = None
 
-    if not context_pack_path.exists():
-        print(f"Context pack not found at: {context_pack_path}")
-        print("\nGenerate one with:")
-        print(f"  python -m src.market_context.cli generate -o {context_pack_path}")
-        sys.exit(1)
+    # Handle --resume flag
+    if args.resume:
+        if not args.cohort_id:
+            print("Error: --resume requires --cohort-id to identify the checkpoint")
+            print("\nUsage: python -m src.agent.cli run --cohort-id COHORT_ID --resume")
+            sys.exit(1)
 
-    with open(context_pack_path) as f:
-        market_context = json.load(f)
+        resume_checkpoint = load_checkpoint(args.cohort_id)
+        if not resume_checkpoint:
+            print(f"Error: No checkpoint found for cohort '{args.cohort_id}'")
+            print("\nA checkpoint is created when a workflow fails mid-execution.")
+            print("To start a fresh workflow, run without --resume flag.")
+            sys.exit(1)
 
-    # Determine model
-    model = args.model or os.getenv('DEFAULT_MODEL', DEFAULT_MODEL)
+        # Use checkpoint's model and market_context for consistency
+        model = resume_checkpoint.model
+        market_context = resume_checkpoint.market_context
 
-    print("=" * 80)
-    print("AI TRADING STRATEGY WORKFLOW")
-    print("=" * 80)
-    print(f"Context Pack: {context_pack_path}")
-    print(f"  Anchor Date: {market_context['metadata']['anchor_date']}")
-    print(f"  Regime: {', '.join(market_context.get('regime_tags', []))}")
-    print(f"Model: {model}")
-    if args.cohort_id:
+        # Warn if --model differs from checkpoint
+        user_model = args.model or os.getenv('DEFAULT_MODEL', DEFAULT_MODEL)
+        if user_model != model:
+            print(f"⚠️  Ignoring --model {user_model}, using checkpoint model: {model}")
+
+        print("=" * 80)
+        print("AI TRADING STRATEGY WORKFLOW (RESUMING)")
+        print("=" * 80)
         print(f"Cohort ID: {args.cohort_id}")
-    print("=" * 80)
-    print()
+        print(f"Resume from: {resume_checkpoint.last_completed_stage.value}")
+        print(f"Model: {model}")
+        print(f"Checkpoint created: {resume_checkpoint.created_at}")
+        print("=" * 80)
+        print()
+
+    else:
+        # Load context pack for fresh run
+        context_pack_path = Path(args.context_pack)
+
+        if not context_pack_path.exists():
+            print(f"Context pack not found at: {context_pack_path}")
+            print("\nGenerate one with:")
+            print(f"  python -m src.market_context.cli generate -o {context_pack_path}")
+            sys.exit(1)
+
+        with open(context_pack_path) as f:
+            market_context = json.load(f)
+
+        # Determine model
+        model = args.model or os.getenv('DEFAULT_MODEL', DEFAULT_MODEL)
+
+        print("=" * 80)
+        print("AI TRADING STRATEGY WORKFLOW")
+        print("=" * 80)
+        print(f"Context Pack: {context_pack_path}")
+        print(f"  Anchor Date: {market_context['metadata']['anchor_date']}")
+        print(f"  Regime: {', '.join(market_context.get('regime_tags', []))}")
+        print(f"Model: {model}")
+        if args.cohort_id:
+            print(f"Cohort ID: {args.cohort_id}")
+        print("=" * 80)
+        print()
 
     # Execute workflow
     result = await create_strategy_workflow(
         market_context=market_context,
         model=model,
         cohort_id=args.cohort_id,
+        resume_checkpoint=resume_checkpoint,
     )
 
     return result
@@ -294,6 +337,9 @@ Examples:
   # Run with validation checks
   python -m src.agent.cli run --validate
 
+  # Resume from checkpoint after failure
+  python -m src.agent.cli run --cohort-id 2025-Q1 --resume
+
 Required environment variables:
   FRED_API_KEY          - Federal Reserve Economic Data API key
   OPENAI_API_KEY        - OpenAI API key (or other LLM provider)
@@ -328,6 +374,11 @@ Required environment variables:
         '--validate',
         action='store_true',
         help='Run validation checks on workflow result',
+    )
+    run_parser.add_argument(
+        '--resume',
+        action='store_true',
+        help='Resume from checkpoint (requires --cohort-id). Skips completed stages.',
     )
 
     args = parser.parse_args()

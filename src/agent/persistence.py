@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from src.agent.models import WorkflowResult
+from src.agent.models import WorkflowResult, WorkflowCheckpoint
 
 
 # Regex for valid cohort IDs (alphanumeric, underscores, hyphens)
@@ -134,3 +134,169 @@ def save_workflow_result(
     except Exception as e:
         print(f"❌ Unexpected persistence error: {e}")
         return None
+
+
+# Checkpoint file name (per cohort)
+CHECKPOINT_FILENAME = "checkpoint.json"
+
+
+def save_checkpoint(
+    checkpoint: WorkflowCheckpoint,
+    cohort_id: str,
+    base_dir: Path | None = None,
+) -> Path | None:
+    """
+    Save workflow checkpoint atomically.
+
+    Creates/updates data/cohorts/{cohort_id}/checkpoint.json with current
+    workflow state. Uses atomic write pattern (temp + os.replace) to prevent
+    corruption on crash.
+
+    Args:
+        checkpoint: WorkflowCheckpoint with current state
+        cohort_id: Cohort identifier (e.g., "2025-Q1")
+        base_dir: Override base directory (for testing)
+
+    Returns:
+        Path to checkpoint file, or None if save failed
+
+    Note:
+        Logs errors but does not raise exceptions (graceful degradation).
+    """
+    temp_file = None
+    try:
+        validate_cohort_id(cohort_id)
+
+        base = base_dir or COHORTS_DIR
+        cohort_dir = base / cohort_id
+        checkpoint_file = cohort_dir / CHECKPOINT_FILENAME
+        temp_file = cohort_dir / f"{CHECKPOINT_FILENAME}.tmp"
+
+        cohort_dir.mkdir(parents=True, exist_ok=True)
+
+        # Serialize checkpoint using Pydantic's JSON mode (handles enums)
+        checkpoint_dict = checkpoint.model_dump(mode="json")
+
+        # Atomic write
+        with open(temp_file, 'w') as f:
+            json.dump(checkpoint_dict, f, indent=2, default=str)
+
+        os.replace(temp_file, checkpoint_file)
+
+        print(f"💾 Checkpoint saved: stage={checkpoint.last_completed_stage.value}")
+        return checkpoint_file
+
+    except ValueError as e:
+        print(f"❌ Checkpoint validation error: {e}")
+        return None
+
+    except PermissionError as e:
+        print(f"❌ Checkpoint permission error: {e}")
+        return None
+
+    except OSError as e:
+        print(f"❌ Checkpoint OS error: {e}")
+        if temp_file and temp_file.exists():
+            try:
+                temp_file.unlink()
+            except Exception:
+                pass
+        return None
+
+    except Exception as e:
+        print(f"❌ Unexpected checkpoint error: {e}")
+        return None
+
+
+def load_checkpoint(
+    cohort_id: str,
+    base_dir: Path | None = None,
+) -> WorkflowCheckpoint | None:
+    """
+    Load workflow checkpoint if it exists.
+
+    Reads data/cohorts/{cohort_id}/checkpoint.json and validates schema.
+
+    Args:
+        cohort_id: Cohort identifier
+        base_dir: Override base directory (for testing)
+
+    Returns:
+        WorkflowCheckpoint if exists and valid, None otherwise
+
+    Note:
+        Returns None for missing file, corrupted JSON, or invalid schema.
+    """
+    try:
+        validate_cohort_id(cohort_id)
+
+        base = base_dir or COHORTS_DIR
+        checkpoint_file = base / cohort_id / CHECKPOINT_FILENAME
+
+        if not checkpoint_file.exists():
+            return None
+
+        with open(checkpoint_file) as f:
+            data = json.load(f)
+
+        # Validate and deserialize using Pydantic
+        checkpoint = WorkflowCheckpoint.model_validate(data)
+
+        print(f"📂 Loaded checkpoint: stage={checkpoint.last_completed_stage.value}")
+        return checkpoint
+
+    except json.JSONDecodeError as e:
+        print(f"⚠️  Corrupted checkpoint file: {e}")
+        return None
+
+    except ValueError as e:
+        # Pydantic validation error or invalid cohort_id
+        print(f"⚠️  Invalid checkpoint: {e}")
+        return None
+
+    except Exception as e:
+        print(f"⚠️  Failed to load checkpoint: {e}")
+        return None
+
+
+def clear_checkpoint(
+    cohort_id: str,
+    base_dir: Path | None = None,
+) -> bool:
+    """
+    Delete checkpoint file after successful workflow completion.
+
+    Args:
+        cohort_id: Cohort identifier
+        base_dir: Override base directory (for testing)
+
+    Returns:
+        True if deleted or didn't exist, False on error
+    """
+    try:
+        validate_cohort_id(cohort_id)
+
+        base = base_dir or COHORTS_DIR
+        checkpoint_file = base / cohort_id / CHECKPOINT_FILENAME
+
+        if checkpoint_file.exists():
+            checkpoint_file.unlink()
+            print(f"🗑️  Checkpoint cleared for cohort: {cohort_id}")
+
+        return True
+
+    except ValueError as e:
+        print(f"❌ Clear checkpoint validation error: {e}")
+        return False
+
+    except PermissionError as e:
+        print(f"❌ Clear checkpoint permission error: {e}")
+        return False
+
+    except OSError as e:
+        print(f"❌ Clear checkpoint OS error: {e}")
+        return False
+
+    except Exception as e:
+        print(f"❌ Unexpected clear checkpoint error: {e}")
+        return False
