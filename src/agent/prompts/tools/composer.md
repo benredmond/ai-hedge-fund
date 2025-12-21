@@ -18,9 +18,35 @@ Create, backtest, and deploy automated trading strategies (symphonies).
 - `composer_get_account_holdings(account_id)` - Current positions
 - `composer_get_symphony_daily_performance(symphony_id)` - Performance tracking
 
-## symphony_score Structure (CRITICAL)
+---
 
-Symphonies use a hierarchical tree structure. **Every node MUST have `weight: null`**.
+## symphony_score Schema
+
+Symphonies use a hierarchical tree structure. The schema is strict - violations cause validation failure.
+
+### Critical Rules
+
+**1. `weight: null` on EVERY node**
+- ✅ CORRECT: `"weight": null`
+- ❌ WRONG: `"weight": {"num": 40, "den": 100}` (fraction format)
+- ❌ WRONG: `"weight": 0.4` (decimal)
+- ❌ WRONG: omitting weight entirely
+
+**2. NO `id` field on ANY node**
+- Composer assigns IDs internally - never provide them
+- ❌ WRONG: `"id": "abc-123"`
+- ❌ WRONG: `"id": "e1ac253e-52b5-402c-a2a8-a4d34e323a16"`
+- ❌ WRONG: `"id": "spy-asset-id"`
+
+**3. NO `children` on asset nodes**
+- Asset nodes are LEAF nodes
+- ❌ WRONG: `"children": []` on asset (even empty array is forbidden)
+
+**4. Conditional `if` blocks require COMPLETE structure**
+- Must include predicate fields (comparison-operator, lhs, rhs)
+- ❌ WRONG: `if` block with only children and no predicate
+
+### Basic Structure
 
 ```json
 {
@@ -48,35 +74,126 @@ Symphonies use a hierarchical tree structure. **Every node MUST have `weight: nu
 }
 ```
 
-**Node types:**
-- `root` - Top level (required)
-- `wt-cash-equal` - Equal weight children
-- `wt-cash-specified` - Custom weights (add `allocation` to children)
-- `asset` - Individual security
+### Node Types
 
-**Exchange codes:** XNYS (NYSE), XNGS (NASDAQ), ARCX (ARCA)
+| Step | Purpose | Notes |
+|------|---------|-------|
+| `root` | Top level container | Required, includes name/description/rebalance |
+| `wt-cash-equal` | Equal weight children | No allocation field needed |
+| `wt-cash-specified` | Custom weights | Add `"allocation": 0.6` to each child |
+| `wt-inverse-volatility` | Inverse vol weighting | Weights calculated automatically |
+| `asset` | Individual security | LEAF node - no children |
 
-## Usage Patterns
+### Asset Node Requirements
 
-**Search for inspiration:**
-```python
-composer_search_symphonies("momentum tech")
-composer_search_symphonies("defensive rotation")
+Asset nodes must have EXACTLY these 5 fields:
+- `ticker` - Raw symbol (e.g., "SPY", "XLE")
+- `exchange` - XNYS (NYSE), XNGS (NASDAQ), or ARCX (ARCA)
+- `name` - Full asset name
+- `step` - Must be "asset"
+- `weight` - Must be null
+
+**CORRECT asset node:**
+```json
+{"ticker": "XLE", "exchange": "ARCX", "name": "Energy Select Sector SPDR Fund", "step": "asset", "weight": null}
 ```
 
-**Save a symphony:**
+**WRONG asset node (has forbidden fields):**
+```json
+{"name": "Energy ETF", "step": "asset", "weight": null, "children": [], "id": "xle-node-123"}
+```
+
+### Specified Weights Example
+
+```json
+{
+  "step": "wt-cash-specified",
+  "weight": null,
+  "children": [
+    {"ticker": "SPY", "exchange": "XNYS", "name": "SPDR S&P 500 ETF Trust", "step": "asset", "weight": null, "allocation": 0.6},
+    {"ticker": "QQQ", "exchange": "XNGS", "name": "Invesco QQQ Trust", "step": "asset", "weight": null, "allocation": 0.4}
+  ]
+}
+```
+
+### Conditional Logic (if blocks)
+
+For strategies with conditional logic:
+
+**Option A (Recommended):** Use `composer_create_symphony` with a description:
+```
+"Create a strategy: when VIX < 22, hold SPY 50%, QQQ 30%, AGG 20%.
+When VIX > 22, rotate to TLT 50%, GLD 30%, BIL 20%. Rebalance weekly."
+```
+Then call `composer_save_symphony` with the returned structure.
+
+**Option B:** Flatten to static weights using the `if_false` branch:
+```json
+{
+  "logic_tree": {
+    "condition": "VIX > 25",
+    "if_true": {"assets": ["GLD", "BIL"], "weights": {"GLD": 0.5, "BIL": 0.5}},
+    "if_false": {"assets": ["SPY", "QQQ"], "weights": {"SPY": 0.6, "QQQ": 0.4}}
+  }
+}
+```
+Becomes static symphony using if_false:
+```json
+{
+  "step": "wt-cash-specified",
+  "weight": null,
+  "children": [
+    {"ticker": "SPY", "exchange": "XNYS", "name": "SPDR S&P 500 ETF Trust", "step": "asset", "weight": null, "allocation": 0.6},
+    {"ticker": "QQQ", "exchange": "XNGS", "name": "Invesco QQQ Trust", "step": "asset", "weight": null, "allocation": 0.4}
+  ]
+}
+```
+
+**Option C:** Build if-block manually (advanced) - must include ALL predicate fields:
+```json
+{
+  "step": "if",
+  "weight": null,
+  "comparison-operator": ">",
+  "lhs": {...},
+  "rhs": 22,
+  "children": [
+    {"step": "if-child", "is-else-condition?": false, "weight": null, "children": [...]},
+    {"step": "if-child", "is-else-condition?": true, "weight": null, "children": [...]}
+  ]
+}
+```
+
+---
+
+## Pre-Flight Checklist
+
+Before calling `composer_save_symphony`, verify:
+
+1. ☐ NO `id` field on ANY node
+2. ☐ NO `children` field on asset nodes
+3. ☐ `weight: null` on EVERY node (literal null, not a number)
+4. ☐ Each asset has EXACTLY: ticker, exchange, name, step, weight
+5. ☐ If using `if` blocks: predicate fields present? → If not, use Option A or B
+
+---
+
+## save_symphony Arguments
+
 ```python
 composer_save_symphony(
-    symphony_score={...},  # Hierarchical structure above
-    color="#AEC3C6",
-    hashtag="#MOMENTUM"
+    symphony_score={...},  # Hierarchical structure
+    color="#AEC3C6",       # Hex color code
+    hashtag="#MOMENTUM"    # Strategy tag
 )
 ```
 
-## Composer Constraints
+---
+
+## Platform Constraints
 
 - ❌ Cannot hold 100% cash (use BIL for cash proxy)
-- ❌ No direct shorts (use inverse ETFs like SH, PSQ)
-- ❌ No direct leverage (use leveraged ETFs like UPRO, TQQQ)
+- ❌ No direct shorts (use inverse ETFs: SH, PSQ, SQQQ)
+- ❌ No direct leverage (use leveraged ETFs: UPRO, TQQQ, SSO)
 - ⚠️ Trades execute near market close (~3:50 PM ET)
 - ⚠️ Daily price data only (no intraday)

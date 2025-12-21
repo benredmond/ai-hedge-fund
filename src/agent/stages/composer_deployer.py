@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import traceback
 from datetime import datetime, timezone
 
 from src.agent.strategy_creator import (
@@ -11,6 +12,42 @@ from src.agent.strategy_creator import (
     get_model_settings,
 )
 from src.agent.models import Strategy, Charter
+
+
+def _classify_error(e: Exception) -> tuple[str, str]:
+    """
+    Classify an exception into an error type and actionable message.
+
+    Returns:
+        Tuple of (error_type, user_message)
+    """
+    error_str = str(e).lower()
+
+    # Authentication errors
+    if "401" in error_str or "unauthorized" in error_str:
+        return "AUTH", (
+            "Composer credentials invalid or expired. "
+            "Check COMPOSER_API_KEY and COMPOSER_API_SECRET in .env"
+        )
+    if "403" in error_str or "forbidden" in error_str:
+        return "AUTH", (
+            "Composer access forbidden. Your API key may lack required permissions."
+        )
+
+    # Rate limiting
+    if "429" in error_str or "rate" in error_str or "too many" in error_str:
+        return "RATE_LIMIT", "Composer rate limit exceeded. Will retry with backoff."
+
+    # Schema/validation errors
+    if "schema" in error_str or "invalid" in error_str or "required" in error_str:
+        return "SCHEMA", f"Symphony schema validation failed: {e}"
+
+    # Network errors
+    if "timeout" in error_str or "connection" in error_str or "network" in error_str:
+        return "NETWORK", f"Network error connecting to Composer: {e}"
+
+    # Unknown - include full details
+    return "UNKNOWN", f"Unexpected error: {type(e).__name__}: {e}"
 
 
 class ComposerDeployer:
@@ -62,7 +99,21 @@ class ComposerDeployer:
                 model=model,
             )
         except Exception as e:
-            print(f"⚠️  Composer deployment failed: {e}")
+            # Enhanced error logging with classification
+            error_type, error_msg = _classify_error(e)
+            print(f"\n{'='*80}")
+            print(f"[ERROR:ComposerDeployer] Deployment failed")
+            print(f"[ERROR:ComposerDeployer] Type: {error_type}")
+            print(f"[ERROR:ComposerDeployer] Message: {error_msg}")
+            print(f"[ERROR:ComposerDeployer] Strategy: {strategy.name}")
+            print(f"[ERROR:ComposerDeployer] Assets: {strategy.assets}")
+            # Log traceback for debugging (first 10 lines)
+            tb_lines = traceback.format_exc().split('\n')[:10]
+            print(f"[ERROR:ComposerDeployer] Traceback (first 10 lines):")
+            for line in tb_lines:
+                if line.strip():
+                    print(f"  {line}")
+            print(f"{'='*80}\n")
             return None, None
 
     async def _run_with_retries(
@@ -89,6 +140,29 @@ class ComposerDeployer:
                 last_error = e
                 error_str = str(e).lower()
 
+                # Enhanced error logging for MCP failures
+                error_type, error_msg = _classify_error(e)
+                print(f"\n{'='*80}")
+                print(f"[ERROR:ComposerDeployer] Attempt {attempt}/{max_attempts} failed")
+                print(f"[ERROR:ComposerDeployer] Exception type: {type(e).__name__}")
+                print(f"[ERROR:ComposerDeployer] Exception message: {e}")
+                print(f"[ERROR:ComposerDeployer] Classified as: {error_type}")
+
+                # Log any extra attributes from pydantic-ai exceptions
+                for attr in ['code', 'data', 'message', 'response', 'body', '__cause__']:
+                    if hasattr(e, attr):
+                        attr_val = getattr(e, attr, None)
+                        if attr_val is not None:
+                            print(f"[ERROR:ComposerDeployer] Exception.{attr}: {attr_val}")
+
+                # Log traceback
+                tb_lines = traceback.format_exc().split('\n')
+                print(f"[ERROR:ComposerDeployer] Full traceback:")
+                for line in tb_lines:
+                    if line.strip():
+                        print(f"  {line}")
+                print(f"{'='*80}\n")
+
                 # Check for rate limit errors
                 is_rate_limit = (
                     "rate" in error_str
@@ -107,9 +181,7 @@ class ComposerDeployer:
 
                 # Non-rate-limit error or final attempt
                 if attempt < max_attempts:
-                    print(
-                        f"⚠️  Composer deployment error (attempt {attempt}/{max_attempts}): {e}"
-                    )
+                    print(f"⚠️  Retrying in {base_delay}s...")
                     await asyncio.sleep(base_delay)
                     continue
 
@@ -146,16 +218,100 @@ class ComposerDeployer:
         async with agent_ctx as agent:
             result = await agent.run(prompt)
 
+            # Check for MCP tool errors BEFORE extracting symphony_id
+            mcp_error = self._check_mcp_error(result)
+            if mcp_error:
+                print(f"\n{'='*80}")
+                print(f"[ERROR:ComposerDeployer] MCP tool returned error")
+                print(f"[ERROR:ComposerDeployer] {mcp_error}")
+                print(f"{'='*80}\n")
+                return None, None
+
             # Parse symphony_id from tool call responses
             symphony_id = self._extract_symphony_id(result)
 
             if symphony_id:
+                print(f"[DEBUG:ComposerDeployer] Successfully extracted symphony_id: {symphony_id}")
                 deployed_at = datetime.now(timezone.utc).isoformat()
                 return symphony_id, deployed_at
 
-            # No symphony_id found - deployment may have failed silently
-            print("⚠️  Composer deployment completed but no symphony_id found in response")
+            # No symphony_id found - log full response for debugging
+            print(f"\n{'='*80}")
+            print(f"[ERROR:ComposerDeployer] No symphony_id found in response")
+            print(f"[DEBUG:ComposerDeployer] Logging full MCP response for debugging:")
+            self._log_full_response(result)
+            print(f"{'='*80}\n")
             return None, None
+
+    def _check_mcp_error(self, result) -> str | None:
+        """
+        Check for MCP tool-level errors in the agent result.
+
+        MCP has two error channels:
+        - JSON-RPC errors (protocol level) - discarded by LLM, caught as exceptions
+        - Tool errors (isError=true) - visible to LLM, need explicit check
+
+        Returns:
+            Error message if tool returned an error, None otherwise
+        """
+        if not hasattr(result, "all_messages"):
+            return None
+
+        for msg in result.all_messages():
+            if not hasattr(msg, "parts"):
+                continue
+            for part in msg.parts:
+                # Check ToolReturnPart for save_symphony or create_symphony
+                tool_name = getattr(part, "tool_name", "")
+                if "symphony" not in tool_name:
+                    continue
+
+                content = getattr(part, "content", None)
+
+                # Check for isError flag (MCP tool-level error)
+                if isinstance(content, dict):
+                    if content.get("isError"):
+                        error_content = content.get("content", [{}])
+                        if isinstance(error_content, list) and error_content:
+                            error_text = error_content[0].get("text", str(content))
+                        else:
+                            error_text = str(content)
+                        return f"Tool '{tool_name}' error: {error_text}"
+
+                # Check for error patterns in string content
+                if isinstance(content, str):
+                    content_lower = content.lower()
+                    if any(err in content_lower for err in ["error", "failed", "invalid", "unauthorized"]):
+                        return f"Tool '{tool_name}' returned: {content[:500]}"
+
+        return None
+
+    def _log_full_response(self, result) -> None:
+        """Log full agent result for debugging when symphony_id extraction fails."""
+        print(f"[DEBUG:ComposerDeployer] result.output = {result.output}")
+
+        if hasattr(result, "all_messages"):
+            messages = result.all_messages()
+            print(f"[DEBUG:ComposerDeployer] Total messages: {len(messages)}")
+
+            for i, msg in enumerate(messages):
+                msg_type = type(msg).__name__
+                print(f"[DEBUG:ComposerDeployer] Message {i}: {msg_type}")
+
+                if hasattr(msg, "parts"):
+                    for j, part in enumerate(msg.parts):
+                        part_type = type(part).__name__
+                        tool_name = getattr(part, "tool_name", None)
+                        content = getattr(part, "content", None)
+
+                        if tool_name:
+                            print(f"[DEBUG:ComposerDeployer]   Part {j}: {part_type} tool={tool_name}")
+                            # Log content (truncate if very long)
+                            content_str = str(content)
+                            if len(content_str) > 1000:
+                                print(f"[DEBUG:ComposerDeployer]     Content (truncated): {content_str[:1000]}...")
+                            else:
+                                print(f"[DEBUG:ComposerDeployer]     Content: {content_str}")
 
     def _build_system_prompt(self) -> str:
         """Build system prompt with auto-injected Composer tool docs."""
@@ -167,7 +323,8 @@ class ComposerDeployer:
         """Build deployment prompt with full strategy context."""
         import json
 
-        # Load recipe prompt
+        # Load tools doc (authoritative schema) and recipe
+        tools_doc = load_prompt("tools/composer.md")
         recipe = load_prompt("composer_deployment.md")
 
         # Include FULL thesis document and strategy context
@@ -189,7 +346,11 @@ class ComposerDeployer:
             "expected_behavior": charter.expected_behavior[:500],
         }
 
-        return f"""{recipe}
+        return f"""{tools_doc}
+
+---
+
+{recipe}
 
 ## STRATEGY TO DEPLOY
 

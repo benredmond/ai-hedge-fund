@@ -2,63 +2,50 @@
 
 Deploy the provided strategy to Composer.trade.
 
-## Step 1: Build symphony_score Structure
+## Step 1: Analyze Strategy
 
-Create a hierarchical `symphony_score` object. **CRITICAL: Every node MUST have `weight: null`**.
+Review the strategy context:
+- `name` - Strategy name
+- `assets` - List of tickers
+- `weights` - Allocation per asset
+- `rebalance_frequency` - daily/weekly/monthly
+- `logic_tree` - Conditional logic (if any)
 
-```json
-{
-  "step": "root",
-  "name": "Strategy Name",
-  "description": "Brief strategy description",
-  "rebalance": "monthly",
-  "rebalance-corridor-width": null,
-  "weight": null,
-  "children": [
-    {
-      "step": "wt-cash-equal",
-      "weight": null,
-      "children": [
-        {
-          "ticker": "SPY",
-          "exchange": "XNYS",
-          "name": "SPDR S&P 500 ETF Trust",
-          "step": "asset",
-          "weight": null
-        },
-        {
-          "ticker": "QQQ",
-          "exchange": "XNGS",
-          "name": "Invesco QQQ Trust",
-          "step": "asset",
-          "weight": null
-        }
-      ]
-    }
-  ]
-}
-```
+## Step 2: Handle Conditional Logic
 
-**Exchange codes:** XNYS (NYSE), XNGS (NASDAQ), ARCX (ARCA for ETFs)
+If strategy has a `logic_tree`:
 
-**Weighting options:**
-- `wt-cash-equal` - Equal weight across children
-- `wt-cash-specified` - Custom weights (add `"allocation": 0.6` to each child)
-- `wt-inverse-volatility` - Inverse volatility weighting
+**Option A (Recommended):** Call `composer_create_symphony` with a natural language description, then `composer_save_symphony` with the returned structure.
 
-## Step 2: Save Symphony
+**Option B:** Flatten to static weights using the `if_false` branch (normal market conditions).
 
-Call `composer_save_symphony` with THREE required arguments:
+**Option C:** Build if-block manually (only if you understand the complete syntax with predicate fields).
 
-```json
-{
-  "symphony_score": { ... },
-  "color": "#AEC3C6",
-  "hashtag": "#STRATEGY"
-}
-```
+If no logic_tree, proceed directly to Step 3.
 
-## Step 3: Report Result
+## Step 3: Build symphony_score
 
-- **Success**: Return the `symphony_id` from the response
-- **Failure**: Report the full error message for debugging
+Create hierarchical structure: root → weighting node → asset nodes.
+
+Refer to the Composer tools documentation for:
+- Schema rules (weight=null, no id, no children on assets)
+- Node types and examples
+- Asset node field requirements
+
+## Step 4: Pre-Flight Check
+
+Before calling `composer_save_symphony`:
+
+1. ☐ NO `id` field on ANY node
+2. ☐ NO `children` field on asset nodes
+3. ☐ `weight: null` on EVERY node
+4. ☐ Each asset has: ticker, exchange, name, step, weight
+
+## Step 5: Save and Report
+
+Call `composer_save_symphony` with:
+- `symphony_score` - The hierarchical structure
+- `color` - Hex color (e.g., "#AEC3C6")
+- `hashtag` - Strategy tag (e.g., "#MOMENTUM")
+
+Report the `symphony_id` on success, or the full error message on failure.
