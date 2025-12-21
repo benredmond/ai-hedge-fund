@@ -42,7 +42,13 @@ Symphonies use a hierarchical tree structure. The schema is strict - violations 
 - Asset nodes are LEAF nodes
 - ❌ WRONG: `"children": []` on asset (even empty array is forbidden)
 
-**4. Conditional `if` blocks require COMPLETE structure**
+**4. `wt-cash-specified` children MUST have `allocation` field**
+- Each child asset needs `"allocation": 0.X` (decimal weight, must sum to 1.0)
+- ✅ CORRECT: `{"ticker": "SPY", "exchange": "XNYS", "name": "...", "step": "asset", "weight": null, "allocation": 0.6}`
+- ❌ WRONG: `{"ticker": "SPY", "exchange": "XNYS", "name": "...", "step": "asset", "weight": null}` (missing allocation)
+- Note: `wt-cash-equal` does NOT use allocation (weights are equal automatically)
+
+**5. Conditional `if` blocks require COMPLETE structure**
 - Must include predicate fields (comparison-operator, lhs, rhs)
 - ❌ WRONG: `if` block with only children and no predicate
 
@@ -86,7 +92,7 @@ Symphonies use a hierarchical tree structure. The schema is strict - violations 
 
 ### Asset Node Requirements
 
-Asset nodes must have EXACTLY these 5 fields:
+Asset nodes must have EXACTLY these 5 fields (or 6 if child of `wt-cash-specified` - add `allocation`):
 - `ticker` - Raw symbol (e.g., "SPY", "XLE")
 - `exchange` - XNYS (NYSE), XNGS (NASDAQ), or ARCX (ARCA)
 - `name` - Full asset name
@@ -174,7 +180,8 @@ Before calling `composer_save_symphony`, verify:
 2. ☐ NO `children` field on asset nodes
 3. ☐ `weight: null` on EVERY node (literal null, not a number)
 4. ☐ Each asset has EXACTLY: ticker, exchange, name, step, weight
-5. ☐ If using `if` blocks: predicate fields present? → If not, use Option A or B
+5. ☐ If parent is `wt-cash-specified`: each child has `allocation` field? (must sum to 1.0)
+6. ☐ If using `if` blocks: predicate fields present? → If not, use Option A or B
 
 ---
 
