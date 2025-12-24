@@ -38,7 +38,29 @@ COMPOSER_MCP_URL = os.getenv("COMPOSER_MCP_URL", "https://mcp.composer.trade/mcp
 
 # Tool result compression configuration
 COMPRESS_MCP_RESULTS = os.getenv("COMPRESS_MCP_RESULTS", "true").lower() == "true"
-SUMMARIZATION_MODEL = os.getenv("SUMMARIZATION_MODEL", "openai:gpt-5-mini")
+
+# Summarization model - set dynamically by workflow via set_summarization_model()
+# Falls back to env var SUMMARIZATION_MODEL, then to workflow model
+_summarization_model: str | None = os.getenv("SUMMARIZATION_MODEL")
+
+
+def set_summarization_model(model: str) -> None:
+    """
+    Set the model to use for tool result summarization.
+
+    Called by workflow before creating agents to ensure summarization
+    uses the same model as the main workflow.
+
+    Args:
+        model: Model identifier (e.g., "openai:kimi-k2-thinking")
+    """
+    global _summarization_model
+    _summarization_model = model
+
+
+def get_summarization_model() -> str | None:
+    """Get the current summarization model."""
+    return _summarization_model
 
 
 async def compress_tool_result(
@@ -100,10 +122,17 @@ async def compress_tool_result(
     from src.agent.tool_result_summarizer import SummarizationService
 
     # Create summarizer (cached globally on first use)
-    if not hasattr(compress_tool_result, "_summarizer"):
+    # Uses workflow model if set, otherwise disabled
+    current_model = get_summarization_model()
+    if current_model is None:
+        # No model set - skip summarization
+        return result
+
+    if not hasattr(compress_tool_result, "_summarizer") or compress_tool_result._summarizer_model != current_model:
         compress_tool_result._summarizer = SummarizationService(
-            model=SUMMARIZATION_MODEL, enabled=True
+            model=current_model, enabled=True
         )
+        compress_tool_result._summarizer_model = current_model
 
     summarizer = compress_tool_result._summarizer
 

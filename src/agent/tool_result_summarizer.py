@@ -1,24 +1,20 @@
 """
 Tool result summarization to reduce token consumption in conversation history.
 
-Uses a fast LLM (GPT-5-mini) to compress large tool results (FRED API, yfinance)
+Uses the workflow's LLM to compress large tool results (FRED API, yfinance)
 before they're added to the agent's conversation history.
 
 Configuration:
     COMPRESS_MCP_RESULTS - Enable/disable compression (default: true)
-    SUMMARIZATION_MODEL - Model to use for summarization (default: openai:gpt-5-mini)
+    SUMMARIZATION_MODEL - Override model for summarization (optional, defaults to workflow model)
+
+The summarization model is set automatically by the workflow via set_summarization_model().
 """
 
 import os
 import json
-from typing import Any, Optional
+from typing import Any
 from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIModel
-
-
-# Configuration
-COMPRESS_MCP_RESULTS = os.getenv("COMPRESS_MCP_RESULTS", "true").lower() == "true"
-SUMMARIZATION_MODEL = os.getenv("SUMMARIZATION_MODEL", "openai:gpt-5-mini")
 
 
 # Summarization prompt template
@@ -64,12 +60,12 @@ class SummarizationService:
     and search results before they're added to conversation history.
     """
 
-    def __init__(self, model: str = SUMMARIZATION_MODEL, enabled: bool = COMPRESS_MCP_RESULTS):
+    def __init__(self, model: str, enabled: bool = True):
         """
         Initialize summarization service.
 
         Args:
-            model: LLM model identifier (e.g., "openai:gpt-4o-mini")
+            model: LLM model identifier (e.g., "openai:kimi-k2-thinking")
             enabled: Whether summarization is enabled
         """
         self.model = model
