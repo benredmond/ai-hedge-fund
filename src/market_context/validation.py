@@ -12,7 +12,6 @@ def validate_context_pack(pack: Dict[str, Any]) -> Tuple[bool, List[str]]:
     - No future data leakage (all dates <= anchor_date)
     - Required fields present
     - Data freshness (generated_at within 1 hour of anchor_date)
-    - Regime tags are valid list
     - Schema correctness
 
     Returns:
@@ -21,7 +20,7 @@ def validate_context_pack(pack: Dict[str, Any]) -> Tuple[bool, List[str]]:
     errors = []
 
     # Check required top-level fields
-    required_fields = ["metadata", "regime_snapshot", "macro_indicators", "recent_events", "regime_tags"]
+    required_fields = ["metadata", "regime_snapshot", "macro_indicators", "recent_events"]
     for field in required_fields:
         if field not in pack:
             errors.append(f"Missing required field: {field}")
@@ -61,10 +60,6 @@ def validate_context_pack(pack: Dict[str, Any]) -> Tuple[bool, List[str]]:
                     errors.append(f"Future data leakage: event dated {event['date']} after anchor {metadata['anchor_date']}")
             except (ValueError, TypeError):
                 errors.append(f"Invalid event date format: {event.get('date', 'unknown')}")
-
-    # Validate regime_tags
-    if not isinstance(pack["regime_tags"], list):
-        errors.append("regime_tags must be a list")
 
     # Check regime_snapshot structure
     if not isinstance(pack["regime_snapshot"], dict):

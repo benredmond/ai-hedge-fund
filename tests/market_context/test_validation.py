@@ -29,8 +29,7 @@ class TestValidateContextPack:
             },
             "recent_events": [
                 {"date": "2025-01-10", "headline": "Test"}
-            ],
-            "regime_tags": ["bull", "volatility_normal"]
+            ]
         }
 
         is_valid, errors = validate_context_pack(valid_pack)
@@ -52,8 +51,7 @@ class TestValidateContextPack:
             "benchmark_performance": {},  # v2.0: required field
             "recent_events": [
                 {"date": "2025-01-20", "headline": "Future event!"}  # After anchor
-            ],
-            "regime_tags": []
+            ]
         }
 
         is_valid, errors = validate_context_pack(pack_with_future)
@@ -75,27 +73,6 @@ class TestValidateContextPack:
         assert not is_valid
         assert len(errors) > 0
 
-    def test_validates_regime_tags_are_list(self):
-        """Regime tags must be a list."""
-        invalid_pack = {
-            "metadata": {
-                "anchor_date": "2025-01-15T12:00:00",
-                "data_cutoff": "2025-01-15T12:00:00",
-                "generated_at": datetime.utcnow().isoformat(),
-                "version": "v2.0.0"
-            },
-            "regime_snapshot": {},
-            "macro_indicators": {},
-            "benchmark_performance": {},  # v2.0: required field
-            "recent_events": [],
-            "regime_tags": "not_a_list"  # Invalid type
-        }
-
-        is_valid, errors = validate_context_pack(invalid_pack)
-
-        assert not is_valid
-        assert any("regime_tags" in error.lower() for error in errors)
-
     @freeze_time("2025-01-15 12:00:00")
     def test_detects_stale_data(self):
         """Detects if generated_at is too far from anchor_date."""
@@ -109,8 +86,7 @@ class TestValidateContextPack:
             "regime_snapshot": {},
             "macro_indicators": {},
             "benchmark_performance": {},  # v2.0: required field
-            "recent_events": [],
-            "regime_tags": []
+            "recent_events": []
         }
 
         is_valid, errors = validate_context_pack(stale_pack)

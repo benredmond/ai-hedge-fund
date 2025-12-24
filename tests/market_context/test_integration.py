@@ -29,7 +29,6 @@ class TestIntegration:
         assert "regime_snapshot" in context_pack
         assert "macro_indicators" in context_pack
         assert "recent_events" in context_pack
-        assert "regime_tags" in context_pack
 
         # Validate metadata
         metadata = context_pack["metadata"]
@@ -53,34 +52,9 @@ class TestIntegration:
         # Validate events is a list
         assert isinstance(context_pack["recent_events"], list)
 
-        # Validate regime tags
-        assert isinstance(context_pack["regime_tags"], list)
-        assert len(context_pack["regime_tags"]) > 0
-
         # Run validation suite
         is_valid, errors = validate_context_pack(context_pack)
         assert is_valid, f"Validation failed: {errors}"
-
-    @freeze_time("2025-01-15 12:00:00")
-    @patch('src.market_context.fetchers.Fred')
-    def test_regime_tags_classification(self, mock_fred_class):
-        """Regime tags are correctly classified."""
-        mock_fred = mock_fred_class.return_value
-        mock_fred.get_series_latest_release.return_value = type('obj', (object,), {
-            'iloc': type('obj', (object,), {
-                '__getitem__': lambda self, x: 5.25
-            })()
-        })()
-
-        context_pack = assemble_market_context_pack(fred_api_key="test_key")
-
-        tags = context_pack["regime_tags"]
-
-        # Should have trend classification
-        assert any(tag in ["bull", "strong_bull", "bear", "strong_bear"] for tag in tags)
-
-        # Should have volatility classification
-        assert any(tag.startswith("volatility_") for tag in tags)
 
     @freeze_time("2025-01-15 12:00:00")
     @patch('src.market_context.fetchers.Fred')

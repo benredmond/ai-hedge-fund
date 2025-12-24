@@ -1,7 +1,7 @@
 """Market context pack assembler."""
 
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from src.market_context.fetchers import (
     fetch_regime_snapshot,
     fetch_macro_indicators,
@@ -40,9 +40,6 @@ def assemble_market_context_pack(fred_api_key: str, anchor_date: Optional[dateti
     # Merge international and commodities into macro indicators
     macro.update(international_commodities)
 
-    # Generate regime tags for longitudinal analysis
-    regime_tags = classify_regime(regime, macro)
-
     # Assemble context pack
     context_pack = {
         "metadata": {
@@ -54,57 +51,9 @@ def assemble_market_context_pack(fred_api_key: str, anchor_date: Optional[dateti
         "regime_snapshot": regime,
         "macro_indicators": macro,
         "benchmark_performance": benchmarks,
-        "recent_events": events,
-        "regime_tags": regime_tags
+        "recent_events": events
     }
 
     return context_pack
 
 
-def classify_regime(regime: Dict[str, Any], macro: Dict[str, Any]) -> List[str]:
-    """
-    Generate regime classification tags for longitudinal analysis.
-
-    Tags enable "compare within regime" analysis across cohorts.
-    """
-    tags = []
-
-    # Trend classification
-    trend = regime.get("trend", {}).get("regime", "unknown")
-    tags.append(trend)
-
-    # Volatility classification
-    vol_regime = regime.get("volatility", {}).get("regime", "unknown")
-    tags.append(f"volatility_{vol_regime}")
-
-    # Factor regime
-    factor = regime.get("factor_regime", {})
-    value_growth = factor.get("value_vs_growth", {}).get("regime", "neutral")
-    if value_growth != "neutral":
-        tags.append(value_growth)
-
-    # Monetary policy stance (simplified)
-    fed_funds_data = macro.get("interest_rates", {}).get("fed_funds_rate", 0)
-    # Handle time series (v2.0) or single value (v1.0)
-    if isinstance(fed_funds_data, dict):
-        fed_funds = fed_funds_data.get("current", 0)
-    else:
-        fed_funds = fed_funds_data
-    
-    if fed_funds and fed_funds > 4.5:
-        tags.append("tight_monetary_policy")
-    elif fed_funds and fed_funds < 2.0:
-        tags.append("loose_monetary_policy")
-
-    # Yield curve
-    yield_curve_data = macro.get("interest_rates", {}).get("yield_curve_2s10s", 0)
-    # Handle time series (v2.0) or single value (v1.0)
-    if isinstance(yield_curve_data, dict):
-        yield_curve = yield_curve_data.get("current", 0)
-    else:
-        yield_curve = yield_curve_data
-    
-    if yield_curve and yield_curve < -0.1:
-        tags.append("inverted_yield_curve")
-
-    return tags

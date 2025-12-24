@@ -564,10 +564,6 @@ def print_summary(context_pack):
         print(f"  ... and {len(events) - 5} more events")
     print()
 
-    # Regime tags
-    tags = context_pack['regime_tags']
-    print(f"🏷️  REGIME TAGS: {', '.join(tags)}")
-    print()
     print("=" * 70)
 
 

@@ -30,7 +30,6 @@ class TestAssembleMarketContextPack:
         assert "macro_indicators" in result
         assert "benchmark_performance" in result  # v2.0: renamed from benchmark_performance_30d
         assert "recent_events" in result
-        assert "regime_tags" in result
 
     @freeze_time("2025-01-15 12:00:00")
     @patch('src.market_context.assembler.fetch_benchmark_performance')
@@ -58,37 +57,6 @@ class TestAssembleMarketContextPack:
         assert metadata["anchor_date"].startswith("2025-01-15")
         # v2.0: version should be v2.0.0
         assert metadata["version"] == "v2.0.0"
-
-    @freeze_time("2025-01-15 12:00:00")
-    @patch('src.market_context.assembler.fetch_benchmark_performance')
-    @patch('src.market_context.assembler.fetch_international_and_commodities')
-    @patch('src.market_context.assembler.fetch_regime_snapshot')
-    @patch('src.market_context.assembler.fetch_macro_indicators')
-    @patch('src.market_context.assembler.fetch_recent_events')
-    def test_regime_tags_generated(self, mock_events, mock_macro, mock_regime, mock_intl, mock_bench):
-        """Generates regime tags for longitudinal analysis."""
-        mock_regime.return_value = {
-            "trend": {"regime": "bull", "SPY_vs_200d_ma": {"current": 5.87}},  # v2.0: time series
-            "volatility": {"regime": "elevated", "VIX_current": {"current": 25.0}}
-        }
-        mock_macro.return_value = {
-            "interest_rates": {"fed_funds_rate": {"current": 5.25}}  # v2.0: time series
-        }
-        mock_intl.return_value = {}
-        mock_events.return_value = []
-        mock_bench.return_value = {}
-
-        result = assemble_market_context_pack(fred_api_key="test_key")
-
-        tags = result["regime_tags"]
-        assert isinstance(tags, list)
-        assert len(tags) > 0
-
-        # Should include trend tag
-        assert any(tag in ["bull", "strong_bull", "bear", "strong_bear"] for tag in tags)
-
-        # Should include volatility tag
-        assert any("volatility" in tag for tag in tags)
 
     @freeze_time("2025-01-15 12:00:00")
     @patch('src.market_context.assembler.fetch_benchmark_performance')
