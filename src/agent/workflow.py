@@ -356,7 +356,10 @@ async def create_strategy_workflow(
     # Persist to cohort file if cohort_id provided
     if cohort_id:
         save_workflow_result(result, cohort_id, model=model)
-        # Clear checkpoint after successful completion
-        clear_checkpoint(cohort_id)
+        # Only clear checkpoint on full success (deployment completed)
+        if symphony_id:
+            clear_checkpoint(cohort_id)
+        else:
+            print("💾 Checkpoint preserved (deployment incomplete)")
 
     return result
