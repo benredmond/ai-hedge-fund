@@ -48,7 +48,7 @@ Forward-looking:
 
 ## Task: Generate 30-Day Market Event Dataset
 
-### Anchor Date: October 23, 2025
+### Anchor Date: CURRENT DATE
 ### Target Output: 15-20 events
 
 ---
@@ -309,7 +309,7 @@ To ensure accuracy, cross-reference:
 Before submitting output, verify:
 
 ### Temporal Validation
-- [ ] All dates are between 2025-09-23 and 2025-10-23
+- [ ] All dates are between NOW and NOW-30d
 - [ ] Dates are in YYYY-MM-DD format
 - [ ] **Events are sorted chronologically (oldest first) - MANDATORY**
 - [ ] No duplicate dates for same category (unless genuinely separate events)
@@ -398,7 +398,7 @@ Let me know if you need more details!
 
 ## Execution Instructions
 
-1. **Plan first:** Review September-October 2025 major events mentally
+1. **Plan first:** Review major events mentally
 2. **Balance coverage:** Verify you have mandatory minimums (2-3 inflation, 2-3 employment, etc.)
 3. **Draft events:** Create 15-20 events following gold standard examples
 4. **Self-review:** Run through ALL Quality Assurance Checklists

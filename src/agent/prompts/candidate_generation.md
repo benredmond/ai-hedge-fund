@@ -401,6 +401,105 @@ Scan for **Diversification Theater**: Portfolios with correlation >0.9 across al
 
 ---
 
+## COMPOSER SUPPORTED CONDITIONS (CRITICAL - READ BEFORE CREATING logic_tree)
+
+**Composer.trade is a PRICE-BASED trading platform.** It can only evaluate conditions using tradeable asset metrics. It has NO access to economic data (FRED), macro indicators, or conceptual conditions.
+
+### ✅ VALID Condition Types (Composer CAN evaluate these)
+
+**1. Price Comparisons**
+```python
+"condition": "SPY_price > SPY_200d_MA"  # ✅ Asset price vs moving average
+"condition": "QQQ_price < QQQ_50d_MA"   # ✅ Below moving average
+```
+
+**2. Cumulative Returns**
+```python
+"condition": "SPY_cumulative_return_30d > 0.05"  # ✅ 30-day return > 5%
+"condition": "XLK_cumulative_return_60d > XLF_cumulative_return_60d"  # ✅ Sector comparison
+```
+
+**3. Volatility via ETF Proxy (NOT VIX index directly)**
+```python
+# ✅ CORRECT: Use VIXY (VIX Short-Term Futures ETF) as volatility proxy
+"condition": "VIXY_price > 22"           # ✅ Volatility ETF price threshold
+"condition": "VIXY_cumulative_return_5d > 0.15"  # ✅ Volatility spike detection
+
+# ⚠️ VIX in thesis OK, but logic_tree must use tradeable proxy
+# Thesis: "When VIX spikes above 22, rotate defensively"
+# logic_tree: {"condition": "VIXY_price > 22", ...}  # ✅ Uses ETF proxy
+```
+
+**4. RSI (Relative Strength Index)**
+```python
+"condition": "SPY_RSI_14d > 70"  # ✅ Overbought condition
+"condition": "QQQ_RSI_14d < 30"  # ✅ Oversold condition
+```
+
+**5. Moving Average Crossovers**
+```python
+"condition": "SPY_50d_MA > SPY_200d_MA"  # ✅ Golden cross
+"condition": "SPY_price > SPY_EMA_20d"   # ✅ Price vs EMA
+```
+
+### ❌ FORBIDDEN Condition Types (Composer CANNOT evaluate these)
+
+**1. Macro Economic Indicators** - Composer has NO FRED data access
+```python
+# ❌ INVALID - Will cause deployment failure
+"condition": "fed_funds_rate < 3.5"        # ❌ No Fed Funds data
+"condition": "inflation_rate > 2.5"        # ❌ No CPI data
+"condition": "unemployment_rate < 4.0"     # ❌ No employment data
+"condition": "10Y_treasury_yield > 4.0"    # ❌ No Treasury data
+"condition": "GDP_growth > 2.0"            # ❌ No GDP data
+```
+
+**2. Conceptual/Qualitative Conditions**
+```python
+# ❌ INVALID - Not quantifiable
+"condition": "fed_pivot_dovish"            # ❌ Conceptual, not measurable
+"condition": "recession_risk_high"         # ❌ Qualitative assessment
+"condition": "market_sentiment_bullish"    # ❌ Not quantifiable
+"condition": "sector_rotation_underway"    # ❌ Conceptual
+```
+
+**3. VIX Index Directly** (VIX is an index, not tradeable)
+```python
+# ❌ INVALID - VIX is not a tradeable asset
+"condition": "VIX > 25"                    # ❌ VIX index not supported
+"condition": "VIX < 18"                    # ❌ Use VIXY instead
+
+# ✅ CORRECT alternative
+"condition": "VIXY_price > 22"             # ✅ VIX futures ETF
+```
+
+**4. Non-Tradeable Indices**
+```python
+# ❌ INVALID - These are indices, not assets
+"condition": "market_breadth > 60"         # ❌ No breadth data in Composer
+"condition": "sector_dispersion > 3.0"     # ❌ No dispersion data
+"condition": "put_call_ratio > 1.2"        # ❌ No options data
+```
+
+### 📋 Condition Validation Checklist (REQUIRED before using logic_tree)
+
+Before populating logic_tree, verify EVERY condition:
+
+- [ ] Uses only tradeable assets (tickers like SPY, QQQ, VIXY, XLK, etc.)
+- [ ] Uses supported metrics: price, cumulative_return, moving_average, RSI
+- [ ] Does NOT reference macro indicators (fed_funds, inflation, GDP, etc.)
+- [ ] Does NOT use VIX index directly (use VIXY ETF proxy instead)
+- [ ] Does NOT use qualitative/conceptual conditions
+- [ ] Each comparison is between quantifiable, Composer-accessible values
+
+**⚠️ If your thesis mentions macro conditions (Fed policy, inflation, etc.), you have two options:**
+
+1. **Translate to price-based proxy**: "If Fed pivots dovish" → "If TLT_cumulative_return_30d > 0.05" (bond rally as Fed pivot proxy)
+
+2. **Use static allocation**: Set logic_tree = {} and implement your best-guess allocation, documenting the macro thesis in thesis_document without implementing it as conditional logic
+
+---
+
 ## WORKED EXAMPLES
 
 **Study the concrete examples below to learn implementation patterns. Use YOUR research findings, not copied tickers.**
@@ -462,26 +561,27 @@ Strategy(
   rebalance_frequency="daily",
 
   logic_tree={
-    "condition": "VIX > 22",
+    # NOTE: Use VIXY (VIX ETF) for conditions - Composer cannot evaluate VIX index directly
+    "condition": "VIXY_price > 22",
     "if_true": {
       # Defensive mode: High volatility
       "assets": ["TLT", "GLD", "BIL"],
       "weights": {"TLT": 0.50, "GLD": 0.30, "BIL": 0.20},
-      "comment": "VIX spike - rotate to defensive assets before institutional flows"
+      "comment": "VIXY spike (volatility) - rotate to defensive assets before institutional flows"
     },
     "if_false": {
-      "condition": "VIX < 18 AND days_below_18 >= 2",
+      "condition": "VIXY_price < 18",
       "if_true": {
-        # Growth mode: Low volatility confirmed (hysteresis)
+        # Growth mode: Low volatility confirmed
         "assets": ["SPY", "QQQ", "AGG"],
         "weights": {"SPY": 0.50, "QQQ": 0.30, "AGG": 0.20},
-        "comment": "Low volatility confirmed for 2+ days - growth allocation"
+        "comment": "Low volatility (VIXY < 18) - growth allocation"
       },
       "if_false": {
-        # Transitional mode: Moderate volatility or just dropped below 18
+        # Transitional mode: Moderate volatility
         "assets": ["SPY", "AGG", "BIL"],
         "weights": {"SPY": 0.40, "AGG": 0.40, "BIL": 0.20},
-        "comment": "Transitional regime (18 ≤ VIX ≤ 22) - balanced allocation"
+        "comment": "Transitional regime (18 ≤ VIXY ≤ 22) - balanced allocation"
       }
     }
   }
@@ -490,7 +590,9 @@ Strategy(
 
 **Why This Implementation Is Coherent:**
 
-✅ **Logic Tree Completeness:** Thesis mentions "VIX crosses 22" and "VIX < 18" → logic_tree implements nested VIX conditions with three distinct modes
+✅ **Logic Tree Completeness:** Thesis mentions "VIX crosses 22" → logic_tree implements using VIXY ETF proxy (VIXY_price > 22) with three distinct modes
+
+✅ **Composer-Compatible Conditions:** Uses VIXY (VIX Short-Term Futures ETF) instead of VIX index - Composer can only evaluate tradeable assets
 
 ✅ **Rebalancing Alignment:** Volatility edge with 2-4 day institutional lag → daily rebalancing (PASS auto-reject matrix - volatility edges require daily/weekly)
 
@@ -499,12 +601,10 @@ Strategy(
 - Growth mode: 50/30/20 split based on bull regime favoring large cap
 - Transitional mode: 40/40/20 balanced allocation
 
-✅ **Hysteresis Logic:** "days_below_18 >= 2" prevents whipsaw explicitly addressed in Risk Factors section - this is how you implement sophisticated trigger logic
-
 ✅ **Internal Consistency:**
 - Thesis says "daily" → rebalance_frequency = "daily" ✓
 - Thesis describes three modes → logic_tree implements three branches ✓
-- Thesis mentions 2-day confirmation → logic_tree has "days_below_18 >= 2" ✓
+- VIX in thesis translates to VIXY in logic_tree (price-based proxy) ✓
 
 ✅ **No Contradictions:**
 - No "buy-and-hold" claim + rebalancing frequency mismatch
@@ -619,14 +719,15 @@ Strategy(
   rebalance_frequency="quarterly",
 
   logic_tree={
-    "condition": "VIX < 22",
+    # NOTE: Use VIXY (VIX ETF) for conditions - Composer cannot evaluate VIX index directly
+    "condition": "VIXY_price < 22",
     "if_true": {
       "comment": "Stable volatility regime - dividend yield allocation",
       "assets": ["VYM", "SCHD", "JEPI"],
       "weights": {"VYM": 0.35, "SCHD": 0.35, "JEPI": 0.30}  # Quality tilt (70%) + yield tilt (30%)
     },
     "if_false": {
-      "comment": "Elevated volatility regime (VIX >= 22) - defensive cash-like",
+      "comment": "Elevated volatility regime (VIXY >= 22) - defensive cash-like",
       "assets": ["BIL"],
       "weights": {"BIL": 1.00}  # Full defensive rotation to preserve carry
     }
@@ -636,14 +737,14 @@ Strategy(
 
 **Why This Implementation Is Coherent:**
 - ✅ Archetype (carry) matches edge (dividend yield harvest with volatility protection)
-- ✅ Conditional logic (VIX < 22 threshold) implements regime-based rotation
+- ✅ Conditional logic (VIXY_price < 22 threshold) implements regime-based rotation using tradeable ETF proxy
 - ✅ Rebalancing frequency (quarterly) ALIGNS with carry archetype (low turnover preserves carry per Constitutional Constraints Priority 2)
-- ✅ VIX threshold (22) justified with historical drawdown analysis in thesis_document
+- ✅ VIXY threshold (22) justified with historical drawdown analysis in thesis_document (VIX in thesis → VIXY in logic_tree)
 - ✅ Weights in if_true branch derived from yield-quality tradeoff (35/35/30)
 - ✅ Defensive rotation (BIL) prevents carry destruction during volatility spikes
 - ✅ Quarterly rebalancing (not daily/weekly/monthly) complies with carry archetype frequency constraints
-- ✅ Specific failure modes (VIX whipsaw, dividend cuts without VIX trigger) quantified
-- ✅ rebalancing_rationale explains WHY quarterly (Constitutional Constraints) and HOW VIX rotation works
+- ✅ Specific failure modes (VIXY whipsaw, dividend cuts without VIXY trigger) quantified
+- ✅ rebalancing_rationale explains WHY quarterly (Constitutional Constraints) and HOW VIXY rotation works
 
 ---
 

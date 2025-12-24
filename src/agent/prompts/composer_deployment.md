@@ -15,11 +15,9 @@ Review the strategy context:
 
 If strategy has a `logic_tree`:
 
-**Option A (Recommended):** Call `composer_create_symphony` with a natural language description, then `composer_save_symphony` with the returned structure.
+**Option A (Recommended):** Build if-block with full structured JSON schema. Use the If Node Structure from Composer tools documentation with all predicate fields (comparator, lhs-val, lhs-fn, lhs-fn-params, rhs-val, etc.).
 
-**Option B:** Flatten to static weights using the `if_false` branch (normal market conditions).
-
-**Option C:** Build if-block manually (only if you understand the complete syntax with predicate fields).
+**Option B:** Flatten to static weights using the `if_false` branch (normal market conditions) for simpler strategies.
 
 If no logic_tree, proceed directly to Step 3.
 
@@ -36,10 +34,11 @@ Refer to the Composer tools documentation for:
 
 Before calling `composer_save_symphony`:
 
-1. ☐ NO `id` field on ANY node
-2. ☐ NO `children` field on asset nodes
-3. ☐ `weight: null` on EVERY node
-4. ☐ Each asset has: ticker, exchange, name, step, weight
+1. ☐ NO `id` field on ANY node (NEVER add id fields - Composer assigns them)
+2. ☐ NO `children` field on asset nodes (assets are leaf nodes)
+3. ☐ `weight: null` on EVERY node (literal null, never a number)
+4. ☐ Each asset has EXACTLY: ticker, exchange, name, step, weight
+5. ☐ If using `wt-cash-specified`: each child has `allocation` field (decimal, must sum to 1.0)
 
 ## Step 5: Save and Report
 

@@ -328,17 +328,18 @@ weights: {"NVDA": 0.30, "AMD": 0.25, "AVGO": 0.25, "MU": 0.20}  # ✅ 4 stocks, 
   "assets": ["SPY", "TLT", "BIL"],
   "weights": {},  # Empty because allocation is conditional
   "logic_tree": {
-    "condition": "VIX > 25",
-    "if_true": {"TLT": 0.6, "BIL": 0.4},   # Defensive when VIX high
-    "if_false": {"SPY": 0.8, "BIL": 0.2}   # Aggressive when VIX low
+    # NOTE: Use VIXY (VIX ETF) for conditions - Composer cannot evaluate VIX index directly
+    "condition": "VIXY_price > 25",  # Use VIXY proxy, not VIX index
+    "if_true": {"TLT": 0.6, "BIL": 0.4},   # Defensive when VIXY high
+    "if_false": {"SPY": 0.8, "BIL": 0.2}   # Aggressive when VIXY low
   },
   "rebalance_frequency": "weekly",
   "thesis_document": "WHEN VIX exceeds 25, rotate to defensive allocation (60% bonds, 40% cash). When VIX normalizes below 25, rotate back to 80% equities. Expected Sharpe 1.2 with -15% max drawdown.",
-  "rebalancing_rationale": "Weekly rebalancing to respond quickly to volatility regime shifts. VIX threshold of 25 marks transition from normal to elevated volatility."
+  "rebalancing_rationale": "Weekly rebalancing to respond quickly to volatility regime shifts. VIX threshold of 25 marks transition from normal to elevated volatility. NOTE: logic_tree uses VIXY ETF proxy because Composer cannot evaluate VIX index directly."
 }
 ```
 
-**Key Rule:** If thesis contains "when", "if", "rotate to", "threshold", "VIX >" → logic_tree MUST be populated.
+**Key Rule:** If thesis contains "when", "if", "rotate to", "threshold", "VIX >" → logic_tree MUST be populated with VIXY_price proxy (NOT VIX index).
 
 ---
 
@@ -391,13 +392,19 @@ weights: {"NVDA": 0.30, "AMD": 0.25, "AVGO": 0.25, "MU": 0.20}  # ✅ 4 stocks, 
    - If NO → Is logic_tree correctly empty {} for static allocation?
 
 2. **Thesis-Implementation Value Match (Priority 1 - Required):**
-   - If thesis mentions "VIX > X" → Does logic_tree.condition contain X (within ±20%)?
+   - If thesis mentions "VIX > X" → Does logic_tree.condition use VIXY price proxy? (VIX index NOT supported)
    - If thesis mentions "Y% to [asset]" → Does logic_tree.if_true/if_false have ~Y%?
    - If archetype = momentum with rotation claims → Does logic_tree have {condition, if_true, if_false}? (NOT flat parameter dict like {param: value})
-   - If archetype = volatility → Does logic_tree have {condition, if_true, if_false} with VIX/vol conditions? (NOT flat parameter dict)
+   - If archetype = volatility → Does logic_tree use VIXY/price conditions? (NOT VIX index directly)
    - If thesis claims "momentum-weighted" → Are weights non-round numbers derived from momentum values?
 
-3. **Edge-Frequency Alignment (Priority 2 - Recommended):**
+3. **Condition Indicator Validation (Priority 1 - Required):**
+   - Does logic_tree.condition use ONLY Composer-supported indicators?
+   - ✅ VALID: price comparisons (SPY_price > SPY_200d_MA), cumulative returns, RSI, moving averages, VIXY
+   - ❌ INVALID: macro indicators (fed_funds_rate, inflation, GDP), VIX index, conceptual conditions
+   - If thesis mentions macro conditions → Either translate to price proxy OR use static allocation (logic_tree = {})
+
+4. **Edge-Frequency Alignment (Priority 2 - Recommended):**
    - Check against avoid combinations:
      - Momentum + Quarterly? ⚠️
      - Mean Reversion + Daily/Weekly? ⚠️
@@ -405,24 +412,24 @@ weights: {"NVDA": 0.30, "AMD": 0.25, "AVGO": 0.25, "MU": 0.20}  # ✅ 4 stocks, 
      - Volatility/Tactical + Monthly/Quarterly? ⚠️
    - If avoided combination detected → provides improvement suggestions (non-blocking)
 
-4. **Weight Derivation Transparency (Priority 3 - Suggested):**
+5. **Weight Derivation Transparency (Priority 3 - Suggested):**
    - Are weights round numbers (0.20, 0.25, 0.33, 0.50)?
    - If YES → Does rebalancing_rationale contain derivation method keywords?
      - Keywords: "equal-weight", "momentum-weighted", "risk-parity", "inverse volatility", "conviction-based"
    - If NO keywords → ⚠️ Consider adding explicit weight derivation explanation
 
-5. **Quantitative Expectations (Priority 4 - Suggested):**
+6. **Quantitative Expectations (Priority 4 - Suggested):**
    - Include expected Sharpe (0.5-2.0), alpha vs benchmark, or drawdown (-8% to -30%)
    - ⚠️ Helpful if included (not required)
 
 **Validation Summary (complete before proceeding):**
 
 Create validation summary:
-- Candidate #1: [Coherence ✅/❌] [ValueMatch ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
-- Candidate #2: [Coherence ✅/❌] [ValueMatch ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
-- Candidate #3: [Coherence ✅/❌] [ValueMatch ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
-- Candidate #4: [Coherence ✅/❌] [ValueMatch ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
-- Candidate #5: [Coherence ✅/❌] [ValueMatch ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
+- Candidate #1: [Coherence ✅/❌] [ValueMatch ✅/❌] [Conditions ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
+- Candidate #2: [Coherence ✅/❌] [ValueMatch ✅/❌] [Conditions ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
+- Candidate #3: [Coherence ✅/❌] [ValueMatch ✅/❌] [Conditions ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
+- Candidate #4: [Coherence ✅/❌] [ValueMatch ✅/❌] [Conditions ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
+- Candidate #5: [Coherence ✅/❌] [ValueMatch ✅/❌] [Conditions ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Quant ✅/⚠️]
 
 **If ANY Priority 1 violation (❌) → Fix before proceeding**
 **If Priority 2-4 warnings (⚠️) → Note for potential improvement, not blocking**

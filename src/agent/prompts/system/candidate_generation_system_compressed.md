@@ -117,7 +117,8 @@ Use tools ONLY for data NOT in context pack:
 {
   "thesis_document": "WHEN VIX exceeds 25, rotate to defensive...",
   "logic_tree": {
-    "condition": "VIX > 25",
+    # NOTE: Use VIXY (VIX ETF) for conditions - Composer cannot evaluate VIX index directly
+    "condition": "VIXY_price > 25",  # Use VIXY proxy, not VIX index
     "if_true": {"TLT": 0.6, "BIL": 0.4},
     "if_false": {"SPY": 0.8, "BIL": 0.2}
   },
