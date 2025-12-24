@@ -37,7 +37,7 @@ COMPOSER_MCP_URL = os.getenv("COMPOSER_MCP_URL", "https://mcp.composer.trade/mcp
 
 
 # Tool result compression configuration
-COMPRESS_MCP_RESULTS = os.getenv("COMPRESS_MCP_RESULTS", "true").lower() == "true"
+COMPRESS_MCP_RESULTS = os.getenv("COMPRESS_MCP_RESULTS", "false").lower() == "true"
 
 # Summarization model - set dynamically by workflow via set_summarization_model()
 # Falls back to env var SUMMARIZATION_MODEL, then to workflow model
