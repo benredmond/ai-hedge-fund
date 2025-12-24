@@ -2,7 +2,7 @@
 Tests for ComposerDeployer stage.
 
 Tests:
-- _extract_symphony_id() method with various response formats
+- _extract_symphony_data() method with various response formats
 - Deploy graceful degradation when credentials missing
 - Integration with mocked MCP responses
 """
@@ -78,8 +78,8 @@ def sample_market_context():
     }
 
 
-class TestExtractSymphonyId:
-    """Test _extract_symphony_id() method with various response formats."""
+class TestExtractSymphonyData:
+    """Test _extract_symphony_data() method with various response formats."""
 
     def setup_method(self):
         """Create deployer instance for each test."""
@@ -90,89 +90,99 @@ class TestExtractSymphonyId:
         mock_result = MagicMock()
         mock_result.output = '{"symphony_id": "abc123def456", "status": "created"}'
 
-        result = self.deployer._extract_symphony_id(mock_result)
+        symphony_id, description = self.deployer._extract_symphony_data(mock_result)
 
-        assert result == "abc123def456"
+        assert symphony_id == "abc123def456"
+        assert description is None  # No description in this response
 
     def test_extract_from_json_single_quotes(self):
         """Extract symphony_id from JSON with single quotes."""
         mock_result = MagicMock()
         mock_result.output = "{'symphony_id': 'xyz789abc123', 'status': 'saved'}"
 
-        result = self.deployer._extract_symphony_id(mock_result)
+        symphony_id, description = self.deployer._extract_symphony_data(mock_result)
 
-        assert result == "xyz789abc123"
+        assert symphony_id == "xyz789abc123"
+        assert description is None
 
     def test_extract_from_key_value_with_equals(self):
         """Extract symphony_id from key=value format."""
         mock_result = MagicMock()
         mock_result.output = "Symphony created successfully. symphony_id=my_strategy_001"
 
-        result = self.deployer._extract_symphony_id(mock_result)
+        symphony_id, description = self.deployer._extract_symphony_data(mock_result)
 
-        assert result == "my_strategy_001"
+        assert symphony_id == "my_strategy_001"
+        assert description is None
 
     def test_extract_from_key_value_with_colon(self):
         """Extract symphony_id from key:value format."""
         mock_result = MagicMock()
         mock_result.output = "Created new symphony. symphony_id: test-symphony-2024"
 
-        result = self.deployer._extract_symphony_id(mock_result)
+        symphony_id, description = self.deployer._extract_symphony_data(mock_result)
 
-        assert result == "test-symphony-2024"
+        assert symphony_id == "test-symphony-2024"
+        assert description is None
 
     def test_extract_generic_id_pattern(self):
         """Extract from generic id= pattern when symphony_id not found."""
         mock_result = MagicMock()
         mock_result.output = "Symphony saved with id=abcdefghij1234567890"
 
-        result = self.deployer._extract_symphony_id(mock_result)
+        symphony_id, description = self.deployer._extract_symphony_data(mock_result)
 
-        assert result == "abcdefghij1234567890"
+        assert symphony_id == "abcdefghij1234567890"
+        assert description is None
 
     def test_extract_from_data_attribute(self):
         """Extract symphony_id when result has data attribute instead of output."""
         mock_result = MagicMock(spec=[])  # No output attribute
         mock_result.data = '{"symphony_id": "data_attr_id_123"}'
 
-        result = self.deployer._extract_symphony_id(mock_result)
+        symphony_id, description = self.deployer._extract_symphony_data(mock_result)
 
-        assert result == "data_attr_id_123"
+        assert symphony_id == "data_attr_id_123"
+        assert description is None
 
     def test_extract_from_str_fallback(self):
         """Extract symphony_id from str() of result as fallback."""
         mock_result = {"symphony_id": "dict_fallback_id"}
 
-        result = self.deployer._extract_symphony_id(mock_result)
+        symphony_id, description = self.deployer._extract_symphony_data(mock_result)
 
-        assert result == "dict_fallback_id"
+        assert symphony_id == "dict_fallback_id"
+        assert description is None
 
     def test_returns_none_when_no_id_found(self):
         """Return None when no symphony_id pattern found."""
         mock_result = MagicMock()
         mock_result.output = "Operation completed successfully."
 
-        result = self.deployer._extract_symphony_id(mock_result)
+        symphony_id, description = self.deployer._extract_symphony_data(mock_result)
 
-        assert result is None
+        assert symphony_id is None
+        assert description is None
 
     def test_returns_none_for_empty_output(self):
         """Return None for empty output."""
         mock_result = MagicMock()
         mock_result.output = ""
 
-        result = self.deployer._extract_symphony_id(mock_result)
+        symphony_id, description = self.deployer._extract_symphony_data(mock_result)
 
-        assert result is None
+        assert symphony_id is None
+        assert description is None
 
     def test_short_generic_id_ignored(self):
         """Generic id pattern requires 10+ chars to avoid false positives."""
         mock_result = MagicMock()
         mock_result.output = "id=short"  # Only 5 chars, should not match generic pattern
 
-        result = self.deployer._extract_symphony_id(mock_result)
+        symphony_id, description = self.deployer._extract_symphony_data(mock_result)
 
-        assert result is None
+        assert symphony_id is None
+        assert description is None
 
     def test_prefers_symphony_id_over_generic_id(self):
         """symphony_id pattern takes precedence over generic id pattern."""
@@ -182,10 +192,11 @@ class TestExtractSymphonyId:
         # Using JSON format which matches pattern 0 (double quotes with colon)
         mock_result.output = 'Created id=generic123456789 with "symphony_id": "preferred_id_123"'
 
-        result = self.deployer._extract_symphony_id(mock_result)
+        symphony_id, description = self.deployer._extract_symphony_data(mock_result)
 
         # Should match symphony_id JSON pattern (first in list) before generic id pattern
-        assert result == "preferred_id_123"
+        assert symphony_id == "preferred_id_123"
+        assert description is None
 
 
 class TestDeployGracefulDegradation:
@@ -195,12 +206,12 @@ class TestDeployGracefulDegradation:
     async def test_deploy_returns_none_without_api_key(
         self, sample_strategy, sample_charter, sample_market_context, monkeypatch
     ):
-        """Deploy returns (None, None) when COMPOSER_API_KEY not set."""
+        """Deploy returns (None, None, None) when COMPOSER_API_KEY not set."""
         monkeypatch.delenv("COMPOSER_API_KEY", raising=False)
         monkeypatch.delenv("COMPOSER_API_SECRET", raising=False)
 
         deployer = ComposerDeployer()
-        symphony_id, deployed_at = await deployer.deploy(
+        symphony_id, deployed_at, strategy_summary = await deployer.deploy(
             strategy=sample_strategy,
             charter=sample_charter,
             market_context=sample_market_context,
@@ -208,17 +219,18 @@ class TestDeployGracefulDegradation:
 
         assert symphony_id is None
         assert deployed_at is None
+        assert strategy_summary is None
 
     @pytest.mark.asyncio
     async def test_deploy_returns_none_without_api_secret(
         self, sample_strategy, sample_charter, sample_market_context, monkeypatch
     ):
-        """Deploy returns (None, None) when COMPOSER_API_SECRET not set."""
+        """Deploy returns (None, None, None) when COMPOSER_API_SECRET not set."""
         monkeypatch.setenv("COMPOSER_API_KEY", "test-key")
         monkeypatch.delenv("COMPOSER_API_SECRET", raising=False)
 
         deployer = ComposerDeployer()
-        symphony_id, deployed_at = await deployer.deploy(
+        symphony_id, deployed_at, strategy_summary = await deployer.deploy(
             strategy=sample_strategy,
             charter=sample_charter,
             market_context=sample_market_context,
@@ -226,6 +238,7 @@ class TestDeployGracefulDegradation:
 
         assert symphony_id is None
         assert deployed_at is None
+        assert strategy_summary is None
 
     @pytest.mark.asyncio
     async def test_deploy_prints_warning_without_credentials(
@@ -331,7 +344,7 @@ class TestDeployWithMockedAgent:
             "src.agent.stages.composer_deployer.create_agent", side_effect=mock_agent_ctx
         ):
             deployer = ComposerDeployer()
-            symphony_id, deployed_at = await deployer.deploy(
+            symphony_id, deployed_at, strategy_summary = await deployer.deploy(
                 strategy=sample_strategy,
                 charter=sample_charter,
                 market_context=sample_market_context,
@@ -341,12 +354,14 @@ class TestDeployWithMockedAgent:
         assert deployed_at is not None
         # Verify deployed_at is ISO format timestamp
         assert "T" in deployed_at
+        # strategy_summary may be None if not extracted from tool call args
+        # (this test uses simple output, not message parts with tool calls)
 
     @pytest.mark.asyncio
     async def test_deploy_returns_none_when_no_symphony_id_in_response(
         self, sample_strategy, sample_charter, sample_market_context, monkeypatch
     ):
-        """Deploy returns (None, None) when agent response has no symphony_id."""
+        """Deploy returns (None, None, None) when agent response has no symphony_id."""
         monkeypatch.setenv("COMPOSER_API_KEY", "test-key")
         monkeypatch.setenv("COMPOSER_API_SECRET", "test-secret")
 
@@ -371,7 +386,7 @@ class TestDeployWithMockedAgent:
             "src.agent.stages.composer_deployer.create_agent", side_effect=mock_agent_ctx
         ):
             deployer = ComposerDeployer()
-            symphony_id, deployed_at = await deployer.deploy(
+            symphony_id, deployed_at, strategy_summary = await deployer.deploy(
                 strategy=sample_strategy,
                 charter=sample_charter,
                 market_context=sample_market_context,
@@ -379,12 +394,13 @@ class TestDeployWithMockedAgent:
 
         assert symphony_id is None
         assert deployed_at is None
+        assert strategy_summary is None
 
     @pytest.mark.asyncio
     async def test_deploy_handles_agent_exception_gracefully(
         self, sample_strategy, sample_charter, sample_market_context, monkeypatch, capsys
     ):
-        """Deploy returns (None, None) and logs error when agent raises exception."""
+        """Deploy returns (None, None, None) and logs error when agent raises exception."""
         monkeypatch.setenv("COMPOSER_API_KEY", "test-key")
         monkeypatch.setenv("COMPOSER_API_SECRET", "test-secret")
 
@@ -405,7 +421,7 @@ class TestDeployWithMockedAgent:
             "src.agent.stages.composer_deployer.create_agent", side_effect=mock_agent_ctx
         ):
             deployer = ComposerDeployer()
-            symphony_id, deployed_at = await deployer.deploy(
+            symphony_id, deployed_at, strategy_summary = await deployer.deploy(
                 strategy=sample_strategy,
                 charter=sample_charter,
                 market_context=sample_market_context,
@@ -413,9 +429,10 @@ class TestDeployWithMockedAgent:
 
         assert symphony_id is None
         assert deployed_at is None
+        assert strategy_summary is None
 
         captured = capsys.readouterr()
-        assert "Composer deployment failed" in captured.out
+        assert "[ERROR:ComposerDeployer] Deployment failed" in captured.out
 
 
 class TestRetryBehavior:
@@ -459,7 +476,7 @@ class TestRetryBehavior:
         ):
             with patch("asyncio.sleep", new_callable=AsyncMock):  # Skip actual sleep
                 deployer = ComposerDeployer()
-                symphony_id, deployed_at = await deployer.deploy(
+                symphony_id, deployed_at, strategy_summary = await deployer.deploy(
                     strategy=sample_strategy,
                     charter=sample_charter,
                     market_context=sample_market_context,
@@ -501,7 +518,7 @@ class TestRetryBehavior:
         ):
             with patch("asyncio.sleep", new_callable=AsyncMock):
                 deployer = ComposerDeployer()
-                symphony_id, deployed_at = await deployer.deploy(
+                symphony_id, deployed_at, strategy_summary = await deployer.deploy(
                     strategy=sample_strategy,
                     charter=sample_charter,
                     market_context=sample_market_context,
@@ -510,6 +527,7 @@ class TestRetryBehavior:
         assert call_count == 3  # Max attempts
         assert symphony_id is None
         assert deployed_at is None
+        assert strategy_summary is None
 
 
 @pytest.mark.integration
@@ -534,7 +552,7 @@ class TestComposerDeployerIntegration:
             )
 
         deployer = ComposerDeployer()
-        symphony_id, deployed_at = await deployer.deploy(
+        symphony_id, deployed_at, strategy_summary = await deployer.deploy(
             strategy=sample_strategy,
             charter=sample_charter,
             market_context=sample_market_context,
@@ -545,3 +563,4 @@ class TestComposerDeployerIntegration:
             assert len(symphony_id) > 0
             assert deployed_at is not None
             assert "T" in deployed_at  # ISO format
+            # strategy_summary may or may not be present depending on response

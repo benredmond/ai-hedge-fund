@@ -70,7 +70,7 @@ class ComposerDeployer:
         charter: Charter,
         market_context: dict,
         model: str = DEFAULT_MODEL,
-    ) -> tuple[str | None, str | None]:
+    ) -> tuple[str | None, str | None, str | None]:
         """
         Deploy strategy to Composer.trade.
 
@@ -81,7 +81,8 @@ class ComposerDeployer:
             model: LLM model identifier
 
         Returns:
-            Tuple of (symphony_id, deployed_at) or (None, None) if deployment skipped/failed
+            Tuple of (symphony_id, deployed_at, description) or (None, None, None) if deployment skipped/failed.
+            The description is the AI-generated strategy summary from the symphony_score root node.
         """
         # Check credentials first - early exit if not configured
         api_key = os.getenv("COMPOSER_API_KEY")
@@ -89,7 +90,7 @@ class ComposerDeployer:
 
         if not api_key or not api_secret:
             print("⚠️  Composer deployment skipped: COMPOSER_API_KEY/SECRET not set")
-            return None, None
+            return None, None, None
 
         try:
             return await self._run_with_retries(
@@ -114,7 +115,7 @@ class ComposerDeployer:
                 if line.strip():
                     print(f"  {line}")
             print(f"{'='*80}\n")
-            return None, None
+            return None, None, None
 
     async def _run_with_retries(
         self,
@@ -124,7 +125,7 @@ class ComposerDeployer:
         model: str,
         max_attempts: int = 3,
         base_delay: float = 5.0,
-    ) -> tuple[str | None, str | None]:
+    ) -> tuple[str | None, str | None, str | None]:
         """Run deployment with exponential backoff retry."""
         last_error: Exception | None = None
 
@@ -198,7 +199,7 @@ class ComposerDeployer:
         charter: Charter,
         market_context: dict,
         model: str,
-    ) -> tuple[str | None, str | None]:
+    ) -> tuple[str | None, str | None, str | None]:
         """Single deployment attempt."""
         prompt = self._build_deployment_prompt(strategy, charter, market_context)
         system_prompt = self._build_system_prompt()
@@ -225,15 +226,17 @@ class ComposerDeployer:
                 print(f"[ERROR:ComposerDeployer] MCP tool returned error")
                 print(f"[ERROR:ComposerDeployer] {mcp_error}")
                 print(f"{'='*80}\n")
-                return None, None
+                return None, None, None
 
-            # Parse symphony_id from tool call responses
-            symphony_id = self._extract_symphony_id(result)
+            # Parse symphony_id and description from tool call responses
+            symphony_id, description = self._extract_symphony_data(result)
 
             if symphony_id:
                 print(f"[DEBUG:ComposerDeployer] Successfully extracted symphony_id: {symphony_id}")
+                if description:
+                    print(f"[DEBUG:ComposerDeployer] Extracted description: {description[:100]}...")
                 deployed_at = datetime.now(timezone.utc).isoformat()
-                return symphony_id, deployed_at
+                return symphony_id, deployed_at, description
 
             # No symphony_id found - log full response for debugging
             print(f"\n{'='*80}")
@@ -241,7 +244,7 @@ class ComposerDeployer:
             print(f"[DEBUG:ComposerDeployer] Logging full MCP response for debugging:")
             self._log_full_response(result)
             print(f"{'='*80}\n")
-            return None, None
+            return None, None, None
 
     def _check_mcp_error(self, result) -> str | None:
         """
@@ -314,55 +317,56 @@ class ComposerDeployer:
                                 print(f"[DEBUG:ComposerDeployer]     Content: {content_str}")
 
     def _build_system_prompt(self) -> str:
-        """Build system prompt with auto-injected Composer tool docs."""
-        return load_prompt("system/composer_deployment_system.md")
+        """Minimal system prompt for symphony deployment."""
+        return """You deploy trading strategies to Composer.trade.
+
+CRITICAL RULES:
+- weight: null on EVERY node (literal null, not numbers)
+- NO id fields anywhere
+- NO children on asset nodes
+- allocation field required for wt-cash-specified children
+
+Call composer_save_symphony with the symphony_score JSON."""
 
     def _build_deployment_prompt(
         self, strategy: Strategy, charter: Charter, market_context: dict
     ) -> str:
-        """Build deployment prompt with full strategy context."""
+        """Build minimal deployment prompt with only execution fields."""
         import json
 
-        # Load tools doc (authoritative schema) and recipe
-        tools_doc = load_prompt("tools/composer.md")
-        recipe = load_prompt("composer_deployment.md")
+        # Load minimal prompt
+        recipe = load_prompt("composer_deployment_minimal.md")
 
-        # Include FULL thesis document and strategy context
-        strategy_json = {
+        # MINIMAL: Only execution fields needed for symphony_score construction
+        strategy_input = {
             "name": strategy.name,
-            "thesis_document": strategy.thesis_document,  # Full thesis, not truncated
-            "rebalancing_rationale": strategy.rebalancing_rationale,
             "assets": strategy.assets,
             "weights": dict(strategy.weights),
             "rebalance_frequency": strategy.rebalance_frequency.value,
-            "logic_tree": strategy.logic_tree,
-            "edge_type": getattr(strategy.edge_type, "value", str(strategy.edge_type)),
-            "archetype": getattr(strategy.archetype, "value", str(strategy.archetype)),
         }
+        # Only include logic_tree if non-empty (conditional strategy)
+        if strategy.logic_tree:
+            strategy_input["logic_tree"] = strategy.logic_tree
 
-        # Include charter context for additional guidance
-        charter_context = {
-            "market_thesis": charter.market_thesis[:500],
-            "expected_behavior": charter.expected_behavior[:500],
-        }
-
-        return f"""{tools_doc}
-
----
-
-{recipe}
+        return f"""{recipe}
 
 ## STRATEGY TO DEPLOY
 
-{json.dumps(strategy_json, indent=2)}
+{json.dumps(strategy_input, indent=2)}"""
 
-## CHARTER CONTEXT
+    def _extract_symphony_data(self, result) -> tuple[str | None, str | None]:
+        """
+        Extract symphony_id and description from agent result.
 
-{json.dumps(charter_context, indent=2)}"""
-
-    def _extract_symphony_id(self, result) -> str | None:
-        """Extract symphony_id from agent result."""
+        Returns:
+            Tuple of (symphony_id, description). Description is extracted from
+            the symphony_score passed to save_symphony (the root node's description field).
+        """
+        import json
         import re
+
+        symphony_id: str | None = None
+        description: str | None = None
 
         # Patterns to find symphony_id (in priority order)
         symphony_patterns = [
@@ -373,7 +377,7 @@ class ComposerDeployer:
         # Fallback: generic id pattern (10+ chars to avoid false positives)
         generic_pattern = r"id[=:]\s*([a-zA-Z0-9_-]{10,})"
 
-        def search_in_text(text: str, include_generic: bool = False) -> str | None:
+        def search_id_in_text(text: str, include_generic: bool = False) -> str | None:
             for pattern in symphony_patterns:
                 match = re.search(pattern, text)
                 if match:
@@ -384,43 +388,73 @@ class ComposerDeployer:
                     return match.group(1)
             return None
 
-        # First check: tool return content in messages (most reliable)
+        def extract_description_from_args(args: dict) -> str | None:
+            """Extract description from symphony_score in tool call args."""
+            symphony_score = args.get("symphony_score", {})
+            if isinstance(symphony_score, dict):
+                return symphony_score.get("description")
+            return None
+
+        # First pass: extract from tool call/return parts in messages
         if hasattr(result, "all_messages"):
             for msg in result.all_messages():
-                if hasattr(msg, "parts"):
-                    for part in msg.parts:
-                        # Check ToolReturnPart from composer_save_symphony
-                        if hasattr(part, "tool_name") and "save_symphony" in part.tool_name:
-                            content = getattr(part, "content", None)
-                            if isinstance(content, dict) and "symphony_id" in content:
-                                return content["symphony_id"]
-                            if isinstance(content, str):
-                                found = search_in_text(content)
-                                if found:
-                                    return found
+                if not hasattr(msg, "parts"):
+                    continue
+                for part in msg.parts:
+                    tool_name = getattr(part, "tool_name", "")
 
-        # Second check: result.output
+                    # Check ToolCallPart for description (in the request args)
+                    if "save_symphony" in tool_name and hasattr(part, "args"):
+                        args = getattr(part, "args", {})
+                        if isinstance(args, dict):
+                            desc = extract_description_from_args(args)
+                            if desc and not description:
+                                description = desc
+                        elif isinstance(args, str):
+                            try:
+                                parsed_args = json.loads(args)
+                                desc = extract_description_from_args(parsed_args)
+                                if desc and not description:
+                                    description = desc
+                            except json.JSONDecodeError:
+                                pass
+
+                    # Check ToolReturnPart for symphony_id (in the response)
+                    if "save_symphony" in tool_name and hasattr(part, "content"):
+                        content = getattr(part, "content", None)
+                        if isinstance(content, dict) and "symphony_id" in content:
+                            symphony_id = content["symphony_id"]
+                        elif isinstance(content, str):
+                            found = search_id_in_text(content)
+                            if found:
+                                symphony_id = found
+
+        # If we found symphony_id, return early
+        if symphony_id:
+            return symphony_id, description
+
+        # Fallback: search in result.output
         if hasattr(result, "output") and result.output:
-            found = search_in_text(str(result.output), include_generic=True)
+            found = search_id_in_text(str(result.output), include_generic=True)
             if found:
-                return found
+                return found, description
 
-        # Third check: result.data attribute
+        # Fallback: search in result.data
         if hasattr(result, "data") and result.data:
-            found = search_in_text(str(result.data), include_generic=True)
+            found = search_id_in_text(str(result.data), include_generic=True)
             if found:
-                return found
+                return found, description
 
-        # Fourth check: stringify all messages
+        # Fallback: stringify all messages
         if hasattr(result, "all_messages"):
             all_text = str(result.all_messages())
-            found = search_in_text(all_text, include_generic=True)
+            found = search_id_in_text(all_text, include_generic=True)
             if found:
-                return found
+                return found, description
 
-        # Final fallback: stringify the entire result
-        found = search_in_text(str(result), include_generic=True)
+        # Final fallback: stringify entire result
+        found = search_id_in_text(str(result), include_generic=True)
         if found:
-            return found
+            return found, description
 
-        return None
+        return None, None

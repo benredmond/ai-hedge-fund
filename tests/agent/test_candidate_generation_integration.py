@@ -104,14 +104,15 @@ class TestTokenBudgetCompliance:
             # Rough estimate: 4 chars per token
             estimated_tokens = len(system_prompt) / 4
 
-            # System prompt increased from ~13k to ~15k tokens after adding RSIP checklist
-            # BUT this saves 30k tokens overall because recipe shrunk by more (RSIP moved from recipe)
+            # System prompt increased from ~13k to ~16.3k tokens after adding:
+            # - RSIP checklist (saves 30k tokens overall by not repeating in message history)
+            # - Composer condition validation section (prevents deployment failures)
             # System prompt is loaded once, recipe is in message history (20x multiplier)
-            # Net savings: -2k system + 32k recipe = +30k tokens saved
-            assert estimated_tokens < 16000, (
+            # Net savings: -3k system + 32k recipe = +29k tokens saved
+            assert estimated_tokens < 16500, (
                 f"System prompt too large: ~{estimated_tokens:.0f} tokens. "
-                f"Should be <16k. Note: RSIP checklist moved from recipe to system prompt "
-                f"for net savings of 30k tokens across message history."
+                f"Should be <16.5k. Note: RSIP checklist and Composer condition validation "
+                f"moved to system prompt for net savings of 29k tokens across message history."
             )
         except FileNotFoundError:
             pytest.skip("System prompt file not found")

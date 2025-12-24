@@ -84,8 +84,8 @@ def get_model_settings(
 
     is_reasoning = is_reasoning_model(model)
 
-    # Default timeout for all API calls (5 minutes for slow providers like Kimi)
-    DEFAULT_TIMEOUT = 300.0
+    # Default timeout for all API calls (15 minutes for slow providers like Kimi reasoning models)
+    DEFAULT_TIMEOUT = 900.0
 
     # Stage-specific settings
     if stage == "candidate_generation":

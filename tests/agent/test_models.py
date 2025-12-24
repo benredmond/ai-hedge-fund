@@ -396,18 +396,18 @@ class TestCharterModel:
             market_thesis="Bull market driven by AI adoption",
             strategy_selection="Selected 60/40 for risk-adjusted returns",
             expected_behavior="Outperform in rising markets, lag in bear markets",
-            failure_modes=["Bond yields spike above 6%", "AI bubble bursts"],
+            failure_modes=["Bond yields spike above 6%", "AI bubble bursts", "Recession fears spike"],
             outlook_90d="Expect 5-10% returns over next 90 days"
         )
 
         assert "AI adoption" in charter.market_thesis
-        assert len(charter.failure_modes) >= 2
+        assert len(charter.failure_modes) >= 3
 
     def test_empty_failure_modes_rejected(self):
-        """Charter must have at least one failure mode"""
+        """Charter must have at least 3 failure modes"""
         from src.agent.models import Charter
 
-        with pytest.raises(ValidationError, match="at least 1"):
+        with pytest.raises(ValidationError, match="at least 3"):
             Charter(
                 market_thesis="Test thesis",
                 strategy_selection="Test selection",
@@ -426,7 +426,7 @@ class TestCharterModel:
                 market_thesis="",  # Empty string
                 strategy_selection="Selection",
                 expected_behavior="Behavior",
-                failure_modes=["Failure"],
+                failure_modes=["Failure mode 1", "Failure mode 2", "Failure mode 3"],
                 outlook_90d="Outlook"
             )
 
@@ -434,25 +434,25 @@ class TestCharterModel:
         """Each failure mode must be meaningful (min 10 chars)"""
         from src.agent.models import Charter
 
-        # Too short failure mode
+        # Too short failure mode (with 3 modes, one too short)
         with pytest.raises(ValidationError, match="at least 10 characters"):
             Charter(
                 market_thesis="This is a valid thesis with enough characters",
                 strategy_selection="This is a valid selection rationale",
                 expected_behavior="This is valid expected behavior description",
-                failure_modes=["Bad"],  # Too short
+                failure_modes=["Valid first mode", "Valid second mode", "Bad"],  # Third too short
                 outlook_90d="This is a valid 90-day outlook"
             )
 
-        # Just long enough
+        # All failure modes long enough
         charter = Charter(
             market_thesis="This is a valid thesis with enough characters",
             strategy_selection="This is a valid selection rationale",
             expected_behavior="This is valid expected behavior description",
-            failure_modes=["Market crash occurs"],  # 19 chars, valid
+            failure_modes=["Market crash occurs", "VIX spikes above 30", "Fed pivots hawkish"],
             outlook_90d="This is a valid 90-day outlook"
         )
-        assert len(charter.failure_modes) == 1
+        assert len(charter.failure_modes) == 3
 
 
 class TestEdgeScorecardModel:
@@ -658,7 +658,7 @@ class TestWorkflowResultModel:
             market_thesis="Strong bull market with AI adoption driving growth",
             strategy_selection="Selected for best risk-adjusted returns",
             expected_behavior="Outperform in rising markets, moderate downside protection",
-            failure_modes=["VIX spikes above 30", "Fed pivots hawkish"],
+            failure_modes=["VIX spikes above 30", "Fed pivots hawkish", "Recession fears spike"],
             outlook_90d="Expect continued uptrend with potential 5-10% gains"
         )
 
@@ -702,7 +702,7 @@ class TestWorkflowResultModel:
             market_thesis="Test thesis",
             strategy_selection="Test selection",
             expected_behavior="Test behavior",
-            failure_modes=["Test failure mode"],
+            failure_modes=["Test failure mode 1", "Test failure mode 2", "Test failure mode 3"],
             outlook_90d="Test outlook"
         )
 

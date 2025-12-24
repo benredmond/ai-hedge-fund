@@ -189,6 +189,7 @@ Begin by using MCP tools to gather current market data, then write the 5-section
                     model=model,
                     output_type=Charter,
                     system_prompt=system_prompt,
+                    include_composer=False,  # Charter generation uses FRED/yfinance only, not Composer
                     history_limit=20,
                     model_settings=model_settings
                 )

@@ -133,6 +133,7 @@ class WinnerSelector:
             model=model,
             output_type=SelectionReasoning,
             system_prompt=system_prompt,
+            include_composer=False,  # Winner selection doesn't deploy - no Composer tools needed
             history_limit=10,
             model_settings=model_settings
         )

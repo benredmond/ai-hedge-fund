@@ -136,8 +136,11 @@ class TestPhase5EndToEnd:
         for i, candidate in enumerate(result.all_candidates):
             assert candidate.name, f"Candidate {i} missing name"
             assert len(candidate.assets) > 0, f"Candidate {i} has no assets"
-            assert len(candidate.weights) == len(candidate.assets), f"Candidate {i} weights/assets mismatch"
-            assert abs(sum(candidate.weights) - 1.0) < 0.01, f"Candidate {i} weights don't sum to 1.0"
+            # For static strategies, validate weights match assets and sum to 1.0
+            # For conditional strategies (logic_tree non-empty), weights are in branches
+            if not candidate.logic_tree:
+                assert len(candidate.weights) == len(candidate.assets), f"Candidate {i} weights/assets mismatch"
+                assert abs(sum(candidate.weights) - 1.0) < 0.01, f"Candidate {i} weights don't sum to 1.0"
             assert candidate.edge_type, f"Candidate {i} missing edge_type"
             assert candidate.archetype, f"Candidate {i} missing archetype"
             assert candidate.rebalance_frequency, f"Candidate {i} missing rebalance_frequency"

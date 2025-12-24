@@ -65,6 +65,7 @@ class EdgeScorer:
             model=model,
             output_type=dict,
             system_prompt=system_prompt,
+            include_composer=False,  # Edge scoring doesn't deploy - no Composer tools needed
             history_limit=10,
             model_settings=model_settings
         )
@@ -152,11 +153,13 @@ Check thesis_document and rebalancing_rationale for these required elements befo
 
 ## Your Task
 
-Evaluate the strategy following the Edge Scorecard framework in your system prompt.
+Score this strategy on the 5 Edge Scorecard dimensions. Do NOT analyze assets - ONLY score.
 
-Return your evaluation as a JSON object with scores for all 5 dimensions.
+Return JSON with these exact keys: thesis_quality, edge_economics, risk_framework, regime_awareness, strategic_coherence
 
-**CRITICAL**: All dimensions must score ≥3 to pass threshold.
+Each dimension: {{"score": 1-5, "reasoning": "...", "key_strengths": [...], "key_weaknesses": [...]}}
+
+**CRITICAL**: All dimensions must score ≥3 to pass.
 """
 
             # Debug logging: Print prompt being sent to LLM provider

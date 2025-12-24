@@ -323,7 +323,7 @@ Use different archetypes for each: Momentum, Mean Reversion, Carry, Volatility, 
             model=model,
             output_type=CandidateList,  # Wrapper enforces exactly 5 via JSON schema
             system_prompt=system_prompt,
-            include_composer=True,  # Keep tools available
+            include_composer=False,  # Candidate generation uses FRED/yfinance only
             model_settings=model_settings
         )
 
