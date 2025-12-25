@@ -316,8 +316,8 @@ async def create_strategy_workflow(
         else:
             print("⚠️  Deployment skipped (Composer unavailable)")
 
-        # Save checkpoint after Stage 5 (before final result persistence)
-        if cohort_id:
+        # Save checkpoint after Stage 5 only on success (failed deployment = retry from CHARTER)
+        if cohort_id and symphony_id:
             checkpoint = _create_checkpoint(
                 stage=WorkflowStage.DEPLOYMENT,
                 model=model,
