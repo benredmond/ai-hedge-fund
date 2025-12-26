@@ -129,7 +129,8 @@ def get_model_settings(
         if is_reasoning:
             return ModelSettings(
                 temperature=1.0,
-                max_tokens=16384,
+                top_p=1.0,
+                max_tokens=32768,  # Increased for reasoning trace + JSON output
                 parallel_tool_calls=False,
                 timeout=DEFAULT_TIMEOUT,
             )
@@ -294,6 +295,8 @@ async def create_agent(
     model: str,
     output_type: Type[T],
     system_prompt: str | None = None,
+    include_fred: bool = True,
+    include_yfinance: bool = True,
     include_composer: bool = True,
     history_limit: int = 20,
     model_settings: Optional[ModelSettings] = None,
@@ -319,6 +322,8 @@ async def create_agent(
         model: Model identifier (format: 'provider:model-name')
         output_type: Pydantic model for structured output (Strategy, Charter, etc.)
         system_prompt: Optional system prompt (defaults to system_prompt.md)
+        include_fred: Whether to include FRED MCP tools (default: True)
+        include_yfinance: Whether to include yfinance/stock MCP tools (default: True)
         include_composer: Whether to include Composer MCP tools (default: True)
         history_limit: Max messages to keep in conversation history (default: 20)
             Recommended limits per stage:
@@ -390,20 +395,18 @@ async def create_agent(
     # Create toolsets list from available servers
     toolsets = []
 
-    if "fred" in servers:
+    if "fred" in servers and include_fred:
         toolsets.append(servers["fred"])
 
-    if "yfinance" in servers:
+    if "yfinance" in servers and include_yfinance:
         toolsets.append(servers["yfinance"])
 
     if "composer" in servers and include_composer:
         toolsets.append(servers["composer"])
 
+    # Allow agents with no tools (e.g., deployment stage that outputs JSON directly)
     if not toolsets:
-        await stack.aclose()  # Clean up before raising
-        raise RuntimeError(
-            "No MCP servers available. Ensure FRED, yfinance, and/or Composer are configured."
-        )
+        toolsets = None
 
     # Create agent with Pydantic AI using configurable history processor
     agent = Agent(

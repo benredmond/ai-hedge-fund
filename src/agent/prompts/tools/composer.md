@@ -32,11 +32,12 @@ Symphonies use a hierarchical tree structure. The schema is strict - violations 
 - ❌ WRONG: `"weight": 0.4` (decimal)
 - ❌ WRONG: omitting weight entirely
 
-**2. NO `id` field on ANY node**
-- Composer assigns IDs internally - never provide them
-- ❌ WRONG: `"id": "abc-123"`
-- ❌ WRONG: `"id": "e1ac253e-52b5-402c-a2a8-a4d34e323a16"`
-- ❌ WRONG: `"id": "spy-asset-id"`
+**2. `id` field REQUIRED on EVERY node (UUID format)**
+- Each node must have a unique UUID: `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`
+- ✅ CORRECT: `"id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"`
+- ❌ WRONG: `"id": "abc-123"` (not UUID format)
+- ❌ WRONG: `"id": "spy-asset-id"` (not UUID format)
+- ❌ WRONG: omitting id entirely
 
 **3. NO `children` on asset nodes**
 - Asset nodes are LEAF nodes
@@ -57,6 +58,7 @@ Symphonies use a hierarchical tree structure. The schema is strict - violations 
 ```json
 {
   "step": "root",
+  "id": "11111111-1111-1111-1111-111111111111",
   "name": "Strategy Name",
   "description": "Strategy description",
   "rebalance": "monthly",
@@ -65,13 +67,15 @@ Symphonies use a hierarchical tree structure. The schema is strict - violations 
   "children": [
     {
       "step": "wt-cash-equal",
+      "id": "22222222-2222-2222-2222-222222222222",
       "weight": null,
       "children": [
         {
+          "step": "asset",
+          "id": "33333333-3333-3333-3333-333333333333",
           "ticker": "SPY",
           "exchange": "XNYS",
           "name": "SPDR S&P 500 ETF Trust",
-          "step": "asset",
           "weight": null
         }
       ]
@@ -96,21 +100,22 @@ Symphonies use a hierarchical tree structure. The schema is strict - violations 
 
 ### Asset Node Requirements
 
-Asset nodes must have EXACTLY these 5 fields (or 6 if child of `wt-cash-specified` - add `allocation`):
+Asset nodes must have EXACTLY these 6 fields (or 7 if child of `wt-cash-specified` - add `allocation`):
+- `step` - Must be "asset"
+- `id` - UUID format (e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
 - `ticker` - Raw symbol (e.g., "SPY", "XLE")
 - `exchange` - XNYS (NYSE), XNGS (NASDAQ), or ARCX (ARCA)
 - `name` - Full asset name
-- `step` - Must be "asset"
 - `weight` - Must be null
 
 **CORRECT asset node:**
 ```json
-{"ticker": "XLE", "exchange": "ARCX", "name": "Energy Select Sector SPDR Fund", "step": "asset", "weight": null}
+{"step": "asset", "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "ticker": "XLE", "exchange": "ARCX", "name": "Energy Select Sector SPDR Fund", "weight": null}
 ```
 
-**WRONG asset node (has forbidden fields):**
+**WRONG asset node (invalid id format, has forbidden children):**
 ```json
-{"name": "Energy ETF", "step": "asset", "weight": null, "children": [], "id": "xle-node-123"}
+{"step": "asset", "id": "xle-node-123", "name": "Energy ETF", "weight": null, "children": []}
 ```
 
 ### Specified Weights Example
@@ -118,10 +123,11 @@ Asset nodes must have EXACTLY these 5 fields (or 6 if child of `wt-cash-specifie
 ```json
 {
   "step": "wt-cash-specified",
+  "id": "44444444-4444-4444-4444-444444444444",
   "weight": null,
   "children": [
-    {"ticker": "SPY", "exchange": "XNYS", "name": "SPDR S&P 500 ETF Trust", "step": "asset", "weight": null, "allocation": 0.6},
-    {"ticker": "QQQ", "exchange": "XNGS", "name": "Invesco QQQ Trust", "step": "asset", "weight": null, "allocation": 0.4}
+    {"step": "asset", "id": "55555555-5555-5555-5555-555555555555", "ticker": "SPY", "exchange": "XNYS", "name": "SPDR S&P 500 ETF Trust", "weight": null, "allocation": 0.6},
+    {"step": "asset", "id": "66666666-6666-6666-6666-666666666666", "ticker": "QQQ", "exchange": "XNGS", "name": "Invesco QQQ Trust", "weight": null, "allocation": 0.4}
   ]
 }
 ```
@@ -133,6 +139,7 @@ Use this as your template for multi-asset portfolios:
 ```json
 {
   "step": "root",
+  "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
   "name": "Defensive Sectors Strategy",
   "description": "Holds SPY core with defensive sector tilts (utilities, staples)",
   "rebalance": "monthly",
@@ -141,11 +148,12 @@ Use this as your template for multi-asset portfolios:
   "children": [
     {
       "step": "wt-cash-specified",
+      "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
       "weight": null,
       "children": [
-        {"ticker": "SPY", "exchange": "XNYS", "name": "SPDR S&P 500 ETF Trust", "step": "asset", "weight": null, "allocation": 0.5},
-        {"ticker": "XLU", "exchange": "ARCX", "name": "Utilities Select Sector SPDR Fund", "step": "asset", "weight": null, "allocation": 0.25},
-        {"ticker": "XLP", "exchange": "ARCX", "name": "Consumer Staples Select Sector SPDR Fund", "step": "asset", "weight": null, "allocation": 0.25}
+        {"step": "asset", "id": "cccccccc-cccc-cccc-cccc-cccccccccccc", "ticker": "SPY", "exchange": "XNYS", "name": "SPDR S&P 500 ETF Trust", "weight": null, "allocation": 0.5},
+        {"step": "asset", "id": "dddddddd-dddd-dddd-dddd-dddddddddddd", "ticker": "XLU", "exchange": "ARCX", "name": "Utilities Select Sector SPDR Fund", "weight": null, "allocation": 0.25},
+        {"step": "asset", "id": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee", "ticker": "XLP", "exchange": "ARCX", "name": "Consumer Staples Select Sector SPDR Fund", "weight": null, "allocation": 0.25}
       ]
     }
   ]
@@ -153,10 +161,10 @@ Use this as your template for multi-asset portfolios:
 ```
 
 **Key points in this example:**
-- NO `id` fields anywhere
+- `id` field on EVERY node (UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
 - `weight: null` on EVERY node (root, wt-cash-specified, all assets)
 - `allocation` on EACH asset (0.5 + 0.25 + 0.25 = 1.0)
-- Each asset has exactly: ticker, exchange, name, step, weight, allocation
+- Each asset has exactly: step, id, ticker, exchange, name, weight, allocation
 
 ### Conditional Logic (if blocks)
 
@@ -178,10 +186,12 @@ Use this as your template for multi-asset portfolios:
 ```json
 {
   "step": "if",
+  "id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
   "weight": null,
   "children": [
     {
       "step": "if-child",
+      "id": "11111111-2222-3333-4444-555555555555",
       "is-else-condition?": false,
       "comparator": "gt",
       "lhs-val": "SPY",
@@ -193,15 +203,16 @@ Use this as your template for multi-asset portfolios:
       "rhs-fn-params": {},
       "weight": null,
       "children": [
-        {"ticker": "SPY", "exchange": "XNYS", "name": "SPDR S&P 500 ETF Trust", "step": "asset", "weight": null}
+        {"step": "asset", "id": "66666666-7777-8888-9999-aaaaaaaaaaaa", "ticker": "SPY", "exchange": "XNYS", "name": "SPDR S&P 500 ETF Trust", "weight": null}
       ]
     },
     {
       "step": "if-child",
+      "id": "bbbbbbbb-cccc-dddd-eeee-ffffffffffff",
       "is-else-condition?": true,
       "weight": null,
       "children": [
-        {"ticker": "BIL", "exchange": "ARCX", "name": "SPDR Bloomberg 1-3 Month T-Bill ETF", "step": "asset", "weight": null}
+        {"step": "asset", "id": "00000000-1111-2222-3333-444444444444", "ticker": "BIL", "exchange": "ARCX", "name": "SPDR Bloomberg 1-3 Month T-Bill ETF", "weight": null}
       ]
     }
   ]
@@ -226,17 +237,18 @@ Select top/bottom N assets from a pool based on a ranking function:
 ```json
 {
   "step": "filter",
+  "id": "12345678-1234-1234-1234-123456789012",
   "weight": null,
   "sort-by-fn": "cumulative-return",
   "sort-by-fn-params": {"window": 30},
   "select-fn": "top",
   "select-n": 3,
   "children": [
-    {"ticker": "XLK", "exchange": "ARCX", "name": "Technology Select Sector SPDR Fund", "step": "asset", "weight": null},
-    {"ticker": "XLV", "exchange": "ARCX", "name": "Health Care Select Sector SPDR Fund", "step": "asset", "weight": null},
-    {"ticker": "XLF", "exchange": "ARCX", "name": "Financial Select Sector SPDR Fund", "step": "asset", "weight": null},
-    {"ticker": "XLE", "exchange": "ARCX", "name": "Energy Select Sector SPDR Fund", "step": "asset", "weight": null},
-    {"ticker": "XLI", "exchange": "ARCX", "name": "Industrial Select Sector SPDR Fund", "step": "asset", "weight": null}
+    {"step": "asset", "id": "11111111-aaaa-bbbb-cccc-111111111111", "ticker": "XLK", "exchange": "ARCX", "name": "Technology Select Sector SPDR Fund", "weight": null},
+    {"step": "asset", "id": "22222222-aaaa-bbbb-cccc-222222222222", "ticker": "XLV", "exchange": "ARCX", "name": "Health Care Select Sector SPDR Fund", "weight": null},
+    {"step": "asset", "id": "33333333-aaaa-bbbb-cccc-333333333333", "ticker": "XLF", "exchange": "ARCX", "name": "Financial Select Sector SPDR Fund", "weight": null},
+    {"step": "asset", "id": "44444444-aaaa-bbbb-cccc-444444444444", "ticker": "XLE", "exchange": "ARCX", "name": "Energy Select Sector SPDR Fund", "weight": null},
+    {"step": "asset", "id": "55555555-aaaa-bbbb-cccc-555555555555", "ticker": "XLI", "exchange": "ARCX", "name": "Industrial Select Sector SPDR Fund", "weight": null}
   ]
 }
 ```
@@ -254,11 +266,13 @@ Group assets with nested weighting:
 ```json
 {
   "step": "group",
+  "id": "gggggggg-gggg-gggg-gggg-gggggggggggg",
   "name": "Equity Sleeve",
   "weight": null,
   "children": [
     {
       "step": "wt-cash-equal",
+      "id": "hhhhhhhh-hhhh-hhhh-hhhh-hhhhhhhhhhhh",
       "weight": null,
       "children": [...]
     }
@@ -311,12 +325,12 @@ For strategies with conditional logic, choose one approach:
 
 ## Pre-Flight Checklist
 
-Before calling `composer_save_symphony`, verify:
+Before calling `composer_create_symphony`, verify:
 
-1. ☐ NO `id` field on ANY node
-2. ☐ NO `children` field on asset nodes
+1. ☐ `id` field on EVERY node (UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+2. ☐ NO `children` field on asset nodes (assets are LEAF nodes)
 3. ☐ `weight: null` on EVERY node (literal null, not a number)
-4. ☐ Each asset has EXACTLY: ticker, exchange, name, step, weight
+4. ☐ Each asset has EXACTLY: step, id, ticker, exchange, name, weight
 5. ☐ If parent is `wt-cash-specified`: each child has `allocation` field? (must sum to 1.0)
 6. ☐ If using `if` blocks: all predicate fields present? (comparator, lhs-val, lhs-fn, rhs-val, etc.)
 

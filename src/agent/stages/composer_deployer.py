@@ -1,9 +1,17 @@
 """Deploy winning strategy to Composer.trade as a symphony."""
 
 import asyncio
+import logging
 import os
 import traceback
 from datetime import datetime, timezone
+
+# Enable debug logging for pydantic_ai when DEBUG_PROMPTS is set (skip noisy HTTP logs)
+if os.getenv("DEBUG_PROMPTS", "0") == "1":
+    logging.getLogger("pydantic_ai").setLevel(logging.DEBUG)
+    # Suppress noisy HTTP logs
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 from src.agent.strategy_creator import (
     create_agent,
@@ -206,18 +214,65 @@ class ComposerDeployer:
 
         model_settings = get_model_settings(model, stage="composer_deployment")
 
-        # Create agent without structured output - we'll parse tool responses
+        # Debug logging: Print prompts being sent to LLM provider
+        print(f"\n{'='*80}")
+        print(f"[DEBUG:ComposerDeployer] Sending prompt to LLM provider")
+        print(f"[DEBUG:ComposerDeployer] System prompt length: {len(system_prompt)} chars")
+        print(f"[DEBUG:ComposerDeployer] User prompt length: {len(prompt)} chars")
+        print(f"{'='*80}")
+        if os.getenv("DEBUG_PROMPTS", "0") == "1":
+            print(f"\n[DEBUG:ComposerDeployer] ========== FULL SYSTEM PROMPT ==========")
+            print(system_prompt)
+            print(f"[DEBUG:ComposerDeployer] ========================================")
+            print(f"\n[DEBUG:ComposerDeployer] ========== FULL USER PROMPT ==========")
+            print(prompt)
+            print(f"[DEBUG:ComposerDeployer] ======================================")
+            print(f"{'='*80}\n")
+
+        # Create agent with ONLY Composer tools (no FRED/yfinance, no extra tool docs)
         agent_ctx = await create_agent(
             model=model,
             output_type=None,  # No structured output - parse tool call responses
             system_prompt=system_prompt,
+            include_fred=False,
+            include_yfinance=False,
             include_composer=True,
             history_limit=10,
             model_settings=model_settings,
         )
 
         async with agent_ctx as agent:
-            result = await agent.run(prompt)
+            # Use iter to capture tool calls for debugging
+            try:
+                result = await agent.run(prompt)
+
+                # Extract and log full reasoning content (Kimi K2, DeepSeek R1, etc.)
+                from src.agent.stages.candidate_generator import extract_and_log_reasoning
+                extract_and_log_reasoning(result, "ComposerDeployer")
+            except Exception as e:
+                # Log raw messages on failure for debugging
+                print(f"\n{'='*80}")
+                print(f"[DEBUG:ComposerDeployer] Exception during agent.run: {e}")
+
+                # Try to extract reasoning from exception cause chain
+                cause = e.__cause__
+                while cause:
+                    if hasattr(cause, 'body'):
+                        body = getattr(cause, 'body', None)
+                        if body and isinstance(body, dict):
+                            choices = body.get('choices', [])
+                            for choice in choices:
+                                msg = choice.get('message', {})
+                                reasoning = msg.get('reasoning_content')
+                                if reasoning:
+                                    print(f"\n[DEBUG:ComposerDeployer] === REASONING FROM FAILED CALL ===")
+                                    print(f"[DEBUG:ComposerDeployer] Length: {len(reasoning)} chars")
+                                    print(reasoning)
+                                    print(f"[DEBUG:ComposerDeployer] === END REASONING ===\n")
+                    cause = getattr(cause, '__cause__', None)
+
+                # Re-raise to let retry logic handle it
+                raise
 
             # Check for MCP tool errors BEFORE extracting symphony_id
             mcp_error = self._check_mcp_error(result)
@@ -317,27 +372,28 @@ class ComposerDeployer:
                                 print(f"[DEBUG:ComposerDeployer]     Content: {content_str}")
 
     def _build_system_prompt(self) -> str:
-        """Use composer.md - proven to work in sandbox."""
-        return load_prompt("tools/composer.md", include_tools=False)
+        """Minimal system prompt - tool schema comes from MCP."""
+        return "You are an expert at deploying trading strategies to Composer.trade using the composer_create_symphony tool."
 
     def _build_deployment_prompt(
         self, strategy: Strategy, charter: Charter, market_context: dict
     ) -> str:
-        """Minimal: just the strategy to deploy."""
+        """Minimal deployment prompt - just the strategy data."""
         import json
 
-        strategy_input = {
+        strategy_data = {
             "name": strategy.name,
-            "assets": strategy.assets,
-            "weights": dict(strategy.weights),
-            "rebalance_frequency": strategy.rebalance_frequency.value,
+            "description": charter.market_thesis[:500] if charter.market_thesis else strategy.name,
+            "rebalance": strategy.rebalance_frequency.value,
+            "assets": {ticker: dict(strategy.weights).get(ticker, 1.0 / len(strategy.assets)) for ticker in strategy.assets},
         }
+
         if strategy.logic_tree:
-            strategy_input["logic_tree"] = strategy.logic_tree
+            strategy_data["logic_tree"] = strategy.logic_tree
 
-        return f"""Deploy this strategy using composer_create_symphony:
+        return f"""Deploy this strategy to Composer:
 
-{json.dumps(strategy_input, indent=2)}"""
+{json.dumps(strategy_data, indent=2)}"""
 
     def _extract_symphony_data(self, result) -> tuple[str | None, str | None]:
         """
