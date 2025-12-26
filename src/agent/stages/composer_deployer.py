@@ -54,13 +54,13 @@ class ComposerDeployer:
     """
     Stage 5: Deploy strategy to Composer.trade.
 
-    Creates a symphony on Composer using the save_symphony MCP tool.
+    Creates a symphony on Composer using the create_symphony MCP tool.
     Uses LLM to interpret Strategy/Charter and construct valid symphony JSON.
 
     Design decisions:
     - Graceful degradation: Returns (None, None) if Composer unavailable
     - Credentials check first: Early exit if COMPOSER_API_KEY/SECRET not set
-    - LLM interprets schema: save_symphony schema undocumented, let LLM figure it out
+    - LLM interprets schema: Uses create_symphony with UUID-based schema
     - Retry with backoff: Handle rate limits (5s, 10s, 20s delays)
     """
 
@@ -264,7 +264,7 @@ class ComposerDeployer:
             if not hasattr(msg, "parts"):
                 continue
             for part in msg.parts:
-                # Check ToolReturnPart for save_symphony or create_symphony
+                # Check ToolReturnPart for create_symphony or save_symphony
                 tool_name = getattr(part, "tool_name", "")
                 if "symphony" not in tool_name:
                     continue
@@ -317,40 +317,25 @@ class ComposerDeployer:
                                 print(f"[DEBUG:ComposerDeployer]     Content: {content_str}")
 
     def _build_system_prompt(self) -> str:
-        """Minimal system prompt for symphony deployment."""
-        return """You deploy trading strategies to Composer.trade.
-
-CRITICAL RULES:
-- weight: null on EVERY node (literal null, not numbers)
-- NO id fields anywhere
-- NO children on asset nodes
-- allocation field required for wt-cash-specified children
-
-Call composer_save_symphony with the symphony_score JSON."""
+        """Use composer.md - proven to work in sandbox."""
+        return load_prompt("tools/composer.md", include_tools=False)
 
     def _build_deployment_prompt(
         self, strategy: Strategy, charter: Charter, market_context: dict
     ) -> str:
-        """Build minimal deployment prompt with only execution fields."""
+        """Minimal: just the strategy to deploy."""
         import json
 
-        # Load minimal prompt
-        recipe = load_prompt("composer_deployment_minimal.md")
-
-        # MINIMAL: Only execution fields needed for symphony_score construction
         strategy_input = {
             "name": strategy.name,
             "assets": strategy.assets,
             "weights": dict(strategy.weights),
             "rebalance_frequency": strategy.rebalance_frequency.value,
         }
-        # Only include logic_tree if non-empty (conditional strategy)
         if strategy.logic_tree:
             strategy_input["logic_tree"] = strategy.logic_tree
 
-        return f"""{recipe}
-
-## STRATEGY TO DEPLOY
+        return f"""Deploy this strategy using composer_create_symphony:
 
 {json.dumps(strategy_input, indent=2)}"""
 
@@ -404,7 +389,7 @@ Call composer_save_symphony with the symphony_score JSON."""
                     tool_name = getattr(part, "tool_name", "")
 
                     # Check ToolCallPart for description (in the request args)
-                    if "save_symphony" in tool_name and hasattr(part, "args"):
+                    if ("create_symphony" in tool_name or "save_symphony" in tool_name) and hasattr(part, "args"):
                         args = getattr(part, "args", {})
                         if isinstance(args, dict):
                             desc = extract_description_from_args(args)
@@ -420,7 +405,7 @@ Call composer_save_symphony with the symphony_score JSON."""
                                 pass
 
                     # Check ToolReturnPart for symphony_id (in the response)
-                    if "save_symphony" in tool_name and hasattr(part, "content"):
+                    if ("create_symphony" in tool_name or "save_symphony" in tool_name) and hasattr(part, "content"):
                         content = getattr(part, "content", None)
                         if isinstance(content, dict) and "symphony_id" in content:
                             symphony_id = content["symphony_id"]
