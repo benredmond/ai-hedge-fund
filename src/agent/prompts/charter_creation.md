@@ -128,13 +128,15 @@ Write with conviction. You're making a pitch, not hedging every statement.
 
 ## Integrity Checks
 
-Before finalizing:
+Before finalizing, complete these three:
 
-1. **Core driver**: "This is fundamentally a bet on ___." If it's oil, rates, or a commodity - say so.
-2. **Evidence**: Claims like "oversold" need data. No data? Rephrase as "we assume."
-3. **Correlation**: If holdings are 0.7+ correlated, acknowledge it's a single-factor bet.
-4. **Success threshold**: If failure = -5% in 30 days, define success too.
-5. **Blind spot**: What's the obvious critique you're not addressing? Name it.
+1. **The bet**: Complete both sentences:
+   - "This wins if ___"
+   - "This loses if ___"
+
+2. **Evidence or assumption**: Any claim about market state (oversold, rate-sensitive, behavioral edge, underweight) needs data. No data? Write "we assume X" explicitly.
+
+3. **Internal contradiction**: Name the biggest tension in this charter and address it.
 
 ---
 
@@ -142,12 +144,12 @@ Before finalizing:
 
 Before returning the charter, verify:
 
-- [ ] Can someone understand the core thesis in 30 seconds?
-- [ ] Did you synthesize data into insight (not just recite it)?
-- [ ] Is it clear why THIS strategy vs alternatives?
-- [ ] Are failure modes about thesis invalidation (not generic risk)?
-- [ ] Does it read like a pitch memo (not a compliance doc)?
-- [ ] Did you run the integrity checks above?
+- [ ] Core thesis clear in 30 seconds?
+- [ ] Synthesized data into insight?
+- [ ] Clear why THIS vs alternatives?
+- [ ] Failure modes about thesis invalidation?
+- [ ] Reads like a pitch memo?
+- [ ] Completed 3 integrity checks?
 
 ---
 

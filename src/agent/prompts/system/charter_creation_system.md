@@ -241,17 +241,15 @@ Total: ~1400-2000 words. A concise, compelling pitch beats an exhaustive report.
 
 <integrity_checks>
 
-Before finalizing, verify:
+Before finalizing, complete these three checks:
 
-1. **Core driver**: Complete this sentence: "This is fundamentally a bet on ___." If it's a commodity or rate, say so.
+1. **The bet**: Complete both sentences:
+   - "This wins if ___"
+   - "This loses if ___"
 
-2. **Claims need evidence**: If you say "oversold" or "underweight", cite data. No data? Say "we assume X" instead.
+2. **Evidence or assumption**: Any market state claim (oversold, rate-sensitive, underweight, behavioral edge) needs data. No data? Write "we assume X" explicitly.
 
-3. **Correlation honesty**: If holdings are 0.7+ correlated, acknowledge it's a single-factor bet.
-
-4. **Define success**: If failure = -5% in 30 days, what's success? Be specific.
-
-5. **Blind spot**: What's the obvious critique you're not addressing? Name it.
+3. **Internal contradiction**: Name the biggest tension in this charter and address it.
 
 </integrity_checks>
 
@@ -264,7 +262,7 @@ Before finalizing, verify:
 3. **Write the thesis first**: What's the core insight? Get this right before anything else.
 4. **Build outward**: Selection reasoning, expected behavior, failure modes all flow from the thesis
 5. **Check your synthesis**: For each section, ask "Am I adding insight or just restating data?"
-6. **Run integrity checks**: Core driver, evidence, correlation, success threshold, blind spot
+6. **Run integrity checks**: The bet, evidence/assumption, internal contradiction
 7. **Write with conviction**: You're making a pitch, not hedging every statement
 
 Remember: This charter guides but doesn't lock in the strategy. Write with conviction about your thesis, while being honest about what would prove it wrong.

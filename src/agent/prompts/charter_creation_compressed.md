@@ -109,11 +109,9 @@ Write with conviction.
 
 ## Integrity Checks
 
-1. **Core driver**: "This is a bet on ___." Name it.
-2. **Evidence**: "Oversold" needs data. No data? Say "we assume."
-3. **Correlation**: Holdings 0.7+ correlated? Single-factor bet. Say so.
-4. **Success**: Define it, not just failure.
-5. **Blind spot**: What critique are you not addressing?
+1. **The bet**: "This wins if ___" and "This loses if ___"
+2. **Evidence or assumption**: Claims need data. No data? "We assume X"
+3. **Internal contradiction**: Name the biggest tension and address it
 
 ---
 
@@ -124,7 +122,7 @@ Write with conviction.
 - [ ] Clear why THIS vs alternatives?
 - [ ] Failure modes about thesis invalidation?
 - [ ] Reads like a pitch memo?
-- [ ] Integrity checks passed?
+- [ ] Completed 3 integrity checks?
 
 ---
 

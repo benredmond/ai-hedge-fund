@@ -156,13 +156,11 @@ Must be JSON array of strings, NOT a dict:
 
 ## Integrity Checks
 
-Before finalizing:
+Before finalizing, complete these three:
 
-1. **Core driver**: "This is fundamentally a bet on ___." Name it.
-2. **Evidence**: "Oversold" or "underweight" needs data. No data? Say "we assume."
-3. **Correlation**: Holdings 0.7+ correlated? It's a single-factor bet. Say so.
-4. **Success threshold**: Failure = -X%? Define success too.
-5. **Blind spot**: What obvious critique are you not addressing?
+1. **The bet**: "This wins if ___" and "This loses if ___"
+2. **Evidence or assumption**: Claims (oversold, rate-sensitive, behavioral edge) need data. No data? Write "we assume X"
+3. **Internal contradiction**: Name the biggest tension in this charter and address it
 
 ---
 
@@ -173,7 +171,7 @@ Before finalizing:
 3. Write thesis first - get core insight right
 4. Build outward: selection, behavior, failures flow from thesis
 5. Check synthesis: "Am I adding insight or restating data?"
-6. Run integrity checks
+6. Run 3 integrity checks
 7. Write with conviction
 
 **Total: ~1400-2000 words. Concise pitch beats exhaustive report.**
