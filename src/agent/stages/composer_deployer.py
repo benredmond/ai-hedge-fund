@@ -1,10 +1,17 @@
 """Deploy winning strategy to Composer.trade as a symphony."""
 
 import asyncio
+import json
 import logging
 import os
 import traceback
+import uuid
 from datetime import datetime, timezone
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
+from src.agent.mcp_config import create_composer_server
 
 # Enable debug logging for pydantic_ai when DEBUG_PROMPTS is set (skip noisy HTTP logs)
 if os.getenv("DEBUG_PROMPTS", "0") == "1":
@@ -20,6 +27,20 @@ from src.agent.strategy_creator import (
     get_model_settings,
 )
 from src.agent.models import Strategy, Charter
+
+
+class SymphonyConfirmation(BaseModel):
+    """Simple confirmation model - model just confirms deployment."""
+
+    ready_to_deploy: bool = Field(
+        description="True if the strategy is ready to deploy"
+    )
+    symphony_name: str = Field(
+        description="Name for the symphony (short, descriptive)"
+    )
+    symphony_description: str = Field(
+        description="Brief description of the strategy (1-2 sentences)"
+    )
 
 
 def _classify_error(e: Exception) -> tuple[str, str]:
@@ -58,18 +79,140 @@ def _classify_error(e: Exception) -> tuple[str, str]:
     return "UNKNOWN", f"Unexpected error: {type(e).__name__}: {e}"
 
 
+def _get_exchange(ticker: str) -> str:
+    """Map ticker to exchange code."""
+    etfs = {
+        "SPY", "QQQ", "IWM", "DIA", "TLT", "GLD", "SLV", "VTI", "VOO", "BND",
+        "XLB", "XLE", "XLF", "XLI", "XLK", "XLP", "XLRE", "XLU", "XLV", "XLY", "XLC",
+        "BIL", "SHY", "IEF", "AGG", "LQD", "HYG", "EMB", "VNQ", "ARKK", "SMH",
+    }
+    if ticker in etfs:
+        return "ARCX"
+    nasdaq = {
+        "AAPL", "MSFT", "GOOGL", "GOOG", "AMZN", "META", "NVDA", "TSLA", "NFLX",
+        "ADBE", "CRM", "PYPL", "INTC", "AMD", "QCOM", "CSCO", "AVGO", "TXN", "COST", "PEP",
+    }
+    if ticker in nasdaq:
+        return "XNAS"
+    return "XNYS"
+
+
+def _build_symphony_json(
+    name: str,
+    description: str,
+    tickers: list[str],
+    rebalance: str = "monthly",
+) -> dict:
+    """
+    Build valid Composer symphony JSON structure for save_symphony.
+
+    This is done in Python to avoid LLM hallucination issues with nested JSON.
+
+    Returns dict with:
+        - symphony_score: The symphony structure
+        - color: Required hex color for the symphony
+        - hashtag: Required hashtag identifier
+        - asset_class: EQUITIES or CRYPTO
+    """
+    # Build asset nodes
+    asset_nodes = []
+    for ticker in tickers:
+        asset_nodes.append({
+            "id": str(uuid.uuid4()),
+            "step": "asset",
+            "ticker": ticker,
+            "exchange": _get_exchange(ticker),
+            "name": ticker,
+            "weight": None,
+        })
+
+    # Build complete symphony
+    symphony_score = {
+        "id": str(uuid.uuid4()),
+        "name": name,
+        "step": "root",
+        "weight": None,
+        "rebalance": rebalance,
+        "description": description,
+        "rebalance-corridor-width": None,
+        "children": [{
+            "id": str(uuid.uuid4()),
+            "step": "wt-cash-equal",
+            "weight": None,
+            "children": asset_nodes,
+        }],
+    }
+
+    # Generate hashtag from name (remove spaces, add #)
+    hashtag = "#" + "".join(name.split()[:2])
+
+    return {
+        "symphony_score": symphony_score,
+        "color": "#17BAFF",  # Blue (from Composer's allowed palette)
+        "hashtag": hashtag,
+        "asset_class": "EQUITIES",
+    }
+
+
+async def _call_composer_api(symphony_json: dict) -> dict:
+    """
+    Call Composer MCP API to create symphony using pydantic_ai's session management.
+
+    Uses MCPServerStreamableHTTP.direct_call_tool() which handles:
+    - Session initialization (gets Mcp-Session-Id)
+    - Proper MCP protocol handshake
+    - Tool invocation with session context
+
+    Returns:
+        API response dict with symphony_id
+    """
+    debug = os.getenv("DEBUG_PROMPTS", "0") == "1"
+
+    if debug:
+        print(f"\n[DEBUG:_call_composer_api] Symphony JSON:")
+        print(json.dumps(symphony_json, indent=2, default=str))
+
+    # Create Composer MCP server (handles auth via mcp_config)
+    server = create_composer_server()
+
+    async with server:
+        if debug:
+            # List available tools for debugging
+            tools = await server.list_tools()
+            tool_names = [t.name for t in tools]
+            print(f"[DEBUG:_call_composer_api] Available tools: {tool_names}")
+
+        # Call save_symphony tool directly (bypasses LLM, no hallucination)
+        # Note: save_symphony actually saves and returns symphony_id
+        # create_symphony only validates/previews without saving
+        result = await server.direct_call_tool("save_symphony", symphony_json)
+
+        if debug:
+            print(f"[DEBUG:_call_composer_api] Result: {result}")
+
+        # direct_call_tool returns the parsed tool result directly
+        # For save_symphony, this is a dict with symphony_id and version_id
+        if isinstance(result, dict):
+            return result
+
+        # Fallback: try to parse as JSON if it's a string
+        if isinstance(result, str):
+            try:
+                return json.loads(result)
+            except json.JSONDecodeError:
+                return {"raw_response": result}
+
+        return {"result": str(result)}
+
+
 class ComposerDeployer:
     """
     Stage 5: Deploy strategy to Composer.trade.
 
-    Creates a symphony on Composer using the create_symphony MCP tool.
-    Uses LLM to interpret Strategy/Charter and construct valid symphony JSON.
-
-    Design decisions:
-    - Graceful degradation: Returns (None, None) if Composer unavailable
-    - Credentials check first: Early exit if COMPOSER_API_KEY/SECRET not set
-    - LLM interprets schema: Uses create_symphony with UUID-based schema
-    - Retry with backoff: Handle rate limits (5s, 10s, 20s delays)
+    Design:
+    - LLM confirms deployment and provides name/description
+    - Python builds the symphony JSON (no LLM hallucination)
+    - Direct API call to Composer (no MCP tool schema issues)
     """
 
     async def deploy(
@@ -90,9 +233,8 @@ class ComposerDeployer:
 
         Returns:
             Tuple of (symphony_id, deployed_at, description) or (None, None, None) if deployment skipped/failed.
-            The description is the AI-generated strategy summary from the symphony_score root node.
         """
-        # Check credentials first - early exit if not configured
+        # Check credentials first
         api_key = os.getenv("COMPOSER_API_KEY")
         api_secret = os.getenv("COMPOSER_API_SECRET")
 
@@ -108,7 +250,6 @@ class ComposerDeployer:
                 model=model,
             )
         except Exception as e:
-            # Enhanced error logging with classification
             error_type, error_msg = _classify_error(e)
             print(f"\n{'='*80}")
             print(f"[ERROR:ComposerDeployer] Deployment failed")
@@ -116,9 +257,8 @@ class ComposerDeployer:
             print(f"[ERROR:ComposerDeployer] Message: {error_msg}")
             print(f"[ERROR:ComposerDeployer] Strategy: {strategy.name}")
             print(f"[ERROR:ComposerDeployer] Assets: {strategy.assets}")
-            # Log traceback for debugging (first 10 lines)
             tb_lines = traceback.format_exc().split('\n')[:10]
-            print(f"[ERROR:ComposerDeployer] Traceback (first 10 lines):")
+            print(f"[ERROR:ComposerDeployer] Traceback:")
             for line in tb_lines:
                 if line.strip():
                     print(f"  {line}")
@@ -149,49 +289,19 @@ class ComposerDeployer:
                 last_error = e
                 error_str = str(e).lower()
 
-                # Enhanced error logging for MCP failures
                 error_type, error_msg = _classify_error(e)
                 print(f"\n{'='*80}")
                 print(f"[ERROR:ComposerDeployer] Attempt {attempt}/{max_attempts} failed")
-                print(f"[ERROR:ComposerDeployer] Exception type: {type(e).__name__}")
-                print(f"[ERROR:ComposerDeployer] Exception message: {e}")
+                print(f"[ERROR:ComposerDeployer] Exception: {type(e).__name__}: {e}")
                 print(f"[ERROR:ComposerDeployer] Classified as: {error_type}")
-
-                # Log any extra attributes from pydantic-ai exceptions
-                for attr in ['code', 'data', 'message', 'response', 'body', '__cause__']:
-                    if hasattr(e, attr):
-                        attr_val = getattr(e, attr, None)
-                        if attr_val is not None:
-                            print(f"[ERROR:ComposerDeployer] Exception.{attr}: {attr_val}")
-
-                # Log traceback
-                tb_lines = traceback.format_exc().split('\n')
-                print(f"[ERROR:ComposerDeployer] Full traceback:")
-                for line in tb_lines:
-                    if line.strip():
-                        print(f"  {line}")
                 print(f"{'='*80}\n")
 
-                # Check for rate limit errors
-                is_rate_limit = (
-                    "rate" in error_str
-                    or "429" in error_str
-                    or "too many" in error_str
-                )
+                is_rate_limit = "rate" in error_str or "429" in error_str
 
-                if is_rate_limit and attempt < max_attempts:
-                    wait_time = base_delay * (2 ** (attempt - 1))
-                    print(
-                        f"⚠️  Composer rate limit (attempt {attempt}/{max_attempts}). "
-                        f"Retrying in {wait_time:.1f}s..."
-                    )
-                    await asyncio.sleep(wait_time)
-                    continue
-
-                # Non-rate-limit error or final attempt
                 if attempt < max_attempts:
-                    print(f"⚠️  Retrying in {base_delay}s...")
-                    await asyncio.sleep(base_delay)
+                    wait_time = base_delay * (2 ** (attempt - 1)) if is_rate_limit else base_delay
+                    print(f"⚠️  Retrying in {wait_time:.1f}s...")
+                    await asyncio.sleep(wait_time)
                     continue
 
                 raise
@@ -209,293 +319,121 @@ class ComposerDeployer:
         model: str,
     ) -> tuple[str | None, str | None, str | None]:
         """Single deployment attempt."""
-        prompt = self._build_deployment_prompt(strategy, charter, market_context)
-        system_prompt = self._build_system_prompt()
+        debug = os.getenv("DEBUG_PROMPTS", "0") == "1"
+
+        # Step 1: Get LLM confirmation and description (no tool calling)
+        confirmation = await self._get_llm_confirmation(
+            strategy=strategy,
+            charter=charter,
+            model=model,
+        )
+
+        if not confirmation.ready_to_deploy:
+            print("⚠️  LLM declined to deploy strategy")
+            return None, None, None
+
+        # Step 2: Build symphony JSON in Python (no LLM hallucination)
+        symphony_json = _build_symphony_json(
+            name=confirmation.symphony_name,
+            description=confirmation.symphony_description,
+            tickers=strategy.assets,
+            rebalance=strategy.rebalance_frequency.value,
+        )
+
+        if debug:
+            print(f"\n[DEBUG:ComposerDeployer] Built symphony JSON:")
+            print(json.dumps(symphony_json, indent=2, default=str))
+
+        # Step 3: Call Composer API directly
+        print(f"📤 Deploying symphony: {confirmation.symphony_name}")
+        response = await _call_composer_api(symphony_json)
+
+        # Step 4: Extract symphony_id from response
+        symphony_id = self._extract_symphony_id(response)
+
+        if symphony_id:
+            deployed_at = datetime.now(timezone.utc).isoformat()
+            print(f"✅ Symphony deployed: {symphony_id}")
+            return symphony_id, deployed_at, confirmation.symphony_description
+        else:
+            print(f"❌ Failed to extract symphony_id from response")
+            if debug:
+                print(f"[DEBUG] Response: {response}")
+            return None, None, None
+
+    async def _get_llm_confirmation(
+        self,
+        strategy: Strategy,
+        charter: Charter,
+        model: str,
+    ) -> SymphonyConfirmation:
+        """Get LLM confirmation for deployment (no tool calling)."""
+        system_prompt = """You are confirming a trading strategy deployment to Composer.trade.
+
+Review the strategy and provide:
+1. Confirmation that it's ready to deploy
+2. A short name for the symphony (e.g., "Defensive Sectors Q1 2025")
+3. A brief description (1-2 sentences summarizing the strategy)"""
+
+        user_prompt = f"""Strategy to deploy:
+
+Name: {strategy.name}
+Assets: {', '.join(strategy.assets)}
+Rebalance: {strategy.rebalance_frequency.value}
+
+Market Thesis: {charter.market_thesis[:500] if charter.market_thesis else 'N/A'}
+
+Confirm deployment and provide symphony name and description."""
 
         model_settings = get_model_settings(model, stage="composer_deployment")
 
-        # Debug logging: Print prompts being sent to LLM provider
-        print(f"\n{'='*80}")
-        print(f"[DEBUG:ComposerDeployer] Sending prompt to LLM provider")
-        print(f"[DEBUG:ComposerDeployer] System prompt length: {len(system_prompt)} chars")
-        print(f"[DEBUG:ComposerDeployer] User prompt length: {len(prompt)} chars")
-        print(f"{'='*80}")
-        if os.getenv("DEBUG_PROMPTS", "0") == "1":
-            print(f"\n[DEBUG:ComposerDeployer] ========== FULL SYSTEM PROMPT ==========")
-            print(system_prompt)
-            print(f"[DEBUG:ComposerDeployer] ========================================")
-            print(f"\n[DEBUG:ComposerDeployer] ========== FULL USER PROMPT ==========")
-            print(prompt)
-            print(f"[DEBUG:ComposerDeployer] ======================================")
-            print(f"{'='*80}\n")
-
-        # Create agent with ONLY Composer tools (no FRED/yfinance, no extra tool docs)
+        # Create agent WITHOUT Composer tools - just structured output
         agent_ctx = await create_agent(
             model=model,
-            output_type=None,  # No structured output - parse tool call responses
+            output_type=SymphonyConfirmation,
             system_prompt=system_prompt,
             include_fred=False,
             include_yfinance=False,
-            include_composer=True,
-            history_limit=10,
+            include_composer=False,  # No tools!
+            history_limit=5,
             model_settings=model_settings,
         )
 
         async with agent_ctx as agent:
-            # Use iter to capture tool calls for debugging
-            try:
-                result = await agent.run(prompt)
+            result = await agent.run(user_prompt)
+            return result.output
 
-                # Extract and log full reasoning content (Kimi K2, DeepSeek R1, etc.)
-                from src.agent.stages.candidate_generator import extract_and_log_reasoning
-                extract_and_log_reasoning(result, "ComposerDeployer")
-            except Exception as e:
-                # Log raw messages on failure for debugging
-                print(f"\n{'='*80}")
-                print(f"[DEBUG:ComposerDeployer] Exception during agent.run: {e}")
+    def _extract_symphony_id(self, response: dict) -> Optional[str]:
+        """Extract symphony_id from MCP response."""
+        # MCP response format: {"jsonrpc": "2.0", "id": "...", "result": {...}}
+        result = response.get("result", {})
 
-                # Try to extract reasoning from exception cause chain
-                cause = e.__cause__
-                while cause:
-                    if hasattr(cause, 'body'):
-                        body = getattr(cause, 'body', None)
-                        if body and isinstance(body, dict):
-                            choices = body.get('choices', [])
-                            for choice in choices:
-                                msg = choice.get('message', {})
-                                reasoning = msg.get('reasoning_content')
-                                if reasoning:
-                                    print(f"\n[DEBUG:ComposerDeployer] === REASONING FROM FAILED CALL ===")
-                                    print(f"[DEBUG:ComposerDeployer] Length: {len(reasoning)} chars")
-                                    print(reasoning)
-                                    print(f"[DEBUG:ComposerDeployer] === END REASONING ===\n")
-                    cause = getattr(cause, '__cause__', None)
+        # Handle different response structures
+        if isinstance(result, dict):
+            # Direct symphony_id in result
+            if "symphony_id" in result:
+                return result["symphony_id"]
 
-                # Re-raise to let retry logic handle it
-                raise
-
-            # Check for MCP tool errors BEFORE extracting symphony_id
-            mcp_error = self._check_mcp_error(result)
-            if mcp_error:
-                print(f"\n{'='*80}")
-                print(f"[ERROR:ComposerDeployer] MCP tool returned error")
-                print(f"[ERROR:ComposerDeployer] {mcp_error}")
-                print(f"{'='*80}\n")
-                return None, None, None
-
-            # Parse symphony_id and description from tool call responses
-            symphony_id, description = self._extract_symphony_data(result)
-
-            if symphony_id:
-                print(f"[DEBUG:ComposerDeployer] Successfully extracted symphony_id: {symphony_id}")
-                if description:
-                    print(f"[DEBUG:ComposerDeployer] Extracted description: {description[:100]}...")
-                deployed_at = datetime.now(timezone.utc).isoformat()
-                return symphony_id, deployed_at, description
-
-            # No symphony_id found - log full response for debugging
-            print(f"\n{'='*80}")
-            print(f"[ERROR:ComposerDeployer] No symphony_id found in response")
-            print(f"[DEBUG:ComposerDeployer] Logging full MCP response for debugging:")
-            self._log_full_response(result)
-            print(f"{'='*80}\n")
-            return None, None, None
-
-    def _check_mcp_error(self, result) -> str | None:
-        """
-        Check for MCP tool-level errors in the agent result.
-
-        MCP has two error channels:
-        - JSON-RPC errors (protocol level) - discarded by LLM, caught as exceptions
-        - Tool errors (isError=true) - visible to LLM, need explicit check
-
-        Returns:
-            Error message if tool returned an error, None otherwise
-        """
-        if not hasattr(result, "all_messages"):
-            return None
-
-        for msg in result.all_messages():
-            if not hasattr(msg, "parts"):
-                continue
-            for part in msg.parts:
-                # Check ToolReturnPart for create_symphony or save_symphony
-                tool_name = getattr(part, "tool_name", "")
-                if "symphony" not in tool_name:
-                    continue
-
-                content = getattr(part, "content", None)
-
-                # Check for isError flag (MCP tool-level error)
-                if isinstance(content, dict):
-                    if content.get("isError"):
-                        error_content = content.get("content", [{}])
-                        if isinstance(error_content, list) and error_content:
-                            error_text = error_content[0].get("text", str(content))
-                        else:
-                            error_text = str(content)
-                        return f"Tool '{tool_name}' error: {error_text}"
-
-                # Check for error patterns in string content
-                if isinstance(content, str):
-                    content_lower = content.lower()
-                    if any(err in content_lower for err in ["error", "failed", "invalid", "unauthorized"]):
-                        return f"Tool '{tool_name}' returned: {content[:500]}"
-
-        return None
-
-    def _log_full_response(self, result) -> None:
-        """Log full agent result for debugging when symphony_id extraction fails."""
-        print(f"[DEBUG:ComposerDeployer] result.output = {result.output}")
-
-        if hasattr(result, "all_messages"):
-            messages = result.all_messages()
-            print(f"[DEBUG:ComposerDeployer] Total messages: {len(messages)}")
-
-            for i, msg in enumerate(messages):
-                msg_type = type(msg).__name__
-                print(f"[DEBUG:ComposerDeployer] Message {i}: {msg_type}")
-
-                if hasattr(msg, "parts"):
-                    for j, part in enumerate(msg.parts):
-                        part_type = type(part).__name__
-                        tool_name = getattr(part, "tool_name", None)
-                        content = getattr(part, "content", None)
-
-                        if tool_name:
-                            print(f"[DEBUG:ComposerDeployer]   Part {j}: {part_type} tool={tool_name}")
-                            # Log content (truncate if very long)
-                            content_str = str(content)
-                            if len(content_str) > 1000:
-                                print(f"[DEBUG:ComposerDeployer]     Content (truncated): {content_str[:1000]}...")
-                            else:
-                                print(f"[DEBUG:ComposerDeployer]     Content: {content_str}")
-
-    def _build_system_prompt(self) -> str:
-        """Minimal system prompt - tool schema comes from MCP."""
-        return "You are an expert at deploying trading strategies to Composer.trade using the composer_create_symphony tool."
-
-    def _build_deployment_prompt(
-        self, strategy: Strategy, charter: Charter, market_context: dict
-    ) -> str:
-        """Minimal deployment prompt - just the strategy data."""
-        import json
-
-        strategy_data = {
-            "name": strategy.name,
-            "description": charter.market_thesis[:500] if charter.market_thesis else strategy.name,
-            "rebalance": strategy.rebalance_frequency.value,
-            "assets": {ticker: dict(strategy.weights).get(ticker, 1.0 / len(strategy.assets)) for ticker in strategy.assets},
-        }
-
-        if strategy.logic_tree:
-            strategy_data["logic_tree"] = strategy.logic_tree
-
-        return f"""Deploy this strategy to Composer:
-
-{json.dumps(strategy_data, indent=2)}"""
-
-    def _extract_symphony_data(self, result) -> tuple[str | None, str | None]:
-        """
-        Extract symphony_id and description from agent result.
-
-        Returns:
-            Tuple of (symphony_id, description). Description is extracted from
-            the symphony_score passed to save_symphony (the root node's description field).
-        """
-        import json
-        import re
-
-        symphony_id: str | None = None
-        description: str | None = None
-
-        # Patterns to find symphony_id (in priority order)
-        symphony_patterns = [
-            r'"symphony_id"\s*:\s*"([^"]+)"',
-            r"'symphony_id'\s*:\s*'([^']+)'",
-            r"symphony_id[=:]\s*([a-zA-Z0-9_-]+)",
-        ]
-        # Fallback: generic id pattern (10+ chars to avoid false positives)
-        generic_pattern = r"id[=:]\s*([a-zA-Z0-9_-]{10,})"
-
-        def search_id_in_text(text: str, include_generic: bool = False) -> str | None:
-            for pattern in symphony_patterns:
-                match = re.search(pattern, text)
-                if match:
-                    return match.group(1)
-            if include_generic:
-                match = re.search(generic_pattern, text)
-                if match:
-                    return match.group(1)
-            return None
-
-        def extract_description_from_args(args: dict) -> str | None:
-            """Extract description from symphony_score in tool call args."""
-            symphony_score = args.get("symphony_score", {})
-            if isinstance(symphony_score, dict):
-                return symphony_score.get("description")
-            return None
-
-        # First pass: extract from tool call/return parts in messages
-        if hasattr(result, "all_messages"):
-            for msg in result.all_messages():
-                if not hasattr(msg, "parts"):
-                    continue
-                for part in msg.parts:
-                    tool_name = getattr(part, "tool_name", "")
-
-                    # Check ToolCallPart for description (in the request args)
-                    if ("create_symphony" in tool_name or "save_symphony" in tool_name) and hasattr(part, "args"):
-                        args = getattr(part, "args", {})
-                        if isinstance(args, dict):
-                            desc = extract_description_from_args(args)
-                            if desc and not description:
-                                description = desc
-                        elif isinstance(args, str):
+            # Nested in content array (MCP tool response format)
+            content = result.get("content", [])
+            if isinstance(content, list):
+                for item in content:
+                    if isinstance(item, dict):
+                        text = item.get("text", "")
+                        if isinstance(text, str) and "symphony_id" in text:
+                            # Try to parse as JSON
                             try:
-                                parsed_args = json.loads(args)
-                                desc = extract_description_from_args(parsed_args)
-                                if desc and not description:
-                                    description = desc
+                                parsed = json.loads(text)
+                                if "symphony_id" in parsed:
+                                    return parsed["symphony_id"]
                             except json.JSONDecodeError:
                                 pass
 
-                    # Check ToolReturnPart for symphony_id (in the response)
-                    if ("create_symphony" in tool_name or "save_symphony" in tool_name) and hasattr(part, "content"):
-                        content = getattr(part, "content", None)
-                        if isinstance(content, dict) and "symphony_id" in content:
-                            symphony_id = content["symphony_id"]
-                        elif isinstance(content, str):
-                            found = search_id_in_text(content)
-                            if found:
-                                symphony_id = found
+        # Fallback: search for symphony_id pattern in full response
+        import re
+        response_str = json.dumps(response)
+        match = re.search(r'"symphony_id"\s*:\s*"([^"]+)"', response_str)
+        if match:
+            return match.group(1)
 
-        # If we found symphony_id, return early
-        if symphony_id:
-            return symphony_id, description
-
-        # Fallback: search in result.output
-        if hasattr(result, "output") and result.output:
-            found = search_id_in_text(str(result.output), include_generic=True)
-            if found:
-                return found, description
-
-        # Fallback: search in result.data
-        if hasattr(result, "data") and result.data:
-            found = search_id_in_text(str(result.data), include_generic=True)
-            if found:
-                return found, description
-
-        # Fallback: stringify all messages
-        if hasattr(result, "all_messages"):
-            all_text = str(result.all_messages())
-            found = search_id_in_text(all_text, include_generic=True)
-            if found:
-                return found, description
-
-        # Final fallback: stringify entire result
-        found = search_id_in_text(str(result), include_generic=True)
-        if found:
-            return found, description
-
-        return None, None
+        return None
