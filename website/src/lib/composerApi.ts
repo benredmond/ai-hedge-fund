@@ -61,7 +61,6 @@ export async function listAccounts(): Promise<string[]> {
   try {
     const response = await fetch(`${COMPOSER_API_URL}/api/v0.1/accounts/list`, {
       headers: getAuthHeaders(credentials),
-      next: { revalidate: 86400 }, // Cache for 24 hours - accounts rarely change
     });
 
     if (!response.ok) {
@@ -123,7 +122,6 @@ export async function fetchSymphonyPerformance(
 
     const response = await fetch(url, {
       headers: getAuthHeaders(credentials),
-      next: { revalidate: 3600 }, // Cache for 1 hour
     });
 
     if (!response.ok) {
