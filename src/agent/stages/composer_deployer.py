@@ -368,12 +368,7 @@ class ComposerDeployer:
         model: str,
     ) -> SymphonyConfirmation:
         """Get LLM confirmation for deployment (no tool calling)."""
-        system_prompt = """You are confirming a trading strategy deployment to Composer.trade.
-
-Review the strategy and provide:
-1. Confirmation that it's ready to deploy
-2. A short name for the symphony (e.g., "Defensive Sectors Q1 2025")
-3. A brief description (1-2 sentences summarizing the strategy)"""
+        system_prompt = load_prompt("system/composer_deployment_system.md", include_tools=False)
 
         user_prompt = f"""Strategy to deploy:
 
