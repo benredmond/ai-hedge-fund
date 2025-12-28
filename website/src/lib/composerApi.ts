@@ -17,8 +17,8 @@ interface ComposerSymphonyResponse {
 
 interface ComposerAccountsResponse {
   accounts: Array<{
-    id: string;
-    name?: string;
+    account_uuid: string;
+    account_number?: string;
   }>;
 }
 
@@ -64,12 +64,11 @@ export async function listAccounts(): Promise<string[]> {
     });
 
     if (!response.ok) {
-      console.warn(`Composer list_accounts failed: ${response.status}`);
       return [];
     }
 
     const data: ComposerAccountsResponse = await response.json();
-    return data.accounts?.map(a => a.id) ?? [];
+    return data.accounts?.map(a => a.account_uuid) ?? [];
   } catch (error) {
     console.warn('Composer list_accounts error:', error);
     return [];
@@ -108,7 +107,6 @@ export async function fetchSymphonyPerformance(
 ): Promise<PerformanceData | null> {
   const credentials = getCredentials();
   if (!credentials) {
-    // Credentials not configured - silent failure
     return null;
   }
 
@@ -125,14 +123,6 @@ export async function fetchSymphonyPerformance(
     });
 
     if (!response.ok) {
-      if (response.status === 404) {
-        // Symphony not found - might be newly deployed
-        console.warn(`Symphony ${symphonyId} not found in Composer`);
-      } else if (response.status === 429) {
-        console.warn('Composer rate limit exceeded');
-      } else {
-        console.warn(`Composer API error: ${response.status}`);
-      }
       return null;
     }
 
