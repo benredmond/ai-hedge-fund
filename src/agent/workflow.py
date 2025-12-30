@@ -138,6 +138,21 @@ async def create_strategy_workflow(
     if resume_stage:
         print(f"🔄 Resuming workflow from stage: {resume_stage.value}")
 
+        # Check if workflow is already complete
+        if resume_stage == WorkflowStage.COMPLETE:
+            print("✓ Workflow already complete. Nothing to resume.")
+            # Use model_construct to bypass validation for cached checkpoint data
+            return WorkflowResult.model_construct(
+                strategy=resume_checkpoint.winner,
+                charter=resume_checkpoint.charter,
+                all_candidates=resume_checkpoint.candidates,
+                scorecards=resume_checkpoint.scorecards,
+                selection_reasoning=resume_checkpoint.selection_reasoning,
+                symphony_id=resume_checkpoint.symphony_id,
+                deployed_at=resume_checkpoint.deployed_at,
+                strategy_summary=resume_checkpoint.strategy_summary,
+            )
+
     # Instantiate stage classes
     candidate_gen = CandidateGenerator()
     edge_scorer = EdgeScorer()
