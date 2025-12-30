@@ -236,15 +236,29 @@ export function LeaderboardRow({
                 </div>
               )}
 
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleDetail();
-                }}
-                className="font-sans text-sm text-vermillion hover:underline"
-              >
-                {showDetail ? 'Hide full thesis ↑' : 'View full thesis →'}
-              </button>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleDetail();
+                  }}
+                  className="font-sans text-sm text-vermillion hover:underline"
+                >
+                  {showDetail ? 'Hide full thesis ↑' : 'View full thesis →'}
+                </button>
+
+                {result.symphony_id && (
+                  <a
+                    href={`https://app.composer.trade/symphony/${result.symphony_id}/details`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="font-sans text-sm text-vermillion hover:underline"
+                  >
+                    View on Composer ↗
+                  </a>
+                )}
+              </div>
             </div>
           </td>
         </tr>
