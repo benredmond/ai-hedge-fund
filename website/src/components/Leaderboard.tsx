@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import type { WorkflowResult } from '../lib/types';
 import { LeaderboardRow } from './LeaderboardRow';
+import { Tooltip } from './Tooltip';
 
 interface Props {
   strategies: WorkflowResult[];
@@ -65,13 +66,19 @@ export function Leaderboard({ strategies }: Props) {
               Return
             </th>
             <th className="px-4 py-3 text-right font-sans text-xs font-medium text-muted uppercase tracking-wide">
-              Alpha
+              <Tooltip text="Excess return vs benchmark (SPY)">
+                Alpha
+              </Tooltip>
             </th>
             <th className="px-4 py-3 text-right font-sans text-xs font-medium text-muted uppercase tracking-wide">
-              Sharpe
+              <Tooltip text="Risk-adjusted return (return ÷ volatility)">
+                Sharpe
+              </Tooltip>
             </th>
             <th className="px-4 py-3 text-right font-sans text-xs font-medium text-muted uppercase tracking-wide">
-              Drawdown
+              <Tooltip text="Largest peak-to-trough decline" align="right">
+                Drawdown
+              </Tooltip>
             </th>
           </tr>
         </thead>

@@ -6,6 +6,7 @@ import {
 } from "../lib/data";
 import { Leaderboard } from "../components/Leaderboard";
 import { PerformanceChart } from "../components/PerformanceChart";
+import { Tooltip } from "../components/Tooltip";
 import type { WorkflowResult } from "../lib/types";
 
 function calculateScore(result: WorkflowResult): number {
@@ -97,7 +98,7 @@ export default async function Home() {
         </p>
         <div className="max-w-2xl space-y-3">
           <p className="font-serif text-base leading-relaxed text-foreground">
-            Can AI generate alpha?
+            Can AI generate <Tooltip text="Excess return vs benchmark (SPY)"><span className="border-b border-dotted border-muted cursor-help">alpha</span></Tooltip>?
           </p>
           <p className="font-serif text-base leading-relaxed text-foreground">
             This is an experiment in AI reasoning — with real stakes. We&apos;re
