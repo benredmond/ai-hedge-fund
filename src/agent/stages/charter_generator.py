@@ -394,6 +394,14 @@ Remember the CRITICAL LENGTH CONSTRAINTS:
                     f"Likely truncated mid-generation."
                 )
 
+        # Validate refinement_recommendations if provided
+        if charter.refinement_recommendations:
+            for i, rec in enumerate(charter.refinement_recommendations):
+                if len(rec) < 50:
+                    warnings.append(
+                        f"refinement_recommendations[{i}] too short: {len(rec)} chars (min 50)"
+                    )
+
         return warnings
 
     def _is_truncated(self, charter: Charter) -> tuple[bool, list[str]]:

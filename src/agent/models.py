@@ -5,7 +5,7 @@ Strategy: Represents a trading strategy with assets, weights, and rebalancing lo
 Charter: Represents the strategic reasoning document for a strategy.
 """
 
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from pydantic import BaseModel, Field, field_validator
 from pydantic.fields import FieldInfo
 from enum import Enum
@@ -338,6 +338,19 @@ class Strategy(BaseModel):
     # See: src/agent/stages/candidate_generator.py:_validate_semantics()
 
 
+class SingleStrategy(BaseModel):
+    """
+    Wrapper for single candidate generation in parallel mode.
+
+    Used when generating candidates via parallel prompts (one per variation)
+    instead of a single prompt producing all 5.
+    """
+    strategy: Strategy = Field(
+        ...,
+        description="The generated trading strategy"
+    )
+
+
 class CandidateList(BaseModel):
     """
     Container for exactly 5 candidate strategies.
@@ -364,6 +377,7 @@ class Charter(BaseModel):
         expected_behavior: How strategy should perform under different conditions
         failure_modes: Conditions where strategy is expected to fail
         outlook_90d: 90-day forward outlook
+        refinement_recommendations: Optional list of potential adjustments not implemented
     """
 
     market_thesis: str = Field(..., min_length=10, max_length=8000)
@@ -371,6 +385,26 @@ class Charter(BaseModel):
     expected_behavior: str = Field(..., min_length=10, max_length=8000)
     failure_modes: List[str] = Field(..., min_length=3, max_length=20)
     outlook_90d: str = Field(..., min_length=10, max_length=4000)
+    refinement_recommendations: Optional[List[str]] = Field(
+        default=None,
+        description="Potential adjustments identified but not implemented (2-4 items, each ≥50 chars)"
+    )
+
+    @field_validator("refinement_recommendations")
+    @classmethod
+    def refinement_recommendations_valid(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        """Validate refinement recommendations if provided."""
+        if v is None:
+            return v
+        if len(v) > 4:
+            raise ValueError("Maximum 4 refinement recommendations allowed")
+        for i, item in enumerate(v):
+            if len(item) < 50:
+                raise ValueError(
+                    f"Refinement recommendation {i + 1} must be at least 50 characters, "
+                    f"got {len(item)}: '{item[:30]}...'"
+                )
+        return v
 
     @field_validator("failure_modes")
     @classmethod

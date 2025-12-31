@@ -1,6 +1,7 @@
-"""Generate 5 candidate strategies using AI."""
+"""Generate 5 candidate strategies using AI via parallel prompts."""
 
-from typing import List, Dict, Literal
+from typing import List, Dict, Literal, TypedDict
+import asyncio
 import json
 import os
 import re
@@ -13,7 +14,51 @@ from src.agent.strategy_creator import (
     is_reasoning_model,
     get_model_settings,
 )
-from src.agent.models import Strategy, CandidateList, ConcentrationIntent
+from src.agent.models import Strategy, CandidateList, SingleStrategy, ConcentrationIntent
+
+
+class PromptVariation(TypedDict):
+    """Configuration for a single candidate generation prompt."""
+    name: str
+    emphasis: str
+    persona: str
+    constraint: str
+
+
+# 5 distinct prompt variations to seed different reasoning paths
+# Each variation produces one candidate; run in parallel for diversity
+PROMPT_VARIATIONS: List[PromptVariation] = [
+    {
+        "name": "macro_regime",
+        "emphasis": "macroeconomic regime shifts and rate cycle positioning",
+        "persona": "You are a macro strategist who sees markets through the lens of Fed policy, yield curves, and economic cycles.",
+        "constraint": "Your strategy must explicitly position for macro uncertainty or regime transitions."
+    },
+    {
+        "name": "factor_quant",
+        "emphasis": "systematic factor premiums (value, momentum, quality, size)",
+        "persona": "You are a quantitative researcher who believes in harvesting persistent factor premiums.",
+        "constraint": "Use systematic factor exposure as the primary driver, not discretionary picks."
+    },
+    {
+        "name": "tail_risk",
+        "emphasis": "downside protection and asymmetric payoffs",
+        "persona": "You are a risk manager who prioritizes capital preservation over upside capture.",
+        "constraint": "Maximum drawdown management must be the primary design consideration."
+    },
+    {
+        "name": "sector_rotation",
+        "emphasis": "sector leadership shifts and relative strength",
+        "persona": "You are a sector analyst who exploits rotation patterns and leadership changes.",
+        "constraint": "Sector allocation must be the primary active decision, not individual stocks."
+    },
+    {
+        "name": "trend_follower",
+        "emphasis": "price momentum across asset classes and timeframes",
+        "persona": "You are a trend follower who believes price is the ultimate arbiter of value.",
+        "constraint": "All position decisions must be derived from price action, not fundamentals."
+    },
+]
 from src.agent.token_tracker import TokenTracker
 from src.agent.config.leverage import (
     APPROVED_2X_ETFS,
@@ -239,7 +284,10 @@ Use different archetypes for each: Momentum, Mean Reversion, Carry, Volatility, 
         model: str = DEFAULT_MODEL
     ) -> List[Strategy]:
         """
-        Generate 5 distinct candidate strategies.
+        Generate 4-5 distinct candidate strategies via parallel prompts.
+
+        Uses 5 parallel prompts with different emphases/personas to seed
+        diverse reasoning paths. Minimum 4 candidates required.
 
         Args:
             market_context: Comprehensive market context pack with:
@@ -251,33 +299,40 @@ Use different archetypes for each: Momentum, Mean Reversion, Carry, Volatility, 
             model: LLM model identifier
 
         Returns:
-            List of exactly 5 Strategy objects
+            List of 4-5 Strategy objects
 
         Raises:
-            ValueError: If != 5 candidates or duplicates detected
+            ValueError: If <4 candidates or duplicates detected
         """
-        # Initialize token tracker
-        enable_tracking = os.getenv("TRACK_TOKENS", "true").lower() == "true"
-        tracker = TokenTracker(model=model, enabled=enable_tracking)
+        # Load prompts for parallel single-candidate generation
+        # System prompt for single-candidate generation (parallel mode)
+        system_prompt = load_prompt("system/candidate_generation_single_system.md")
+        # Single-candidate recipe prompt with {placeholders}
+        recipe_prompt = load_prompt("candidate_generation_single.md")
 
-        # Load prompts (using compressed versions for better attention focus)
-        system_prompt = load_prompt("system/candidate_generation_system_compressed.md")
-        recipe_prompt = load_prompt("candidate_generation_compressed.md")
-
-        # Generate candidates (single phase)
-        print("Generating candidate strategies...")
-        candidates = await self._generate_candidates(
-            market_context, system_prompt, recipe_prompt, model, tracker
+        # Generate candidates via parallel prompts
+        print("Generating candidate strategies (parallel mode)...")
+        print(f"  Launching {len(PROMPT_VARIATIONS)} parallel generation tasks...")
+        candidates = await self._generate_candidates_parallel(
+            market_context, system_prompt, recipe_prompt, model
         )
         print(f"✓ Generated {len(candidates)} candidates")
 
-        # Print token usage report
-        if enable_tracking:
-            tracker.print_report()
+        # Validate minimum count
+        MIN_CANDIDATES = 5
+        if len(candidates) < MIN_CANDIDATES:
+            raise ValueError(
+                f"Expected at least {MIN_CANDIDATES} candidates, got {len(candidates)}. "
+                f"Too many generation failures."
+            )
 
-        # Validate count
-        if len(candidates) != 5:
-            raise ValueError(f"Expected 5 candidates, got {len(candidates)}")
+        # Check diversity (warn but don't fail)
+        is_diverse, diversity_issues = self._check_diversity(candidates)
+        if not is_diverse:
+            print(f"\n[WARNING] Diversity check failed:")
+            for issue in diversity_issues:
+                print(f"  - {issue}")
+            print("  Proceeding with candidates (diversity is recommended, not required)")
 
         # Check for duplicates (simple ticker comparison)
         ticker_sets = [set(c.assets) for c in candidates]
@@ -286,6 +341,101 @@ Use different archetypes for each: Momentum, Mean Reversion, Carry, Volatility, 
             raise ValueError("Duplicate candidates detected (same ticker sets)")
 
         return candidates
+
+    async def _generate_candidates_parallel(
+        self,
+        market_context: dict,
+        system_prompt: str,
+        recipe_prompt: str,
+        model: str,
+    ) -> List[Strategy]:
+        """
+        Generate candidates via 5 parallel prompts with distinct emphases.
+
+        Each variation (macro, factor, tail_risk, sector, trend) generates
+        one candidate independently. Failed variations are retried up to 2x.
+        Minimum 4 successful candidates required.
+
+        Args:
+            market_context: Comprehensive market context pack
+            system_prompt: System-level prompt with schemas and constraints
+            recipe_prompt: Single-candidate recipe template with {placeholders}
+            model: LLM model identifier
+
+        Returns:
+            List of 4-5 Strategy objects
+        """
+        # Create generation tasks for all 5 variations
+        tasks = [
+            self._generate_single_candidate(
+                market_context=market_context,
+                system_prompt=system_prompt,
+                recipe_prompt=recipe_prompt,
+                variation=variation,
+                model=model,
+            )
+            for variation in PROMPT_VARIATIONS
+        ]
+
+        # Execute all 5 in parallel
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Collect successful candidates and track failures
+        candidates: List[Strategy] = []
+        failures: List[tuple[PromptVariation, Exception]] = []
+
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                failures.append((PROMPT_VARIATIONS[i], result))
+                print(f"  [{PROMPT_VARIATIONS[i]['name']}] ✗ Failed: {type(result).__name__}: {result}")
+            else:
+                candidates.append(result)
+
+        print(f"\n  Initial results: {len(candidates)} succeeded, {len(failures)} failed")
+
+        # Retry failed variations (up to 2x each)
+        if failures:
+            print(f"\n  Retrying {len(failures)} failed variation(s)...")
+            for variation, original_error in failures:
+                success = False
+                for attempt in range(2):
+                    try:
+                        print(f"    [{variation['name']}] Retry attempt {attempt + 1}/2...")
+                        candidate = await self._generate_single_candidate(
+                            market_context=market_context,
+                            system_prompt=system_prompt,
+                            recipe_prompt=recipe_prompt,
+                            variation=variation,
+                            model=model,
+                        )
+                        candidates.append(candidate)
+                        success = True
+                        print(f"    [{variation['name']}] ✓ Retry succeeded")
+                        break
+                    except Exception as retry_error:
+                        print(f"    [{variation['name']}] Retry {attempt + 1} failed: {retry_error}")
+
+                if not success:
+                    print(f"    [{variation['name']}] ✗ All retries exhausted")
+
+        # Run semantic validation on each candidate
+        print(f"\n  Validating {len(candidates)} candidates...")
+        validated_candidates = []
+        for candidate in candidates:
+            errors = self._validate_semantics([candidate], market_context)
+            if errors:
+                # Filter for syntax errors only (retryable)
+                syntax_errors = [e for e in errors if "Syntax Error" in e]
+                if syntax_errors:
+                    print(f"    [{candidate.name[:30]}...] ⚠️ Syntax errors (non-blocking): {len(syntax_errors)}")
+                else:
+                    print(f"    [{candidate.name[:30]}...] ⚠️ Quality warnings: {len(errors)}")
+            else:
+                print(f"    [{candidate.name[:30]}...] ✓ Validation passed")
+            # Accept all candidates regardless of validation (quality warnings are informational)
+            validated_candidates.append(candidate)
+
+        return validated_candidates
 
     async def _generate_candidates(
         self,
@@ -1744,3 +1894,141 @@ Output List[Strategy] with all errors corrected."""
                 print("     If this persists, check if the fix prompt guidance is being followed.")
             print("  Returning original candidates (with validation warnings)")
             return candidates
+
+    async def _generate_single_candidate(
+        self,
+        market_context: dict,
+        system_prompt: str,
+        recipe_prompt: str,
+        variation: PromptVariation,
+        model: str,
+    ) -> Strategy:
+        """
+        Generate a single candidate with a specific emphasis/persona.
+
+        Args:
+            market_context: Comprehensive market context pack
+            system_prompt: System-level prompt with schemas and constraints
+            recipe_prompt: Single-candidate recipe template (with {placeholders})
+            variation: Prompt variation dict with name, emphasis, persona, constraint
+            model: LLM model identifier
+
+        Returns:
+            Single Strategy object
+
+        Raises:
+            Exception: If generation fails (caller handles retry)
+        """
+        # Get model-specific settings
+        model_settings = get_model_settings(model, stage="candidate_generation")
+
+        # Fill in prompt template with variation values
+        # Use replace() instead of format() to avoid conflicts with literal {} in code examples
+        filled_recipe = (
+            recipe_prompt
+            .replace("{persona}", variation["persona"])
+            .replace("{emphasis}", variation["emphasis"])
+            .replace("{constraint}", variation["constraint"])
+        )
+
+        market_context_json = json.dumps(market_context, indent=2)
+
+        generate_prompt = f"""**MARKET CONTEXT PACK:**
+
+{market_context_json}
+
+This context pack includes:
+- Macro regime: Interest rates, inflation, employment, yield curve
+- Market regime: Trend (bull/bear), volatility (VIX), breadth (% sectors >50d MA)
+- Sector leadership: Top 3 leaders and bottom 3 laggards vs SPY (30d)
+- Factor premiums: Value vs growth, momentum, quality, size (30d)
+- Benchmark performance: SPY/QQQ/AGG/60-40/risk parity (30d returns, Sharpe, vol)
+- Recent events: Curated market-moving events (30d lookback)
+
+**RECIPE GUIDANCE:**
+
+{filled_recipe}
+
+**YOUR TASK:**
+
+Generate exactly 1 Strategy object with:
+
+1. **thesis_document (GENERATE FIRST - MOST IMPORTANT):**
+   - Write 200-2000 character investment thesis explaining:
+     - Market opportunity: What regime/trend are you exploiting?
+     - Edge explanation: Why does this inefficiency exist? Why persistent?
+     - Regime fit: Why NOW? Cite context pack data (VIX, breadth, sector leadership)
+     - Risk factors: Specific failure modes with triggers and impact
+   - Plain text paragraphs (NO markdown headers)
+   - Specific to THIS strategy (not generic boilerplate)
+
+2. **rebalancing_rationale:** 150-1000 chars explaining:
+   - How rebalancing implements the edge
+   - Why this frequency (daily/weekly/monthly) matches edge timescale
+   - What rebalancing does to winners/losers and why
+
+3. **edge_type:** behavioral | structural | informational | risk_premium
+
+4. **archetype:** momentum | mean_reversion | carry | directional | volatility | multi_strategy
+
+5. **concentration_intent:** diversified | high_conviction | core_satellite | barbell | sector_focus
+
+6. **name, assets, weights, rebalance_frequency, logic_tree** (execution fields)
+
+Remember: You are a {variation["emphasis"]} specialist. Your strategy should reflect this unique perspective.
+
+**Return a single Strategy object.**"""
+
+        # Create agent with SingleStrategy output type
+        agent_ctx = await create_agent(
+            model=model,
+            output_type=SingleStrategy,
+            system_prompt=system_prompt,
+            include_composer=False,
+            model_settings=model_settings
+        )
+
+        async with agent_ctx as agent:
+            print(f"  [{variation['name']}] Generating candidate...")
+            result = await agent.run(generate_prompt)
+
+            # Extract and log reasoning if available
+            extract_and_log_reasoning(result, f"CandidateGenerator:{variation['name']}")
+
+            strategy = result.output.strategy
+            print(f"  [{variation['name']}] ✓ Generated: {strategy.name[:50]}...")
+            return strategy
+
+    def _check_diversity(self, candidates: List[Strategy]) -> tuple[bool, List[str]]:
+        """
+        Verify candidates meet minimum diversity requirements.
+
+        Checks:
+        - At least 3 different edge types
+        - At least 3 different archetypes
+
+        Args:
+            candidates: List of generated strategies
+
+        Returns:
+            Tuple of (passes_check, list_of_issues)
+        """
+        edge_types = {c.edge_type for c in candidates}
+        archetypes = {c.archetype for c in candidates}
+        frequencies = {c.rebalance_frequency for c in candidates}
+
+        issues = []
+
+        if len(edge_types) < 3:
+            issues.append(
+                f"Only {len(edge_types)} edge types ({', '.join(str(e.value) for e in edge_types)}). "
+                f"Recommend ≥3 for diversity."
+            )
+
+        if len(archetypes) < 3:
+            issues.append(
+                f"Only {len(archetypes)} archetypes ({', '.join(str(a.value) for a in archetypes)}). "
+                f"Recommend ≥3 for diversity."
+            )
+
+        return len(issues) == 0, issues

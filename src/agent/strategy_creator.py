@@ -408,6 +408,12 @@ async def create_agent(
     if not toolsets:
         toolsets = None
 
+    # Determine if we need to patch tools (specifically for Composer)
+    prepare_tools = None
+    if include_composer:
+        from src.agent.schema_fixes import fix_composer_schema
+        prepare_tools = fix_composer_schema
+
     # Create agent with Pydantic AI using configurable history processor
     agent = Agent(
         model=model,
@@ -416,6 +422,7 @@ async def create_agent(
         toolsets=toolsets,
         history_processors=[create_history_processor(max_messages=history_limit)],
         model_settings=model_settings,
+        prepare_tools=prepare_tools,
     )
 
     # Return wrapped agent with lifecycle management

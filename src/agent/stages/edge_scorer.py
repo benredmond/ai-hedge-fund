@@ -84,9 +84,8 @@ class EdgeScorer:
                 "thesis_document": getattr(strategy, 'thesis_document', '')  # Defensive access for backward compat
             }
 
-            # Extract relevant market context
-            regime_tags = market_context.get("regime_tags", [])
-            regime_snapshot = market_context.get("regime_snapshot", {})
+            # Pass full context pack - let LLM interpret the nested structure
+            # This includes: regime_snapshot, macro_indicators, benchmark_performance, recent_events
 
             # Detect leveraged assets using centralized utility
             leveraged_2x, leveraged_3x, max_leverage = detect_leverage(strategy)
@@ -143,12 +142,9 @@ Check thesis_document and rebalancing_rationale for these required elements befo
 
 {json.dumps(strategy_json, indent=2)}
 
-## Market Context
+## Market Context (Full Context Pack)
 
-**Regime Tags**: {", ".join(regime_tags)}
-**Current Trend**: {regime_snapshot.get("trend_classification", "unknown")}
-**Volatility Regime**: {regime_snapshot.get("volatility_regime", "unknown")}
-**Market Breadth**: {regime_snapshot.get("market_breadth_pct", 0):.1f}% sectors above 50d MA
+{json.dumps(market_context, indent=2, default=str)}
 {leverage_context}
 
 ## Your Task

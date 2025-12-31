@@ -98,6 +98,19 @@ Structure:
 
 Remember: This charter guides but doesn't lock in the strategy. The AI can adapt during execution.
 
+### 6. Refinement Recommendations (Optional)
+
+**Purpose**: Surface potential improvements you identified but chose not to implement.
+
+If you noticed tactical adjustments that could improve the strategy, list 2-4 here.
+
+**Each must include:**
+- The specific change considered
+- Why you didn't implement (insufficient evidence, adds complexity, etc.)
+- Trigger condition for when it becomes appropriate
+
+**Leave empty (null) if:** High conviction in strategy as-is, no meaningful improvements identified, or changes would require a different thesis.
+
 ---
 
 ## Tone & Style
@@ -155,6 +168,17 @@ Before returning the charter, verify:
 
 ## Output
 
-Return a Charter object with all 5 sections. Total ~1400-2000 words.
+Return a Charter object with 5 required sections + 1 optional section. Total ~1400-2000 words.
+
+```python
+Charter(
+    market_thesis: str,
+    strategy_selection: str,
+    expected_behavior: str,
+    failure_modes: List[str],
+    outlook_90d: str,
+    refinement_recommendations: Optional[List[str]]  # null or 2-4 items
+)
+```
 
 A concise, compelling pitch beats an exhaustive report.

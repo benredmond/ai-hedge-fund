@@ -106,45 +106,59 @@ def sample_scorecards():
 # ============================================================================
 
 class TestCandidateGenerator:
-    """Test candidate generation stage."""
+    """Test candidate generation stage (parallel mode)."""
+
+    def _make_strategy(self, name: str, tickers: list) -> Strategy:
+        """Helper to create a valid Strategy for testing."""
+        weights = {t: 1.0 / len(tickers) for t in tickers}
+        return Strategy(
+            name=name,
+            assets=tickers,
+            weights=weights,
+            rebalance_frequency=RebalanceFrequency.MONTHLY,
+            logic_tree={},
+            rebalancing_rationale="Monthly rebalancing maintains target weights by systematically buying dips and selling rallies, implementing contrarian exposure that captures mean-reversion across asset classes."
+        )
+
+    def _make_single_strategy_result(self, strategy: Strategy):
+        """Helper to create a mock SingleStrategy result."""
+        mock_result = AsyncMock()
+        mock_output = AsyncMock()
+        mock_output.strategy = strategy
+        mock_result.output = mock_output
+        return mock_result
 
     @pytest.mark.asyncio
-    async def test_raises_error_when_wrong_count(self, sample_market_context):
+    async def test_raises_error_when_too_few_candidates(self, sample_market_context):
         """
-        Validate that generate() raises ValueError if AI returns != 5 candidates.
+        Validate that generate() raises ValueError if <4 candidates generated.
 
-        This is a critical safety check to ensure the workflow always
-        gets exactly 5 candidates as required.
-
-        Note: Pydantic validation on CandidateList will catch wrong counts
-        before the code's manual validation, so we mock result.output.strategies
-        directly to bypass the Pydantic wrapper validation.
+        Parallel mode requires minimum 4 successful candidates (allows 1 failure).
         """
         generator = CandidateGenerator()
 
-        # Mock the agent for single-phase generation
-        with patch('src.agent.stages.candidate_generator.create_agent') as mock_create:
-            # Mock single-phase generation: bypass Pydantic validation by mocking .strategies directly
-            mock_agent = AsyncMock()
-            mock_result = AsyncMock()
-            mock_output = AsyncMock()
-            mock_output.strategies = [
-                Strategy(
-                    name="Only Strategy",
-                    assets=["SPY"],
-                    weights={"SPY": 1.0},
-                    rebalance_frequency=RebalanceFrequency.MONTHLY,
-                    logic_tree={},
-                    rebalancing_rationale="Monthly rebalancing maintains target weights by systematically buying dips and selling rallies, implementing contrarian exposure that captures mean-reversion across asset classes."
+        # Mock create_agent to return only 3 successful candidates (2 failures + 2 retry failures each)
+        call_count = 0
+
+        async def mock_agent_run(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            # First 3 calls succeed, rest fail (simulating permanent failures)
+            if call_count <= 3:
+                return self._make_single_strategy_result(
+                    self._make_strategy(f"Strategy {call_count}", [f"TICKER{call_count}A", f"TICKER{call_count}B"])
                 )
-            ]  # Only 1 strategy instead of 5
-            mock_result.output = mock_output
-            mock_agent.run.return_value = mock_result
+            else:
+                raise Exception("API Error: Rate limited")
+
+        with patch('src.agent.stages.candidate_generator.create_agent') as mock_create:
+            mock_agent = AsyncMock()
+            mock_agent.run = mock_agent_run
             mock_context = AsyncMock()
             mock_context.__aenter__.return_value = mock_agent
             mock_create.return_value = mock_context
 
-            with pytest.raises(ValueError, match="Expected 5 candidates, got 1"):
+            with pytest.raises(ValueError, match="Expected at least 4 candidates"):
                 await generator.generate(sample_market_context, model="openai:gpt-4o")
 
     @pytest.mark.asyncio
@@ -157,39 +171,170 @@ class TestCandidateGenerator:
         """
         generator = CandidateGenerator()
 
-        # Mock the agent for single-phase generation
+        # Mock 5 successful generations with 2 having duplicate tickers
+        duplicate_strategies = [
+            self._make_strategy("Strategy 0", ["SPY", "QQQ"]),  # Duplicate with #3
+            self._make_strategy("Strategy 1", ["AAPL", "MSFT"]),
+            self._make_strategy("Strategy 2", ["TLT", "GLD"]),
+            self._make_strategy("Strategy 3", ["SPY", "QQQ"]),  # Duplicate with #0
+            self._make_strategy("Strategy 4", ["VTI", "BND"]),
+        ]
+
+        call_count = 0
+
+        async def mock_agent_run(*args, **kwargs):
+            nonlocal call_count
+            strategy = duplicate_strategies[call_count % 5]
+            call_count += 1
+            return self._make_single_strategy_result(strategy)
+
         with patch('src.agent.stages.candidate_generator.create_agent') as mock_create:
-            # Mock single-phase generation: returns CandidateList with duplicates
             mock_agent = AsyncMock()
-            mock_result = AsyncMock()
-            mock_output = AsyncMock()
-
-            # Create 5 candidates, but 2 have same ticker set
-            duplicate_candidates = []
-            for i in range(5):
-                # Candidates 0 and 3 will have same tickers
-                tickers = ["SPY", "QQQ"] if i in [0, 3] else [f"TICKER{i}", f"ASSET{i}"]
-                weights = {tickers[0]: 0.5, tickers[1]: 0.5}
-                duplicate_candidates.append(
-                    Strategy(
-                        name=f"Strategy {i}",
-                        assets=tickers,
-                        weights=weights,
-                        rebalance_frequency=RebalanceFrequency.MONTHLY,
-                        logic_tree={},
-                        rebalancing_rationale="Monthly rebalancing maintains target weights by systematically buying dips and selling rallies, implementing contrarian exposure that captures mean-reversion across asset classes."
-                    )
-                )
-
-            mock_output.strategies = duplicate_candidates
-            mock_result.output = mock_output
-            mock_agent.run.return_value = mock_result
+            mock_agent.run = mock_agent_run
             mock_context = AsyncMock()
             mock_context.__aenter__.return_value = mock_agent
             mock_create.return_value = mock_context
 
             with pytest.raises(ValueError, match="Duplicate candidates detected"):
                 await generator.generate(sample_market_context, model="openai:gpt-4o")
+
+    @pytest.mark.asyncio
+    async def test_accepts_4_candidates_with_1_failure(self, sample_market_context):
+        """
+        Validate that generate() succeeds with 4 candidates (1 permanent failure allowed).
+        """
+        generator = CandidateGenerator()
+
+        # Mock: 4 succeed, 1 fails permanently (all retries exhausted)
+        call_count = 0
+
+        async def mock_agent_run(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            # First 4 calls succeed, 5th and its retries fail
+            if call_count <= 4:
+                return self._make_single_strategy_result(
+                    self._make_strategy(f"Strategy {call_count}", [f"TICKER{call_count}A", f"TICKER{call_count}B"])
+                )
+            else:
+                raise Exception("API Error: Model overloaded")
+
+        with patch('src.agent.stages.candidate_generator.create_agent') as mock_create:
+            mock_agent = AsyncMock()
+            mock_agent.run = mock_agent_run
+            mock_context = AsyncMock()
+            mock_context.__aenter__.return_value = mock_agent
+            mock_create.return_value = mock_context
+
+            candidates = await generator.generate(sample_market_context, model="openai:gpt-4o")
+
+            assert len(candidates) == 4
+            assert all(isinstance(c, Strategy) for c in candidates)
+
+
+class TestCandidateGeneratorDiversity:
+    """Test diversity checking for parallel candidate generation."""
+
+    # Standard rebalancing rationale that meets 150 char minimum
+    STANDARD_RATIONALE = (
+        "Monthly rebalancing maintains target weights by systematically buying dips "
+        "and selling rallies, implementing contrarian exposure that captures "
+        "mean-reversion across asset classes over 30-60 day cycles."
+    )
+
+    def test_check_diversity_passes_with_diverse_candidates(self):
+        """Diversity check passes when candidates have >=3 edge types and archetypes."""
+        from src.agent.models import EdgeType, StrategyArchetype
+
+        generator = CandidateGenerator()
+        candidates = [
+            Strategy(
+                name="Momentum Strategy",
+                assets=["SPY"], weights={"SPY": 1.0},
+                rebalance_frequency=RebalanceFrequency.WEEKLY,
+                logic_tree={},
+                edge_type=EdgeType.BEHAVIORAL,
+                archetype=StrategyArchetype.MOMENTUM,
+                rebalancing_rationale=self.STANDARD_RATIONALE
+            ),
+            Strategy(
+                name="Mean Reversion Strategy",
+                assets=["QQQ"], weights={"QQQ": 1.0},
+                rebalance_frequency=RebalanceFrequency.MONTHLY,
+                logic_tree={},
+                edge_type=EdgeType.STRUCTURAL,
+                archetype=StrategyArchetype.MEAN_REVERSION,
+                rebalancing_rationale=self.STANDARD_RATIONALE
+            ),
+            Strategy(
+                name="Carry Strategy",
+                assets=["TLT"], weights={"TLT": 1.0},
+                rebalance_frequency=RebalanceFrequency.QUARTERLY,
+                logic_tree={},
+                edge_type=EdgeType.RISK_PREMIUM,
+                archetype=StrategyArchetype.CARRY,
+                rebalancing_rationale=self.STANDARD_RATIONALE
+            ),
+            Strategy(
+                name="Volatility Strategy",
+                assets=["VXX"], weights={"VXX": 1.0},
+                rebalance_frequency=RebalanceFrequency.DAILY,
+                logic_tree={},
+                edge_type=EdgeType.INFORMATIONAL,
+                archetype=StrategyArchetype.VOLATILITY,
+                rebalancing_rationale=self.STANDARD_RATIONALE
+            ),
+        ]
+
+        is_diverse, issues = generator._check_diversity(candidates)
+        assert is_diverse is True
+        assert len(issues) == 0
+
+    def test_check_diversity_warns_on_low_edge_type_variety(self):
+        """Diversity check warns when <3 edge types present."""
+        from src.agent.models import EdgeType, StrategyArchetype
+
+        generator = CandidateGenerator()
+        candidates = [
+            Strategy(
+                name=f"Strategy {i}",
+                assets=[f"TICKER{i}"], weights={f"TICKER{i}": 1.0},
+                rebalance_frequency=RebalanceFrequency.MONTHLY,
+                logic_tree={},
+                edge_type=EdgeType.BEHAVIORAL,  # All same edge type
+                archetype=[StrategyArchetype.MOMENTUM, StrategyArchetype.MEAN_REVERSION, StrategyArchetype.CARRY][i % 3],
+                rebalancing_rationale=self.STANDARD_RATIONALE
+            )
+            for i in range(4)
+        ]
+
+        is_diverse, issues = generator._check_diversity(candidates)
+        assert is_diverse is False
+        assert len(issues) == 1
+        assert "edge types" in issues[0].lower()
+
+    def test_check_diversity_warns_on_low_archetype_variety(self):
+        """Diversity check warns when <3 archetypes present."""
+        from src.agent.models import EdgeType, StrategyArchetype
+
+        generator = CandidateGenerator()
+        candidates = [
+            Strategy(
+                name=f"Strategy {i}",
+                assets=[f"TICKER{i}"], weights={f"TICKER{i}": 1.0},
+                rebalance_frequency=RebalanceFrequency.MONTHLY,
+                logic_tree={},
+                edge_type=[EdgeType.BEHAVIORAL, EdgeType.STRUCTURAL, EdgeType.RISK_PREMIUM][i % 3],
+                archetype=StrategyArchetype.MOMENTUM,  # All same archetype
+                rebalancing_rationale=self.STANDARD_RATIONALE
+            )
+            for i in range(4)
+        ]
+
+        is_diverse, issues = generator._check_diversity(candidates)
+        assert is_diverse is False
+        assert len(issues) == 1
+        assert "archetype" in issues[0].lower()
 
 
 # ============================================================================
@@ -437,6 +582,13 @@ class TestCharterGenerator:
 
             assert charter.outlook_90d, "Charter missing outlook_90d"
             assert len(charter.outlook_90d) > 20, "outlook_90d too short"
+
+            # refinement_recommendations is optional - can be None or list
+            assert hasattr(charter, 'refinement_recommendations'), "Charter missing refinement_recommendations field"
+            if charter.refinement_recommendations is not None:
+                assert isinstance(charter.refinement_recommendations, list), "refinement_recommendations should be list"
+                for rec in charter.refinement_recommendations:
+                    assert len(rec) >= 50, "Each refinement recommendation must be ≥50 chars"
 
     @pytest.mark.asyncio
     async def test_charter_prompt_includes_context(
