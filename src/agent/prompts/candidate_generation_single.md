@@ -106,7 +106,7 @@ Strategy(
   thesis_document="""
   Market Analysis: VIX at 17.44 in strong bull market with 75% breadth. VIX spikes above 22 trigger institutional defensive rotation with 2-4 day lag.
 
-  Edge Explanation: Risk parity funds have mechanical deleveraging at VIX 22+, but institutional mandates use weekly/monthly committees that cannot react daily. This creates 2-4 day window for defensive rotation.
+  Edge Explanation: Risk parity funds have mechanical deleveraging at VIX 22+, but institutional mandates use weekly/monthly committees that cannot react daily. This creates 2-4 day window for defensive rotation. Capacity ~$500M AUM before VIX-based rotation signals become crowded; beyond this, institutional flows would front-run the same triggers.
 
   Regime Fit: Currently in growth mode (VIX 17.44), positioned to rotate defensively when VIX exceeds 22.
 
@@ -151,35 +151,23 @@ Strategy(
 
 ---
 
-## Anti-Patterns to Avoid
+## Edge Economics Calibration (Score Differentiation)
 
-**❌ Conditional thesis + empty logic_tree**
-```
-thesis: "Rotate to defense when VIX > 25"
-logic_tree: {}  # FAIL - missing implementation
-```
+Your edge economics score determines strategy quality. Generic edges cap at 3/5.
 
-**❌ Momentum + equal-weight rebalancing**
-Equal-weight sells winners (CONTRADICTS momentum)
+**2-3/5 (CAPPED - Avoid):** "Momentum is a well-known factor premium. We buy assets with positive 12-month returns."
+→ Why capped: No capacity limits, no causal mechanism, no decay timeline. Every quant fund runs this.
 
-**❌ Mean reversion with sector ETF**
-```
-thesis: "Oversold sector mean reversion"
-assets: [XLF, XLC, XLB]  # FAIL - no security selection edge
-```
-Use individual stocks: [JPM, BAC, WFC, C]
+**4/5 (TARGET):** "Post-earnings momentum in mid-cap software decays over 15-20 trading days as sell-side updates lag. Capacity ~$50M before slippage erodes alpha. Edge exists because institutional coverage sparse below $5B market cap."
+→ Why 4/5: Specific decay window + capacity constraint + structural explanation (analyst coverage gap).
 
-**❌ Round weights without derivation**
-```
-weights: {"SPY": 0.40, "QQQ": 0.35, "AGG": 0.25}
-# Missing: "equal-weight", "momentum-weighted", "risk-parity"
-```
+**5/5 (STRETCH):** "Fed pivot signals → REIT repricing lag of 8-12 weeks. Historical analogs: Dec 2018 (REITs +18% in 10 weeks after pivot), Nov 2022 (+14% in 8 weeks). Mechanism: REIT valuation models use trailing cap rates updated quarterly; market-implied cap rates adjust within days."
+→ Why 5/5: Quantified magnitude + historical precedent + structural mechanism (cap rate update lag).
 
-**❌ Vague failure modes**
-```
-"Strategy may underperform in bad markets"  # TOO VAGUE
-```
-Use: "VIX > 30 for 10+ days → -20% drawdown"
+**Your thesis_document MUST articulate:**
+1. Capacity limits (when does the edge degrade?)
+2. Decay timeline (how long does the edge persist?)
+3. Why YOU can capture it (what's the structural explanation?)
 
 ---
 
