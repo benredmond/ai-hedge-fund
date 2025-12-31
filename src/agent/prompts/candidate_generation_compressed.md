@@ -61,15 +61,21 @@ For each candidate, verify:
 - Conditional keywords in thesis? → logic_tree MUST be populated
 - Empty logic_tree + conditional thesis = AUTO-REJECT
 
-**Q2: Weight Justification**
+**Q2: Archetype-Implementation Match**
+- MOMENTUM archetype → MUST have rotation/ranking logic in logic_tree
+- VOLATILITY archetype → MUST have VIX/vol-based conditions in logic_tree
+- "Sector leadership" claim → MUST have dynamic selection (filter/ranking)
+- Static allocation with dynamic claims = MISMATCH → change archetype to DIRECTIONAL or add logic
+
+**Q3: Weight Justification**
 - Show calculation for weights
 - Round numbers need explicit derivation method
 
-**Q3: Edge Robustness**
+**Q4: Edge Robustness**
 - Specific failure trigger + expected drawdown
 - "Market crashes" is too vague
 
-Mark each Q1/Q2/Q3 as ✅ PASS or ❌ FAIL. Fix all failures before proceeding.
+Mark each Q1/Q2/Q3/Q4 as ✅ PASS or ❌ FAIL. Fix all failures before proceeding.
 
 ---
 
@@ -199,6 +205,25 @@ thesis: "Rotate to defense when VIX > 25"
 logic_tree: {}  # FAIL - missing implementation
 ```
 
+**❌ Momentum archetype + static allocation**
+```
+archetype: "momentum"
+thesis: "Rotates to top momentum sectors"
+assets: [XLB, XLF, XLC]
+weights: {XLB: 0.33, XLF: 0.33, XLC: 0.34}
+logic_tree: {}  # FAIL - no rotation mechanism
+```
+Momentum REQUIRES ranking/rotation logic. Static sector ETFs = DIRECTIONAL, not MOMENTUM.
+Either add filter/ranking in logic_tree OR change archetype to DIRECTIONAL.
+
+**❌ Sector Leadership + static holdings**
+```
+thesis: "Captures sector leadership persistence"
+assets: [XLK, XLV, XLF]  # Static ETFs
+logic_tree: {}  # FAIL - no dynamic selection
+```
+Sector leadership = dynamic. Use filter(top_3, cumulative_return) in logic_tree.
+
 **❌ Momentum + equal-weight rebalancing**
 Equal-weight sells winners (CONTRADICTS momentum)
 
@@ -227,12 +252,14 @@ Use: "VIX > 30 for 10+ days → -20% drawdown"
 
 Before returning, create summary:
 ```
-Candidate #1: [Coherence ✅/❌] [Frequency ✅/⚠️] [Weights ✅/⚠️] [Securities ✅/⚠️]
+Candidate #1: [Q1 ✅/❌] [Q2 ✅/❌] [Q3 ✅/⚠️] [Q4 ✅/⚠️]
 Candidate #2: ...
 Candidate #3: ...
 Candidate #4: ...
 Candidate #5: ...
 ```
+
+Q1=Implementation Coherence, Q2=Archetype-Implementation Match, Q3=Weight Justification, Q4=Edge Robustness
 
 **Fix ALL ❌ violations before returning List[Strategy].**
 

@@ -79,6 +79,31 @@ Be specific. Not "market crashes" but "value underperforms growth 5%+ despite ra
 - **Checkpoints**: What should we see at Day 30, 60, 90?
 - **Adaptation**: What evidence would cause us to change course?
 
+### 6. Symphony Logic Audit (Required for transparency)
+
+**Purpose**: Document exactly how the strategy implements its claimed edge.
+
+**If logic_tree is populated:**
+```
+Condition: [paste actual condition from logic_tree]
+If True: [assets and weights]
+If False: [assets and weights]
+```
+
+**Edge Implementation Mapping:**
+| Claimed Edge | Implementing Mechanism | Trigger/Condition |
+|--------------|------------------------|-------------------|
+| [from thesis] | [specific logic_tree element] | [what activates it] |
+
+**If logic_tree is empty (static allocation):**
+- Confirm: Edge is in ASSET SELECTION, not timing
+- Confirm: Archetype is DIRECTIONAL or MEAN_REVERSION (not MOMENTUM or VOLATILITY)
+
+**Red Flag Check:**
+- ❌ Thesis claims "rotation" but logic_tree is empty
+- ❌ Thesis claims "momentum" but no ranking/comparison logic
+- ❌ Thesis claims "sector leadership" but static ETF allocation
+
 ---
 
 ## Tone

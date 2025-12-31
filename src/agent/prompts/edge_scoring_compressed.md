@@ -172,6 +172,26 @@ Evaluate fit against provided tags:
 - Illiquid assets + weekly rebalancing
 - "Buy and hold value" + high turnover
 
+### Thesis-Implementation Gap (Score ≤2)
+
+**CRITICAL:** Check if thesis claims match implementation mechanics.
+
+| Thesis Claim | Required Implementation | Gap = Score ≤2 |
+|--------------|------------------------|----------------|
+| "Momentum rotation" | logic_tree with ranking/comparison | Static weights, no rotation logic |
+| "Sector leadership" | Dynamic selection (filter/ranking) | Static sector ETF allocation |
+| "Defensive triggers" | IF conditions in logic_tree | No conditional logic |
+| "VIX-based adaptation" | VIX threshold in logic_tree | No VIX conditions |
+
+**Example Auto-Fail:**
+```
+Thesis: "Monthly rotation to top momentum sectors"
+Implementation: equal_weight(XLB, XLF, XLC), logic_tree={}
+Verdict: Thesis claims rotation, implementation is static → Score 2/5 max
+```
+
+**The AI was fluent about an edge it didn't build. Penalize this severely.**
+
 ---
 
 ## Leverage Evaluation (If 2x/3x ETFs Detected)
