@@ -287,13 +287,16 @@ def create_composer_server() -> MCPServerStreamableHTTP:
     credentials = f"{api_key}:{api_secret}"
     encoded_credentials = base64.b64encode(credentials.encode()).decode()
 
+    # Import symphony fixer
+    from src.agent.schema_fixes import fix_composer_tool_call
+
     return MCPServerStreamableHTTP(
         url=COMPOSER_MCP_URL,
         headers={"Authorization": f"Basic {encoded_credentials}"},
         timeout=120,  # Connection timeout (increased from 5s)
         read_timeout=300,  # Read timeout (5 minutes)
         tool_prefix="composer",
-        process_tool_call=compress_tool_result if COMPRESS_MCP_RESULTS else None,
+        process_tool_call=fix_composer_tool_call,  # Fix symphony structure before sending
     )
 
 

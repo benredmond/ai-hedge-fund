@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import traceback
 import uuid
 from datetime import datetime, timezone
@@ -85,6 +86,7 @@ def _get_exchange(ticker: str) -> str:
         "SPY", "QQQ", "IWM", "DIA", "TLT", "GLD", "SLV", "VTI", "VOO", "BND",
         "XLB", "XLE", "XLF", "XLI", "XLK", "XLP", "XLRE", "XLU", "XLV", "XLY", "XLC",
         "BIL", "SHY", "IEF", "AGG", "LQD", "HYG", "EMB", "VNQ", "ARKK", "SMH",
+        "VIXY", "UVXY", "VXX",  # Volatility ETFs
     }
     if ticker in etfs:
         return "ARCX"
@@ -97,16 +99,227 @@ def _get_exchange(ticker: str) -> str:
     return "XNYS"
 
 
+def _parse_condition(condition_str: str) -> dict:
+    """
+    Parse a condition string into Composer if-child fields.
+
+    Examples:
+        "VIXY_price > 35" → {lhs-val: "VIXY", lhs-fn: "current-price", comparator: "gt", rhs-val: 35}
+        "SPY_price > SPY_200d_MA" → {lhs-val: "SPY", lhs-fn: "current-price", rhs-val: "SPY", rhs-fn: "moving-average-price"}
+
+    Returns dict with Composer if-child fields.
+    """
+    # Comparator mapping
+    comparator_map = {
+        ">": "gt",
+        ">=": "gte",
+        "<": "lt",
+        "<=": "lte",
+        "==": "eq",
+        "!=": "neq",
+    }
+
+    # Function suffix mapping
+    fn_suffix_map = {
+        "_price": ("current-price", None),
+        "_cumulative_return_": ("cumulative-return", r"_cumulative_return_(\d+)d"),
+        "_RSI_": ("relative-strength-index", r"_RSI_(\d+)d"),
+        "_200d_MA": ("moving-average-price", 200),
+        "_50d_MA": ("moving-average-price", 50),
+        "_EMA_": ("exponential-moving-average-price", r"_EMA_(\d+)d"),
+    }
+
+    # Find the comparator
+    comparator = None
+    comparator_str = None
+    for op in [">=", "<=", "==", "!=", ">", "<"]:  # Order matters: >= before >
+        if op in condition_str:
+            comparator = comparator_map[op]
+            comparator_str = op
+            break
+
+    if not comparator:
+        raise ValueError(f"No comparator found in condition: {condition_str}")
+
+    # Split into left and right sides
+    parts = condition_str.split(comparator_str)
+    if len(parts) != 2:
+        raise ValueError(f"Invalid condition format: {condition_str}")
+
+    lhs_str = parts[0].strip()
+    rhs_str = parts[1].strip()
+
+    def parse_operand(operand: str) -> tuple:
+        """Parse an operand like 'VIXY_price' or '35' into (ticker, fn, params, is_fixed)."""
+        # Check if it's a number
+        try:
+            value = float(operand)
+            if value == int(value):
+                value = int(value)
+            return (value, None, {}, True)
+        except ValueError:
+            pass
+
+        # Parse ticker_function format
+        for suffix, (fn_name, window_spec) in fn_suffix_map.items():
+            if suffix in operand:
+                # Extract ticker (everything before the suffix)
+                ticker = operand.split(suffix)[0]
+                if not ticker:
+                    # Handle case like "_price" at start
+                    ticker = operand.replace(suffix, "").strip("_")
+
+                params = {}
+                if window_spec is not None:
+                    if isinstance(window_spec, int):
+                        params = {"window": window_spec}
+                    elif isinstance(window_spec, str):
+                        # Regex pattern to extract window
+                        match = re.search(window_spec, operand)
+                        if match:
+                            params = {"window": int(match.group(1))}
+
+                return (ticker, fn_name, params, False)
+
+        # Fallback: assume it's a ticker with current-price
+        return (operand, "current-price", {}, False)
+
+    lhs_ticker, lhs_fn, lhs_params, lhs_fixed = parse_operand(lhs_str)
+    rhs_ticker, rhs_fn, rhs_params, rhs_fixed = parse_operand(rhs_str)
+
+    result = {
+        "comparator": comparator,
+        "lhs-val": lhs_ticker,
+        "lhs-fn": lhs_fn,
+        "lhs-fn-params": lhs_params,
+        "rhs-val": rhs_ticker,
+        "rhs-fixed-value?": rhs_fixed,
+        "rhs-fn": rhs_fn,
+        "rhs-fn-params": rhs_params,
+    }
+
+    return result
+
+
+def _build_if_structure(
+    logic_tree: dict,
+    rebalance: str = "monthly",
+) -> dict:
+    """
+    Build Composer IF structure from Strategy.logic_tree.
+
+    Args:
+        logic_tree: Dict with {condition, if_true, if_false}
+        rebalance: Rebalance frequency
+
+    Returns:
+        Composer IF node structure.
+    """
+    condition = logic_tree.get("condition", "")
+    if_true = logic_tree.get("if_true", {})
+    if_false = logic_tree.get("if_false", {})
+
+    # Parse the condition
+    condition_fields = _parse_condition(condition)
+
+    def build_branch_assets(branch: dict, use_specified_weights: bool = True) -> list:
+        """Build asset nodes for a branch."""
+        assets = branch.get("assets", [])
+        weights = branch.get("weights", {})
+
+        asset_nodes = []
+        for ticker in assets:
+            node = {
+                "id": str(uuid.uuid4()),
+                "step": "asset",
+                "ticker": ticker,
+                "exchange": _get_exchange(ticker),
+                "name": ticker,
+                "weight": None,
+            }
+            # Add allocation if using specified weights
+            if use_specified_weights and weights:
+                allocation = weights.get(ticker, 1.0 / len(assets))
+                node["allocation"] = allocation
+            asset_nodes.append(node)
+
+        return asset_nodes
+
+    def build_weight_node(branch: dict) -> dict:
+        """Build a weighting node (wt-cash-specified or wt-cash-equal) for a branch."""
+        weights = branch.get("weights", {})
+        assets = branch.get("assets", [])
+
+        # Use specified weights if they sum to ~1.0, otherwise equal weight
+        if weights:
+            total = sum(weights.values())
+            use_specified = 0.99 <= total <= 1.01
+        else:
+            use_specified = False
+
+        if use_specified:
+            return {
+                "id": str(uuid.uuid4()),
+                "step": "wt-cash-specified",
+                "weight": None,
+                "children": build_branch_assets(branch, use_specified_weights=True),
+            }
+        else:
+            return {
+                "id": str(uuid.uuid4()),
+                "step": "wt-cash-equal",
+                "weight": None,
+                "children": build_branch_assets(branch, use_specified_weights=False),
+            }
+
+    # Build TRUE branch (if-child with is-else-condition? = false)
+    true_branch = {
+        "id": str(uuid.uuid4()),
+        "step": "if-child",
+        "is-else-condition?": False,
+        "weight": None,
+        **condition_fields,
+        "children": [build_weight_node(if_true)],
+    }
+
+    # Build FALSE branch (if-child with is-else-condition? = true)
+    false_branch = {
+        "id": str(uuid.uuid4()),
+        "step": "if-child",
+        "is-else-condition?": True,
+        "weight": None,
+        "children": [build_weight_node(if_false)],
+    }
+
+    # Build IF node
+    if_node = {
+        "id": str(uuid.uuid4()),
+        "step": "if",
+        "weight": None,
+        "children": [true_branch, false_branch],
+    }
+
+    return if_node
+
+
 def _build_symphony_json(
     name: str,
     description: str,
     tickers: list[str],
     rebalance: str = "monthly",
+    logic_tree: dict | None = None,
 ) -> dict:
     """
     Build valid Composer symphony JSON structure for save_symphony.
 
     This is done in Python to avoid LLM hallucination issues with nested JSON.
+
+    Args:
+        name: Symphony name
+        description: Symphony description
+        tickers: List of asset tickers (used for static strategies)
+        rebalance: Rebalance frequency
+        logic_tree: Optional conditional logic tree {condition, if_true, if_false}
 
     Returns dict with:
         - symphony_score: The symphony structure
@@ -114,34 +327,66 @@ def _build_symphony_json(
         - hashtag: Required hashtag identifier
         - asset_class: EQUITIES or CRYPTO
     """
-    # Build asset nodes
-    asset_nodes = []
-    for ticker in tickers:
-        asset_nodes.append({
-            "id": str(uuid.uuid4()),
-            "step": "asset",
-            "ticker": ticker,
-            "exchange": _get_exchange(ticker),
-            "name": ticker,
-            "weight": None,
-        })
+    debug = os.getenv("DEBUG_PROMPTS", "0") == "1"
 
-    # Build complete symphony
-    symphony_score = {
-        "id": str(uuid.uuid4()),
-        "name": name,
-        "step": "root",
-        "weight": None,
-        "rebalance": rebalance,
-        "description": description,
-        "rebalance-corridor-width": None,
-        "children": [{
+    # Check if this is a conditional strategy
+    has_conditional_logic = (
+        logic_tree
+        and isinstance(logic_tree, dict)
+        and "condition" in logic_tree
+        and "if_true" in logic_tree
+        and "if_false" in logic_tree
+    )
+
+    if has_conditional_logic:
+        # Build IF structure for conditional strategies
+        if debug:
+            print(f"[DEBUG:_build_symphony_json] Building conditional IF structure")
+            print(f"[DEBUG:_build_symphony_json] logic_tree: {logic_tree}")
+
+        if_node = _build_if_structure(logic_tree, rebalance)
+
+        symphony_score = {
             "id": str(uuid.uuid4()),
-            "step": "wt-cash-equal",
+            "name": name,
+            "step": "root",
             "weight": None,
-            "children": asset_nodes,
-        }],
-    }
+            "rebalance": rebalance,
+            "description": description,
+            "rebalance-corridor-width": None,
+            "children": [if_node],
+        }
+    else:
+        # Build flat equal-weight structure for static strategies
+        if debug:
+            print(f"[DEBUG:_build_symphony_json] Building static wt-cash-equal structure")
+
+        asset_nodes = []
+        for ticker in tickers:
+            asset_nodes.append({
+                "id": str(uuid.uuid4()),
+                "step": "asset",
+                "ticker": ticker,
+                "exchange": _get_exchange(ticker),
+                "name": ticker,
+                "weight": None,
+            })
+
+        symphony_score = {
+            "id": str(uuid.uuid4()),
+            "name": name,
+            "step": "root",
+            "weight": None,
+            "rebalance": rebalance,
+            "description": description,
+            "rebalance-corridor-width": None,
+            "children": [{
+                "id": str(uuid.uuid4()),
+                "step": "wt-cash-equal",
+                "weight": None,
+                "children": asset_nodes,
+            }],
+        }
 
     # Generate hashtag from name (remove spaces, add #)
     hashtag = "#" + "".join(name.split()[:2])
@@ -338,6 +583,7 @@ class ComposerDeployer:
             description=confirmation.symphony_description,
             tickers=strategy.assets,
             rebalance=strategy.rebalance_frequency.value,
+            logic_tree=strategy.logic_tree,  # Pass conditional logic if present
         )
 
         if debug:

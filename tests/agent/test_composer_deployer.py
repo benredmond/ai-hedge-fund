@@ -2,6 +2,9 @@
 Tests for ComposerDeployer stage.
 
 Tests:
+- _parse_condition() parsing various condition string formats
+- _build_if_structure() building Composer IF node trees
+- _build_symphony_json() generating symphony JSON for static and conditional strategies
 - _extract_symphony_data() method with various response formats
 - Deploy graceful degradation when credentials missing
 - Integration with mocked MCP responses
@@ -10,8 +13,15 @@ Tests:
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 import os
+import uuid
 
-from src.agent.stages.composer_deployer import ComposerDeployer
+from src.agent.stages.composer_deployer import (
+    ComposerDeployer,
+    _parse_condition,
+    _build_if_structure,
+    _build_symphony_json,
+    _get_exchange,
+)
 from src.agent.models import (
     Strategy,
     Charter,
@@ -564,3 +574,436 @@ class TestComposerDeployerIntegration:
             assert deployed_at is not None
             assert "T" in deployed_at  # ISO format
             # strategy_summary may or may not be present depending on response
+
+
+class TestParseCondition:
+    """Test _parse_condition() with various condition string formats."""
+
+    def test_simple_price_gt_number(self):
+        """Parse 'VIXY_price > 35'."""
+        result = _parse_condition("VIXY_price > 35")
+
+        assert result["comparator"] == "gt"
+        assert result["lhs-val"] == "VIXY"
+        assert result["lhs-fn"] == "current-price"
+        assert result["lhs-fn-params"] == {}
+        assert result["rhs-val"] == 35
+        assert result["rhs-fixed-value?"] is True
+        assert result["rhs-fn"] is None
+
+    def test_price_lt_number(self):
+        """Parse 'SPY_price < 400'."""
+        result = _parse_condition("SPY_price < 400")
+
+        assert result["comparator"] == "lt"
+        assert result["lhs-val"] == "SPY"
+        assert result["lhs-fn"] == "current-price"
+        assert result["rhs-val"] == 400
+        assert result["rhs-fixed-value?"] is True
+
+    def test_gte_comparator(self):
+        """Parse 'VIX_price >= 20'."""
+        result = _parse_condition("VIX_price >= 20")
+
+        assert result["comparator"] == "gte"
+        assert result["lhs-val"] == "VIX"
+        assert result["rhs-val"] == 20
+
+    def test_lte_comparator(self):
+        """Parse 'SPY_price <= 500'."""
+        result = _parse_condition("SPY_price <= 500")
+
+        assert result["comparator"] == "lte"
+
+    def test_eq_comparator(self):
+        """Parse 'TEST == 100'."""
+        result = _parse_condition("TEST == 100")
+
+        assert result["comparator"] == "eq"
+
+    def test_price_vs_moving_average(self):
+        """Parse 'SPY_price > SPY_200d_MA'."""
+        result = _parse_condition("SPY_price > SPY_200d_MA")
+
+        assert result["comparator"] == "gt"
+        assert result["lhs-val"] == "SPY"
+        assert result["lhs-fn"] == "current-price"
+        assert result["rhs-val"] == "SPY"
+        assert result["rhs-fixed-value?"] is False
+        assert result["rhs-fn"] == "moving-average-price"
+        assert result["rhs-fn-params"] == {"window": 200}
+
+    def test_50d_moving_average(self):
+        """Parse 'QQQ_price < QQQ_50d_MA'."""
+        result = _parse_condition("QQQ_price < QQQ_50d_MA")
+
+        assert result["rhs-fn"] == "moving-average-price"
+        assert result["rhs-fn-params"] == {"window": 50}
+
+    def test_cumulative_return(self):
+        """Parse 'SPY_cumulative_return_30d > 0.05'."""
+        result = _parse_condition("SPY_cumulative_return_30d > 0.05")
+
+        assert result["lhs-val"] == "SPY"
+        assert result["lhs-fn"] == "cumulative-return"
+        assert result["lhs-fn-params"] == {"window": 30}
+        assert result["rhs-val"] == 0.05
+        assert result["rhs-fixed-value?"] is True
+
+    def test_rsi_indicator(self):
+        """Parse 'SPY_RSI_14d > 70'."""
+        result = _parse_condition("SPY_RSI_14d > 70")
+
+        assert result["lhs-val"] == "SPY"
+        assert result["lhs-fn"] == "relative-strength-index"
+        assert result["lhs-fn-params"] == {"window": 14}
+        assert result["rhs-val"] == 70
+
+    def test_ema_indicator(self):
+        """Parse 'SPY_EMA_21d > 450'."""
+        result = _parse_condition("SPY_EMA_21d > 450")
+
+        assert result["lhs-val"] == "SPY"
+        assert result["lhs-fn"] == "exponential-moving-average-price"
+        assert result["lhs-fn-params"] == {"window": 21}
+
+    def test_float_rhs_value(self):
+        """Parse condition with float value on RHS."""
+        result = _parse_condition("SPY_cumulative_return_60d > 0.15")
+
+        assert result["rhs-val"] == 0.15
+        assert result["rhs-fixed-value?"] is True
+
+    def test_negative_number(self):
+        """Parse condition with negative number."""
+        result = _parse_condition("SPY_cumulative_return_30d > -0.10")
+
+        assert result["rhs-val"] == -0.10
+
+    def test_whitespace_handling(self):
+        """Parse condition with extra whitespace."""
+        result = _parse_condition("  VIXY_price   >   35  ")
+
+        assert result["lhs-val"] == "VIXY"
+        assert result["rhs-val"] == 35
+
+    def test_no_comparator_raises_error(self):
+        """Raise ValueError when no comparator found."""
+        with pytest.raises(ValueError, match="No comparator found"):
+            _parse_condition("VIXY_price 35")
+
+    def test_invalid_format_raises_error(self):
+        """Raise ValueError for invalid format with multiple comparators."""
+        with pytest.raises(ValueError, match="Invalid condition format"):
+            _parse_condition("A > B > C")
+
+
+class TestBuildIfStructure:
+    """Test _build_if_structure() building Composer IF node trees."""
+
+    def test_basic_if_structure(self):
+        """Build IF structure from basic logic_tree."""
+        logic_tree = {
+            "condition": "VIXY_price > 35",
+            "if_true": {
+                "assets": ["BIL"],
+                "weights": {"BIL": 1.0},
+            },
+            "if_false": {
+                "assets": ["SPY", "QQQ"],
+                "weights": {"SPY": 0.6, "QQQ": 0.4},
+            },
+        }
+
+        result = _build_if_structure(logic_tree)
+
+        # Check root IF node
+        assert result["step"] == "if"
+        assert result["weight"] is None
+        assert "id" in result
+        assert len(result["children"]) == 2
+
+    def test_true_branch_structure(self):
+        """Verify true branch has correct is-else-condition and condition fields."""
+        logic_tree = {
+            "condition": "VIXY_price > 35",
+            "if_true": {"assets": ["BIL"], "weights": {"BIL": 1.0}},
+            "if_false": {"assets": ["SPY"], "weights": {"SPY": 1.0}},
+        }
+
+        result = _build_if_structure(logic_tree)
+        true_branch = result["children"][0]
+
+        assert true_branch["step"] == "if-child"
+        assert true_branch["is-else-condition?"] is False
+        assert true_branch["comparator"] == "gt"
+        assert true_branch["lhs-val"] == "VIXY"
+        assert true_branch["lhs-fn"] == "current-price"
+        assert true_branch["rhs-val"] == 35
+        assert true_branch["rhs-fixed-value?"] is True
+
+    def test_false_branch_structure(self):
+        """Verify false branch has is-else-condition? = true."""
+        logic_tree = {
+            "condition": "VIXY_price > 35",
+            "if_true": {"assets": ["BIL"], "weights": {"BIL": 1.0}},
+            "if_false": {"assets": ["SPY"], "weights": {"SPY": 1.0}},
+        }
+
+        result = _build_if_structure(logic_tree)
+        false_branch = result["children"][1]
+
+        assert false_branch["step"] == "if-child"
+        assert false_branch["is-else-condition?"] is True
+        assert false_branch["weight"] is None
+
+    def test_specified_weights_generates_wt_cash_specified(self):
+        """wt-cash-specified used when weights sum to ~1.0."""
+        logic_tree = {
+            "condition": "SPY_price > SPY_200d_MA",
+            "if_true": {
+                "assets": ["SPY", "QQQ"],
+                "weights": {"SPY": 0.6, "QQQ": 0.4},
+            },
+            "if_false": {
+                "assets": ["BIL"],
+                "weights": {"BIL": 1.0},
+            },
+        }
+
+        result = _build_if_structure(logic_tree)
+        true_branch = result["children"][0]
+        weight_node = true_branch["children"][0]
+
+        assert weight_node["step"] == "wt-cash-specified"
+        assert len(weight_node["children"]) == 2
+
+        # Check allocations
+        spy_node = next(c for c in weight_node["children"] if c["ticker"] == "SPY")
+        assert spy_node["allocation"] == 0.6
+
+    def test_equal_weights_generates_wt_cash_equal(self):
+        """wt-cash-equal used when no weights or weights don't sum to 1.0."""
+        logic_tree = {
+            "condition": "VIXY_price > 35",
+            "if_true": {"assets": ["BIL"], "weights": {}},  # Empty weights
+            "if_false": {"assets": ["SPY", "QQQ"], "weights": {}},
+        }
+
+        result = _build_if_structure(logic_tree)
+        false_branch = result["children"][1]
+        weight_node = false_branch["children"][0]
+
+        assert weight_node["step"] == "wt-cash-equal"
+        # No allocation field on children
+        for child in weight_node["children"]:
+            assert "allocation" not in child
+
+    def test_asset_nodes_have_required_fields(self):
+        """Asset nodes have step, id, ticker, exchange, name, weight."""
+        logic_tree = {
+            "condition": "AAPL_price > 200",
+            "if_true": {"assets": ["AAPL"], "weights": {"AAPL": 1.0}},
+            "if_false": {"assets": ["BIL"], "weights": {"BIL": 1.0}},
+        }
+
+        result = _build_if_structure(logic_tree)
+        true_branch = result["children"][0]
+        weight_node = true_branch["children"][0]
+        asset = weight_node["children"][0]
+
+        assert asset["step"] == "asset"
+        assert "id" in asset
+        assert asset["ticker"] == "AAPL"
+        assert asset["exchange"] == "XNAS"  # AAPL is on NASDAQ
+        assert asset["name"] == "AAPL"
+        assert asset["weight"] is None
+
+    def test_etf_exchange_mapping(self):
+        """ETFs get ARCX exchange."""
+        logic_tree = {
+            "condition": "VIXY_price > 35",
+            "if_true": {"assets": ["BIL"], "weights": {"BIL": 1.0}},
+            "if_false": {"assets": ["SPY"], "weights": {"SPY": 1.0}},
+        }
+
+        result = _build_if_structure(logic_tree)
+        true_branch = result["children"][0]
+        weight_node = true_branch["children"][0]
+        bil_asset = weight_node["children"][0]
+
+        assert bil_asset["exchange"] == "ARCX"  # BIL is an ETF
+
+    def test_all_nodes_have_uuid_ids(self):
+        """All nodes have valid UUID format ids."""
+        logic_tree = {
+            "condition": "SPY_price > 400",
+            "if_true": {"assets": ["SPY"], "weights": {"SPY": 1.0}},
+            "if_false": {"assets": ["BIL"], "weights": {"BIL": 1.0}},
+        }
+
+        result = _build_if_structure(logic_tree)
+
+        # Validate IF node id
+        uuid.UUID(result["id"])
+
+        # Validate all children recursively
+        def check_ids(node):
+            if "id" in node:
+                uuid.UUID(node["id"])  # Raises if invalid
+            for child in node.get("children", []):
+                check_ids(child)
+
+        check_ids(result)
+
+
+class TestBuildSymphonyJson:
+    """Test _build_symphony_json() for static and conditional strategies."""
+
+    def test_static_strategy_uses_wt_cash_equal(self):
+        """Static strategy (no logic_tree) uses wt-cash-equal."""
+        result = _build_symphony_json(
+            name="Test Strategy",
+            description="A test strategy",
+            tickers=["AAPL", "MSFT", "GOOGL"],
+            rebalance="monthly",
+            logic_tree=None,
+        )
+
+        symphony = result["symphony_score"]
+        assert symphony["step"] == "root"
+        assert symphony["name"] == "Test Strategy"
+        assert len(symphony["children"]) == 1
+
+        weight_node = symphony["children"][0]
+        assert weight_node["step"] == "wt-cash-equal"
+        assert len(weight_node["children"]) == 3
+
+    def test_conditional_strategy_uses_if_structure(self):
+        """Conditional strategy (with logic_tree) uses IF structure."""
+        logic_tree = {
+            "condition": "VIXY_price > 35",
+            "if_true": {"assets": ["BIL"], "weights": {"BIL": 1.0}},
+            "if_false": {"assets": ["SPY", "QQQ"], "weights": {"SPY": 0.6, "QQQ": 0.4}},
+        }
+
+        result = _build_symphony_json(
+            name="Conditional Strategy",
+            description="Risk-off when volatility high",
+            tickers=["SPY", "QQQ", "BIL"],  # tickers ignored when logic_tree present
+            rebalance="weekly",
+            logic_tree=logic_tree,
+        )
+
+        symphony = result["symphony_score"]
+        assert symphony["step"] == "root"
+        assert symphony["rebalance"] == "weekly"
+        assert len(symphony["children"]) == 1
+
+        if_node = symphony["children"][0]
+        assert if_node["step"] == "if"
+
+    def test_empty_logic_tree_treated_as_static(self):
+        """Empty dict logic_tree treated as static strategy."""
+        result = _build_symphony_json(
+            name="Test",
+            description="Test",
+            tickers=["SPY"],
+            logic_tree={},
+        )
+
+        symphony = result["symphony_score"]
+        weight_node = symphony["children"][0]
+        assert weight_node["step"] == "wt-cash-equal"
+
+    def test_incomplete_logic_tree_treated_as_static(self):
+        """Logic tree missing required keys treated as static."""
+        result = _build_symphony_json(
+            name="Test",
+            description="Test",
+            tickers=["SPY"],
+            logic_tree={"condition": "SPY > 400"},  # Missing if_true, if_false
+        )
+
+        symphony = result["symphony_score"]
+        weight_node = symphony["children"][0]
+        assert weight_node["step"] == "wt-cash-equal"
+
+    def test_symphony_has_required_root_fields(self):
+        """Symphony root has all required fields."""
+        result = _build_symphony_json(
+            name="My Strategy",
+            description="Description here",
+            tickers=["SPY"],
+            rebalance="daily",
+        )
+
+        symphony = result["symphony_score"]
+        assert "id" in symphony
+        assert symphony["name"] == "My Strategy"
+        assert symphony["description"] == "Description here"
+        assert symphony["step"] == "root"
+        assert symphony["weight"] is None
+        assert symphony["rebalance"] == "daily"
+        assert symphony["rebalance-corridor-width"] is None
+
+    def test_output_includes_color_and_hashtag(self):
+        """Output includes color and hashtag fields."""
+        result = _build_symphony_json(
+            name="Momentum Strategy",
+            description="Test",
+            tickers=["SPY"],
+        )
+
+        assert "color" in result
+        assert result["color"].startswith("#")
+        assert "hashtag" in result
+        assert result["hashtag"].startswith("#")
+
+    def test_hashtag_generated_from_name(self):
+        """Hashtag is generated from first two words of name."""
+        result = _build_symphony_json(
+            name="Volatility Risk Off Strategy",
+            description="Test",
+            tickers=["SPY"],
+        )
+
+        assert result["hashtag"] == "#VolatilityRisk"
+
+    def test_asset_class_is_equities(self):
+        """Asset class is EQUITIES."""
+        result = _build_symphony_json(
+            name="Test",
+            description="Test",
+            tickers=["SPY"],
+        )
+
+        assert result["asset_class"] == "EQUITIES"
+
+
+class TestGetExchange:
+    """Test _get_exchange() ticker to exchange mapping."""
+
+    def test_common_etfs_return_arcx(self):
+        """Common ETFs return ARCX (NYSE Arca)."""
+        etfs = ["SPY", "QQQ", "GLD", "TLT", "BIL", "VTI", "XLK", "XLE"]
+        for etf in etfs:
+            assert _get_exchange(etf) == "ARCX", f"{etf} should be ARCX"
+
+    def test_volatility_etfs_return_arcx(self):
+        """Volatility ETFs return ARCX."""
+        vol_etfs = ["VIXY", "UVXY", "VXX"]
+        for etf in vol_etfs:
+            assert _get_exchange(etf) == "ARCX", f"{etf} should be ARCX"
+
+    def test_nasdaq_stocks_return_xnas(self):
+        """NASDAQ stocks return XNAS."""
+        nasdaq = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA"]
+        for stock in nasdaq:
+            assert _get_exchange(stock) == "XNAS", f"{stock} should be XNAS"
+
+    def test_unknown_stocks_return_xnys(self):
+        """Unknown stocks default to XNYS (NYSE)."""
+        nyse = ["JPM", "BAC", "WMT", "JNJ", "UNH"]
+        for stock in nyse:
+            assert _get_exchange(stock) == "XNYS", f"{stock} should default to XNYS"
