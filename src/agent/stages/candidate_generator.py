@@ -78,6 +78,33 @@ _DECAY_NUMBER_PATTERN = re.compile(
 _DRAWDOWN_PATTERN = re.compile(r'(\d+)%?\s*(?:drawdown|dd|decline|loss)')
 _EXIT_SPECIFIC_PATTERN = re.compile(r'(?:exit|rotate|stop).*(?:if|when|vix >|momentum <)')
 
+# Threshold hygiene patterns - detect magic numbers vs relative thresholds
+# Absolute price threshold: VIXY_price > 20 or 20 < VIXY_price
+_ABSOLUTE_PRICE_THRESHOLD = re.compile(
+    r'(\d+(?:\.\d+)?)\s*[><]=?\s*\w+_price|'  # 20 < VIXY_price
+    r'\w+_price\s*[><]=?\s*(\d+(?:\.\d+)?)',   # VIXY_price > 20
+    re.IGNORECASE
+)
+
+# Arbitrary return threshold: cumulative_return > 0.05 (non-zero)
+_ARBITRARY_RETURN_THRESHOLD = re.compile(
+    r'_cumulative_return_\d+d\s*[><]=?\s*(-?0?\.\d*[1-9]|-?[1-9]\d*(?:\.\d+)?)|'  # return > 0.05
+    r'(-?0?\.\d*[1-9]|-?[1-9]\d*(?:\.\d+)?)\s*[><]=?\s*\w+_cumulative_return',    # 0.05 < return
+    re.IGNORECASE
+)
+
+# Valid relative patterns (whitelist)
+_VALID_RELATIVE_PATTERNS = [
+    # Price vs own moving average: SPY_price > SPY_200d_MA
+    re.compile(r'([A-Z]+)_price\s*[><]=?\s*\1_(?:EMA_)?\d+d_MA', re.IGNORECASE),
+    # Cross-asset comparison: XLK_cumulative_return_30d > XLF_cumulative_return_30d
+    re.compile(r'([A-Z]+)_\w+\s*[><]=?\s*([A-Z]+)_\w+', re.IGNORECASE),
+    # Zero-bounded return: cumulative_return_30d > 0
+    re.compile(r'_cumulative_return_\d+d\s*[><]=?\s*0(?:\.0*)?\s*(?:\)|$|and|or|\s)', re.IGNORECASE),
+    # RSI with standard thresholds: RSI_14d > 70
+    re.compile(r'_RSI_\d+d\s*[><]=?\s*(20|25|30|35|65|70|75|80)', re.IGNORECASE),
+]
+
 
 def extract_and_log_reasoning(result, stage_name: str) -> bool:
     """
@@ -317,6 +344,14 @@ Use different archetypes for each: Momentum, Mean Reversion, Carry, Volatility, 
             market_context, system_prompt, recipe_prompt, model
         )
         print(f"✓ Generated {len(candidates)} candidates")
+
+        # Log candidate details
+        for i, c in enumerate(candidates, 1):
+            weights_str = ", ".join(f"{k}:{v:.0%}" for k, v in c.weights.items()) if c.weights else "dynamic"
+            logic_status = "conditional" if c.logic_tree else "static"
+            print(f"  [{i}] {c.name}")
+            print(f"      Assets: {', '.join(c.assets)}")
+            print(f"      Weights: {weights_str} | Rebalance: {c.rebalance_frequency} | {logic_status}")
 
         # Validate minimum count
         MIN_CANDIDATES = 5
@@ -1412,6 +1447,87 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
 
         return sector_weights
 
+    def _extract_all_conditions(self, logic_tree: dict) -> List[str]:
+        """
+        Recursively extract all condition strings from nested logic_tree.
+
+        Args:
+            logic_tree: Logic tree dict (potentially nested)
+
+        Returns:
+            List of condition strings found at all levels
+        """
+        conditions = []
+        if isinstance(logic_tree, dict):
+            if "condition" in logic_tree and isinstance(logic_tree["condition"], str):
+                conditions.append(logic_tree["condition"])
+            for branch in ["if_true", "if_false"]:
+                if branch in logic_tree and isinstance(logic_tree[branch], dict):
+                    conditions.extend(self._extract_all_conditions(logic_tree[branch]))
+        return conditions
+
+    def _validate_threshold_hygiene(self, strategy: Strategy, idx: int) -> List[str]:
+        """
+        Validate that logic_tree conditions use relative thresholds, not magic numbers.
+
+        Rejects absolute thresholds (VIXY_price > 20) in favor of relative patterns
+        (VIXY_cumulative_return_5d > 0, SPY_price > SPY_200d_MA).
+
+        Allowed patterns:
+        - Price vs own MA: SPY_price > SPY_200d_MA
+        - Cross-asset: XLK_return > XLF_return
+        - Zero-bounded: cumulative_return_30d > 0
+        - RSI standard: RSI_14d > 70 (bounded 0-100)
+
+        Rejected patterns:
+        - Absolute price: VIXY_price > 20
+        - Arbitrary return: SPY_cumulative_return_30d > 0.05
+
+        Args:
+            strategy: Strategy to validate
+            idx: Candidate index (1-based) for error messages
+
+        Returns:
+            List of Syntax Error messages (triggers retry)
+        """
+        errors = []
+
+        if not strategy.logic_tree:
+            return errors
+
+        conditions = self._extract_all_conditions(strategy.logic_tree)
+
+        for condition in conditions:
+            # Split on 'and'/'or' to check each comparison independently
+            comparisons = re.split(r'\s+(?:and|or)\s+', condition, flags=re.IGNORECASE)
+
+            for comparison in comparisons:
+                comparison = comparison.strip()
+                if not comparison:
+                    continue
+
+                # Check if valid relative pattern (whitelist)
+                is_valid = any(p.search(comparison) for p in _VALID_RELATIVE_PATTERNS)
+                if is_valid:
+                    continue
+
+                # Check for violations (blacklist)
+                if _ABSOLUTE_PRICE_THRESHOLD.search(comparison):
+                    errors.append(
+                        f"Syntax Error: {strategy.name} - condition '{comparison}' uses "
+                        f"absolute price threshold (magic number). "
+                        f"Use relative form: TICKER_price > TICKER_200d_MA or "
+                        f"TICKER_cumulative_return_Nd > 0"
+                    )
+                elif _ARBITRARY_RETURN_THRESHOLD.search(comparison):
+                    errors.append(
+                        f"Syntax Error: {strategy.name} - condition '{comparison}' uses "
+                        f"arbitrary return threshold (non-zero magic number). "
+                        f"Use zero-bounded: > 0 or < 0"
+                    )
+
+        return errors
+
     def _validate_syntax(self, strategy: Strategy) -> List[str]:
         """
         Validate syntactic correctness of strategy structure.
@@ -1487,6 +1603,11 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
                     f"{unlisted}. PREFERRED FIX: Remove {unlisted} from logic_tree branches. "
                     f"Alternative: Add to assets (but assets are immutable during retry)."
                 )
+
+        # Check 5: Threshold hygiene - no magic numbers in conditions
+        # Note: idx=0 since _validate_syntax is called per-strategy, not batch
+        threshold_errors = self._validate_threshold_hygiene(strategy, 0)
+        errors.extend(threshold_errors)
 
         return errors
 
@@ -1996,6 +2117,11 @@ Remember: You are a {variation["emphasis"]} specialist. Your strategy should ref
             extract_and_log_reasoning(result, f"CandidateGenerator:{variation['name']}")
 
             strategy = result.output.strategy
+
+            # Debug: Print full strategy output (matches EdgeScorer pattern)
+            print(f"\n[DEBUG:CandidateGenerator:{variation['name']}] Full LLM response:")
+            print(f"{strategy.model_dump()}")
+
             print(f"  [{variation['name']}] ✓ Generated: {strategy.name[:50]}...")
             return strategy
 
