@@ -120,8 +120,10 @@ def _parse_condition(condition_str: str) -> dict:
     }
 
     # Function suffix mapping
+    # NOTE: current-price is NOT valid for IF conditionals!
+    # Use moving-average-price with window=1 as proxy for current price
     fn_suffix_map = {
-        "_price": ("current-price", None),
+        "_price": ("moving-average-price", 1),  # current-price NOT valid for conditionals
         "_cumulative_return_": ("cumulative-return", r"_cumulative_return_(\d+)d"),
         "_RSI_": ("relative-strength-index", r"_RSI_(\d+)d"),
         "_200d_MA": ("moving-average-price", 200),
@@ -156,7 +158,7 @@ def _parse_condition(condition_str: str) -> dict:
             value = float(operand)
             if value == int(value):
                 value = int(value)
-            return (value, None, {}, True)
+            return (value, None, None, True)  # None for params, not {}
         except ValueError:
             pass
 
@@ -169,7 +171,7 @@ def _parse_condition(condition_str: str) -> dict:
                     # Handle case like "_price" at start
                     ticker = operand.replace(suffix, "").strip("_")
 
-                params = {}
+                params = None  # Default to None for paramless functions
                 if window_spec is not None:
                     if isinstance(window_spec, int):
                         params = {"window": window_spec}
@@ -181,21 +183,30 @@ def _parse_condition(condition_str: str) -> dict:
 
                 return (ticker, fn_name, params, False)
 
-        # Fallback: assume it's a ticker with current-price
-        return (operand, "current-price", {}, False)
+        # Fallback: assume it's a ticker with moving-average-price(1) as proxy for current price
+        # NOTE: current-price is NOT valid for IF conditionals!
+        return (operand, "moving-average-price", {"window": 1}, False)
 
     lhs_ticker, lhs_fn, lhs_params, lhs_fixed = parse_operand(lhs_str)
     rhs_ticker, rhs_fn, rhs_params, rhs_fixed = parse_operand(rhs_str)
+
+    # When rhs is a fixed value, ALWAYS mirror lhs-fn (per working production example)
+    # The docs say rhs-fn should be null, but actual working symphonies show it matches lhs-fn
+    if rhs_fixed:
+        rhs_fn = lhs_fn
+        rhs_params = lhs_params.copy() if lhs_params else None  # None, not {}
 
     result = {
         "comparator": comparator,
         "lhs-val": lhs_ticker,
         "lhs-fn": lhs_fn,
         "lhs-fn-params": lhs_params,
+        "lhs-window-days": None,  # Required field (deprecated but still needed)
         "rhs-val": rhs_ticker,
         "rhs-fixed-value?": rhs_fixed,
         "rhs-fn": rhs_fn,
         "rhs-fn-params": rhs_params,
+        "rhs-window-days": None,  # Required field (deprecated but still needed)
     }
 
     return result
@@ -245,32 +256,29 @@ def _build_if_structure(
 
         return asset_nodes
 
-    def build_weight_node(branch: dict) -> dict:
-        """Build a weighting node (wt-cash-specified or wt-cash-equal) for a branch."""
-        weights = branch.get("weights", {})
+    def build_branch_content(branch: dict) -> list:
+        """
+        Build content for an if-child branch.
+
+        Based on working Composer symphony examples:
+        - Single asset: goes directly under if-child (no wrapper)
+        - Multiple assets: MUST use wt-cash-equal (wt-cash-specified NOT supported in if-child)
+
+        Note: Custom weights (wt-cash-specified) are NOT supported inside conditional branches.
+        """
         assets = branch.get("assets", [])
 
-        # Use specified weights if they sum to ~1.0, otherwise equal weight
-        if weights:
-            total = sum(weights.values())
-            use_specified = 0.99 <= total <= 1.01
-        else:
-            use_specified = False
+        # Single asset: place directly (no wrapper needed)
+        if len(assets) == 1:
+            return build_branch_assets(branch, use_specified_weights=False)
 
-        if use_specified:
-            return {
-                "id": str(uuid.uuid4()),
-                "step": "wt-cash-specified",
-                "weight": None,
-                "children": build_branch_assets(branch, use_specified_weights=True),
-            }
-        else:
-            return {
-                "id": str(uuid.uuid4()),
-                "step": "wt-cash-equal",
-                "weight": None,
-                "children": build_branch_assets(branch, use_specified_weights=False),
-            }
+        # Multiple assets: MUST use wt-cash-equal (wt-cash-specified not valid in if-child)
+        return [{
+            "id": str(uuid.uuid4()),
+            "step": "wt-cash-equal",
+            "weight": None,
+            "children": build_branch_assets(branch, use_specified_weights=False),
+        }]
 
     # Build TRUE branch (if-child with is-else-condition? = false)
     true_branch = {
@@ -279,7 +287,7 @@ def _build_if_structure(
         "is-else-condition?": False,
         "weight": None,
         **condition_fields,
-        "children": [build_weight_node(if_true)],
+        "children": build_branch_content(if_true),
     }
 
     # Build FALSE branch (if-child with is-else-condition? = true)
@@ -288,7 +296,7 @@ def _build_if_structure(
         "step": "if-child",
         "is-else-condition?": True,
         "weight": None,
-        "children": [build_weight_node(if_false)],
+        "children": build_branch_content(if_false),
     }
 
     # Build IF node
@@ -346,6 +354,8 @@ def _build_symphony_json(
 
         if_node = _build_if_structure(logic_tree, rebalance)
 
+        # CRITICAL: if node must be wrapped in wt-cash-equal (root children must be weighting nodes)
+        # Structure: root → wt-cash-equal → if → if-child branches
         symphony_score = {
             "id": str(uuid.uuid4()),
             "name": name,
@@ -354,7 +364,12 @@ def _build_symphony_json(
             "rebalance": rebalance,
             "description": description,
             "rebalance-corridor-width": None,
-            "children": [if_node],
+            "children": [{
+                "id": str(uuid.uuid4()),
+                "step": "wt-cash-equal",
+                "weight": None,
+                "children": [if_node],
+            }],
         }
     else:
         # Build flat equal-weight structure for static strategies
@@ -395,7 +410,6 @@ def _build_symphony_json(
         "symphony_score": symphony_score,
         "color": "#17BAFF",  # Blue (from Composer's allowed palette)
         "hashtag": hashtag,
-        "asset_class": "EQUITIES",
     }
 
 

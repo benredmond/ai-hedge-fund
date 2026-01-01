@@ -580,16 +580,23 @@ class TestParseCondition:
     """Test _parse_condition() with various condition string formats."""
 
     def test_simple_price_gt_number(self):
-        """Parse 'VIXY_price > 35'."""
+        """Parse 'VIXY_price > 35'.
+
+        Note: current-price is NOT valid for IF conditionals, so we use
+        moving-average-price(window=1) as a proxy for current price.
+        """
         result = _parse_condition("VIXY_price > 35")
 
         assert result["comparator"] == "gt"
         assert result["lhs-val"] == "VIXY"
-        assert result["lhs-fn"] == "current-price"
-        assert result["lhs-fn-params"] == {}
+        # current-price not valid for conditionals, use MA(1) as proxy
+        assert result["lhs-fn"] == "moving-average-price"
+        assert result["lhs-fn-params"] == {"window": 1}
         assert result["rhs-val"] == 35
         assert result["rhs-fixed-value?"] is True
-        assert result["rhs-fn"] is None
+        # rhs-fn ALWAYS matches lhs-fn (per working production symphony)
+        assert result["rhs-fn"] == "moving-average-price"
+        assert result["rhs-fn-params"] == {"window": 1}
 
     def test_price_lt_number(self):
         """Parse 'SPY_price < 400'."""
@@ -597,7 +604,8 @@ class TestParseCondition:
 
         assert result["comparator"] == "lt"
         assert result["lhs-val"] == "SPY"
-        assert result["lhs-fn"] == "current-price"
+        assert result["lhs-fn"] == "moving-average-price"  # MA(1) proxy for price
+        assert result["lhs-fn-params"] == {"window": 1}
         assert result["rhs-val"] == 400
         assert result["rhs-fixed-value?"] is True
 
@@ -627,7 +635,8 @@ class TestParseCondition:
 
         assert result["comparator"] == "gt"
         assert result["lhs-val"] == "SPY"
-        assert result["lhs-fn"] == "current-price"
+        assert result["lhs-fn"] == "moving-average-price"  # MA(1) proxy for price
+        assert result["lhs-fn-params"] == {"window": 1}
         assert result["rhs-val"] == "SPY"
         assert result["rhs-fixed-value?"] is False
         assert result["rhs-fn"] == "moving-average-price"
@@ -738,7 +747,8 @@ class TestBuildIfStructure:
         assert true_branch["is-else-condition?"] is False
         assert true_branch["comparator"] == "gt"
         assert true_branch["lhs-val"] == "VIXY"
-        assert true_branch["lhs-fn"] == "current-price"
+        assert true_branch["lhs-fn"] == "moving-average-price"  # MA(1) proxy for price
+        assert true_branch["lhs-fn-params"] == {"window": 1}
         assert true_branch["rhs-val"] == 35
         assert true_branch["rhs-fixed-value?"] is True
 
@@ -757,13 +767,13 @@ class TestBuildIfStructure:
         assert false_branch["is-else-condition?"] is True
         assert false_branch["weight"] is None
 
-    def test_specified_weights_generates_wt_cash_specified(self):
-        """wt-cash-specified used when weights sum to ~1.0."""
+    def test_multiple_assets_uses_wt_cash_equal(self):
+        """Multiple assets in if-child MUST use wt-cash-equal (wt-cash-specified not supported)."""
         logic_tree = {
             "condition": "SPY_price > SPY_200d_MA",
             "if_true": {
                 "assets": ["SPY", "QQQ"],
-                "weights": {"SPY": 0.6, "QQQ": 0.4},
+                "weights": {"SPY": 0.6, "QQQ": 0.4},  # Weights ignored in if-child
             },
             "if_false": {
                 "assets": ["BIL"],
@@ -773,31 +783,49 @@ class TestBuildIfStructure:
 
         result = _build_if_structure(logic_tree)
         true_branch = result["children"][0]
-        weight_node = true_branch["children"][0]
 
-        assert weight_node["step"] == "wt-cash-specified"
+        # Multiple assets: MUST use wt-cash-equal (Composer doesn't support wt-cash-specified in if-child)
+        weight_node = true_branch["children"][0]
+        assert weight_node["step"] == "wt-cash-equal"
         assert len(weight_node["children"]) == 2
 
-        # Check allocations
-        spy_node = next(c for c in weight_node["children"] if c["ticker"] == "SPY")
-        assert spy_node["allocation"] == 0.6
+        # No allocation field (equal weights)
+        for child in weight_node["children"]:
+            assert "allocation" not in child
 
     def test_equal_weights_generates_wt_cash_equal(self):
-        """wt-cash-equal used when no weights or weights don't sum to 1.0."""
+        """wt-cash-equal used when multiple assets with no/invalid weights."""
         logic_tree = {
             "condition": "VIXY_price > 35",
-            "if_true": {"assets": ["BIL"], "weights": {}},  # Empty weights
-            "if_false": {"assets": ["SPY", "QQQ"], "weights": {}},
+            "if_true": {"assets": ["BIL"], "weights": {}},  # Single asset, no wrapper
+            "if_false": {"assets": ["SPY", "QQQ"], "weights": {}},  # Multiple, needs wrapper
         }
 
         result = _build_if_structure(logic_tree)
         false_branch = result["children"][1]
-        weight_node = false_branch["children"][0]
 
+        # Multiple assets without weights: wrapped in wt-cash-equal (no group)
+        weight_node = false_branch["children"][0]
         assert weight_node["step"] == "wt-cash-equal"
         # No allocation field on children
         for child in weight_node["children"]:
             assert "allocation" not in child
+
+    def test_single_asset_direct_under_if_child(self):
+        """Single asset goes directly under if-child (no wrapper)."""
+        logic_tree = {
+            "condition": "AAPL_price > 200",
+            "if_true": {"assets": ["AAPL"], "weights": {"AAPL": 1.0}},
+            "if_false": {"assets": ["BIL"], "weights": {"BIL": 1.0}},
+        }
+
+        result = _build_if_structure(logic_tree)
+        true_branch = result["children"][0]
+
+        # Single asset: placed directly under if-child (no wrapper)
+        asset = true_branch["children"][0]
+        assert asset["step"] == "asset"
+        assert asset["ticker"] == "AAPL"
 
     def test_asset_nodes_have_required_fields(self):
         """Asset nodes have step, id, ticker, exchange, name, weight."""
@@ -809,8 +837,9 @@ class TestBuildIfStructure:
 
         result = _build_if_structure(logic_tree)
         true_branch = result["children"][0]
-        weight_node = true_branch["children"][0]
-        asset = weight_node["children"][0]
+
+        # Single asset: directly under if-child
+        asset = true_branch["children"][0]
 
         assert asset["step"] == "asset"
         assert "id" in asset
@@ -829,8 +858,9 @@ class TestBuildIfStructure:
 
         result = _build_if_structure(logic_tree)
         true_branch = result["children"][0]
-        weight_node = true_branch["children"][0]
-        bil_asset = weight_node["children"][0]
+
+        # Single asset: directly under if-child
+        bil_asset = true_branch["children"][0]
 
         assert bil_asset["exchange"] == "ARCX"  # BIL is an ETF
 
@@ -880,7 +910,7 @@ class TestBuildSymphonyJson:
         assert len(weight_node["children"]) == 3
 
     def test_conditional_strategy_uses_if_structure(self):
-        """Conditional strategy (with logic_tree) uses IF structure."""
+        """Conditional strategy (with logic_tree) uses IF structure wrapped in wt-cash-equal."""
         logic_tree = {
             "condition": "VIXY_price > 35",
             "if_true": {"assets": ["BIL"], "weights": {"BIL": 1.0}},
@@ -900,7 +930,12 @@ class TestBuildSymphonyJson:
         assert symphony["rebalance"] == "weekly"
         assert len(symphony["children"]) == 1
 
-        if_node = symphony["children"][0]
+        # Composer requires if node to be wrapped in wt-cash-equal
+        # Structure: root → wt-cash-equal → if → if-child branches
+        wrapper_node = symphony["children"][0]
+        assert wrapper_node["step"] == "wt-cash-equal"
+
+        if_node = wrapper_node["children"][0]
         assert if_node["step"] == "if"
 
     def test_empty_logic_tree_treated_as_static(self):
@@ -969,16 +1004,6 @@ class TestBuildSymphonyJson:
         )
 
         assert result["hashtag"] == "#VolatilityRisk"
-
-    def test_asset_class_is_equities(self):
-        """Asset class is EQUITIES."""
-        result = _build_symphony_json(
-            name="Test",
-            description="Test",
-            tickers=["SPY"],
-        )
-
-        assert result["asset_class"] == "EQUITIES"
 
 
 class TestGetExchange:
