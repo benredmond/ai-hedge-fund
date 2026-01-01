@@ -42,6 +42,7 @@ class TestIntegration:
         assert "breadth" in regime
         assert "sector_leadership" in regime
         assert "factor_regime" in regime
+        assert "intra_sector_divergence" in regime
 
         # Validate macro indicators
         macro = context_pack["macro_indicators"]

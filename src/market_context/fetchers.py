@@ -14,6 +14,23 @@ from dateutil.relativedelta import relativedelta
 warnings.filterwarnings('ignore')
 
 
+# Top 15 holdings by weight for each Select Sector SPDR ETF (as of Dec 30, 2025)
+# Used for intra-sector divergence analysis to seed stock-level thinking
+SECTOR_TOP_HOLDINGS = {
+    "XLK": ["NVDA", "AAPL", "MSFT", "AVGO", "PLTR", "AMD", "ORCL", "MU", "CSCO", "IBM", "CRM", "LRCX", "AMAT", "APP", "INTU"],
+    "XLF": ["BRK-B", "JPM", "V", "MA", "BAC", "WFC", "GS", "MS", "C", "AXP", "SCHW", "SPGI", "BLK", "COF", "PGR"],
+    "XLE": ["XOM", "CVX", "COP", "WMB", "SLB", "EOG", "KMI", "PSX", "VLO", "MPC", "OKE", "BKR", "TRGP", "EQT", "OXY"],
+    "XLV": ["LLY", "JNJ", "ABBV", "UNH", "MRK", "TMO", "ABT", "ISRG", "AMGN", "GILD", "DHR", "BSX", "PFE", "MDT", "SYK"],
+    "XLI": ["GE", "CAT", "RTX", "GEV", "BA", "UBER", "UNP", "HON", "ETN", "DE", "PH", "ADP", "LMT", "TT", "GD"],
+    "XLP": ["WMT", "COST", "PG", "KO", "PM", "PEP", "MDLZ", "MO", "CL", "MNST", "TGT", "KDP", "KR", "SYY", "KMB"],
+    "XLY": ["AMZN", "TSLA", "HD", "MCD", "BKNG", "TJX", "LOW", "SBUX", "DASH", "ORLY", "GM", "NKE", "RCL", "MAR", "HLT"],
+    "XLU": ["NEE", "CEG", "SO", "DUK", "AEP", "SRE", "VST", "D", "EXC", "XEL", "ETR", "PEG", "ED", "PCG", "WEC"],
+    "XLRE": ["WELL", "PLD", "AMT", "EQIX", "SPG", "CBRE", "O", "DLR", "PSA", "CCI", "VTR", "VICI", "CSGP", "EXR", "AVB"],
+    "XLC": ["META", "GOOGL", "GOOG", "NFLX", "CMCSA", "DIS", "TTWO", "TMUS", "VZ", "T", "EA", "WBD", "OMC", "LYV", "CHTR"],
+    "XLB": ["LIN", "NEM", "CRH", "SHW", "FCX", "ECL", "APD", "CTVA", "MLM", "NUE", "VMC", "STLD", "PPG", "IP", "SW"],
+}
+
+
 def _get_monthly_offsets(anchor_date: datetime) -> Dict[str, datetime]:
     """
     Calculate monthly offset dates for time series.
@@ -941,5 +958,124 @@ def fetch_benchmark_performance(anchor_date: Optional[datetime] = None) -> Dict[
             "max_drawdown": dd_rp,
             "note": "Simplified approximation (equal-weight SPY/AGG)"
         }
+
+    return results
+
+
+def fetch_intra_sector_divergence(
+    sector_tickers: List[str],
+    anchor_date: Optional[datetime] = None,
+    top_n: int = 2
+) -> Dict[str, Any]:
+    """
+    Fetch intra-sector stock divergence for given sector ETFs.
+
+    Calculates 30-day returns for top holdings within each sector and
+    identifies top performers and underperformers to seed stock-level thinking.
+
+    Args:
+        sector_tickers: List of sector ETF tickers (e.g., ['XLF', 'XLB', 'XLC'])
+        anchor_date: Date to anchor data (default: current UTC time)
+        top_n: Number of top/bottom performers to return per sector (default: 2)
+
+    Returns:
+        Dict with structure:
+        {
+            "XLF": {
+                "top": [["JPM", 8.2], ["GS", 5.1]],
+                "bottom": [["C", -2.1], ["WFC", -1.4]],
+                "spread_pct": 10.3,
+                "holdings_analyzed": 15
+            },
+            ...
+        }
+    """
+    if anchor_date is None:
+        anchor_date = datetime.utcnow()
+
+    # Need 60 days of data for 30-day returns with buffer
+    start_date = anchor_date - timedelta(days=60)
+
+    results = {}
+
+    for sector in sector_tickers:
+        if sector not in SECTOR_TOP_HOLDINGS:
+            continue
+
+        holdings = SECTOR_TOP_HOLDINGS[sector]
+
+        # Fetch price data for all holdings in one batch
+        try:
+            raw_data = yf.download(
+                holdings,
+                start=start_date,
+                end=anchor_date,
+                progress=False,
+                auto_adjust=False
+            )
+
+            # Extract Adj Close prices
+            if len(holdings) == 1:
+                # Single ticker case
+                if 'Adj Close' in raw_data.columns:
+                    data = pd.DataFrame({holdings[0]: raw_data['Adj Close']})
+                else:
+                    continue
+            else:
+                # Multi-ticker case
+                if 'Adj Close' in raw_data.columns.names or (
+                    hasattr(raw_data.columns, 'levels') and
+                    'Adj Close' in raw_data.columns.levels[0]
+                ):
+                    data = raw_data['Adj Close']
+                elif 'Adj Close' in raw_data.columns:
+                    data = raw_data[['Adj Close']]
+                else:
+                    continue
+
+            # Calculate 30-day returns for each stock
+            stock_returns = {}
+            for ticker in holdings:
+                if ticker not in data.columns:
+                    continue
+
+                prices = data[ticker].dropna()
+                if len(prices) < 30:
+                    continue
+
+                # Calculate 30-day return
+                current_price = float(prices.iloc[-1])
+                past_price = float(prices.iloc[-30])
+                return_30d = ((current_price / past_price) - 1) * 100
+                stock_returns[ticker] = round(return_30d, 2)
+
+            if len(stock_returns) < 3:
+                # Need at least 3 stocks for meaningful analysis
+                continue
+
+            # Sort by return
+            sorted_returns = sorted(
+                stock_returns.items(),
+                key=lambda x: x[1],
+                reverse=True
+            )
+
+            # Extract top and bottom performers
+            top_performers = sorted_returns[:top_n]
+            bottom_performers = sorted_returns[-top_n:]
+
+            # Calculate spread (difference between best and worst)
+            spread = top_performers[0][1] - bottom_performers[-1][1]
+
+            results[sector] = {
+                "top": [[ticker, ret] for ticker, ret in top_performers],
+                "bottom": [[ticker, ret] for ticker, ret in bottom_performers],
+                "spread_pct": round(spread, 2),
+                "holdings_analyzed": len(stock_returns)
+            }
+
+        except Exception as e:
+            print(f"Warning: Failed to fetch intra-sector data for {sector}: {e}")
+            continue
 
     return results

@@ -27,6 +27,17 @@
       "leaders": [["ticker", relative_return], ...],
       "laggards": [["ticker", relative_return], ...]
     },
+    "intra_sector_divergence": {
+      "XLF": {
+        "top": [["COF", 21.2], ["C", 18.7], ["GS", 12.3], ["MS", 10.1]],
+        "bottom": [["BRK-B", -0.3], ["PGR", 1.3], ["SPGI", 2.1], ["BLK", 3.4]],
+        "spread_pct": 21.5,
+        "holdings_analyzed": 15
+      },
+      "XLK": { ... },
+      "XLE": { ... },
+      "...": "all 11 sectors"
+    },
     "dispersion": {
       "sector_return_std_30d": "float",
       "regime": "low | moderate | high"
@@ -94,6 +105,19 @@
   - Low (<3%): Sectors moving in lockstep, macro forces dominant
   - Moderate (3-6%): Mixed environment
   - High (>6%): High sector divergence, stock selection matters
+
+### regime_snapshot.intra_sector_divergence
+- **Purpose:** Seed stock-level thinking by showing top/bottom performers within all sectors
+- **Coverage:** All 11 Select Sector SPDR ETFs (XLK, XLF, XLE, XLV, XLI, XLP, XLY, XLU, XLRE, XLC, XLB)
+- **Fields:**
+  - `top`: Top 4 performers within sector with 30d returns (e.g., [["COF", 21.2], ["C", 18.7], ["GS", 12.3], ["MS", 10.1]])
+  - `bottom`: Bottom 4 performers within sector with 30d returns
+  - `spread_pct`: Difference between best and worst performer (stock selection opportunity)
+  - `holdings_analyzed`: Number of stocks analyzed (from top 15 holdings of sector ETF)
+- **Interpretation:**
+  - High spread (>10%): Significant stock selection opportunity within sector
+  - Low spread (<5%): Stocks moving together, sector ETF may be sufficient
+- **Use case:** Encourages AI to consider stock-level strategies when divergence is high
 
 ### benchmark_performance_30d
 - **Purpose:** Enable relative performance calibration

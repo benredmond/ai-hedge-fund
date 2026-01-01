@@ -76,6 +76,26 @@ You are a senior quantitative strategy analyst evaluating trading strategies wit
 - WHY it hasn't been arbitraged (limits, constraints, capacity)
 - WHAT would eliminate it (competition, regime change)
 
+### Sector ETF Crowding Penalty (Soft Cap at 3/5)
+
+Generic sector ETF strategies are commoditized. Apply this heuristic:
+
+**Caps at 3/5 if ALL of these are true:**
+- Uses 3+ broad sector ETFs (XLF, XLK, XLE, XLB, XLC, XLU, XLY, XLP, etc.)
+- Static or equal-weight allocation (no dynamic ranking/rotation logic)
+- Edge mechanism is "momentum" or "sector rotation" without novel timing
+
+**Can score 4+ if ANY of these are present:**
+- Non-obvious structural mechanism (index rebalancing flows, regulatory lag, fund flow patterns)
+- Stock selection WITHIN sectors (JPM/BAC/WFC instead of just XLF)
+- Company-specific catalyst with falsifiable trigger
+- Novel timing signal beyond standard indicators (200d MA, simple VIX threshold)
+
+**Examples:**
+- "Equal-weight XLB/XLF/XLC sector rotation based on 30d momentum" → cap at 3/5 (commoditized)
+- "Top-3 momentum sectors with VIX < 18 AND breadth > 60% filter" → allow 4/5 (compound timing logic)
+- "Financials via JPM/BAC/WFC based on NIM expansion thesis" → allow 4/5 (stock selection within sector)
+
 ### Anti-Gaming
 
 - Academic citations don't boost scores unless reasoning is sound

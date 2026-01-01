@@ -7,7 +7,9 @@ from src.market_context.fetchers import (
     fetch_macro_indicators,
     fetch_recent_events,
     fetch_benchmark_performance,
-    fetch_international_and_commodities
+    fetch_international_and_commodities,
+    fetch_intra_sector_divergence,
+    SECTOR_TOP_HOLDINGS
 )
 
 
@@ -36,7 +38,17 @@ def assemble_market_context_pack(fred_api_key: str, anchor_date: Optional[dateti
     international_commodities = fetch_international_and_commodities(anchor_date=anchor_date)
     events = fetch_recent_events(lookback_days=30)
     benchmarks = fetch_benchmark_performance(anchor_date=anchor_date)
-    
+
+    # Fetch intra-sector divergence for all sectors
+    # This seeds stock-level thinking by showing top/bottom performers within sectors
+    all_sector_tickers = list(SECTOR_TOP_HOLDINGS.keys())
+    intra_sector = fetch_intra_sector_divergence(
+        sector_tickers=all_sector_tickers,
+        anchor_date=anchor_date,
+        top_n=4
+    )
+    regime["intra_sector_divergence"] = intra_sector
+
     # Merge international and commodities into macro indicators
     macro.update(international_commodities)
 

@@ -1,1 +1,1 @@
-/Users/ben/dev/ai-hedge-fund/CLAUDE.md
+CLAUDE.md

@@ -183,6 +183,29 @@ Examples:
 - "Historical factor premium" (without mechanism)
 - "Diversification" (risk management, not an edge)
 
+### Sector ETF Crowding Penalty (Soft Cap at 3/5)
+
+Generic sector ETF strategies are commoditized and offer minimal edge. Apply this heuristic:
+
+**Caps at 3/5 if ALL of these are true:**
+- Uses 3+ broad sector ETFs (XLF, XLK, XLE, XLB, XLC, XLU, XLY, XLP, etc.)
+- Static or equal-weight allocation (no dynamic ranking/rotation logic in logic_tree)
+- Edge mechanism is "momentum" or "sector rotation" without novel timing signal
+
+**Can score 4+ if ANY of these are present:**
+- Non-obvious structural mechanism (index rebalancing flows, regulatory lag, fund flow patterns, capacity limits)
+- Stock selection WITHIN sectors (e.g., JPM/BAC/WFC instead of just XLF)
+- Company-specific catalyst with falsifiable trigger and timing
+- Novel timing signal beyond standard indicators (simple 200d MA, basic VIX threshold)
+
+**Examples:**
+- "Equal-weight XLB/XLF/XLC sector rotation based on 30d momentum" → cap at 3/5 (commoditized; everyone can do this)
+- "Top-3 momentum sectors with VIX < 18 AND breadth > 60% compound filter" → allow 4/5 (compound timing logic adds specificity)
+- "Financials via JPM/BAC/WFC based on NIM expansion thesis from rate steepening" → allow 4/5 (stock selection with catalyst)
+- "Sector rotation exploiting quarterly mutual fund rebalancing flows with 2-week lead time" → allow 4/5 (structural mechanism)
+
+**Why this matters:** Sector ETFs are the most liquid, most analyzed, most efficiently priced instruments. Claiming "institutional lag" while trading XLF is contradictory—institutions ARE the flows into XLF. Stock selection within sectors demonstrates genuine analysis; sector allocation alone is commoditized beta.
+
 ### Anti-Gaming Safeguards
 
 - **Academic citations**: Don't boost scores unless reasoning is sound; citations can be hallucinated

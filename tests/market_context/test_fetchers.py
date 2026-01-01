@@ -2,7 +2,7 @@ import pytest
 from datetime import datetime
 from freezegun import freeze_time
 from unittest.mock import Mock, patch
-from src.market_context.fetchers import fetch_regime_snapshot, fetch_macro_indicators, fetch_recent_events, fetch_benchmark_performance
+from src.market_context.fetchers import fetch_regime_snapshot, fetch_macro_indicators, fetch_recent_events, fetch_benchmark_performance, fetch_intra_sector_divergence, SECTOR_TOP_HOLDINGS
 
 
 class TestFetchRegimeSnapshot:
@@ -398,3 +398,79 @@ class TestFetchBenchmarkPerformance:
         assert "risk_parity" in result
         assert "returns" in result["risk_parity"]
         assert "30d" in result["risk_parity"]["returns"]
+
+
+class TestFetchIntraSectorDivergence:
+    """Test intra-sector divergence fetcher."""
+
+    @freeze_time("2025-01-15 12:00:00")
+    def test_returns_valid_structure_for_known_sector(self):
+        """Returns top/bottom performers with expected keys for valid sector."""
+        result = fetch_intra_sector_divergence(["XLK"])
+
+        # Should return data for XLK
+        assert "XLK" in result
+
+        # Verify structure
+        xlk = result["XLK"]
+        assert "top" in xlk
+        assert "bottom" in xlk
+        assert "spread_pct" in xlk
+        assert "holdings_analyzed" in xlk
+
+    @freeze_time("2025-01-15 12:00:00")
+    def test_ignores_unknown_sector_tickers(self):
+        """Silently skips sectors not in SECTOR_TOP_HOLDINGS."""
+        result = fetch_intra_sector_divergence(["FAKE_SECTOR", "INVALID"])
+
+        assert result == {}
+
+    @freeze_time("2025-01-15 12:00:00")
+    def test_top_n_limits_results(self):
+        """Returns exactly top_n top and bottom performers."""
+        result = fetch_intra_sector_divergence(["XLK"], top_n=3)
+
+        if "XLK" in result:
+            assert len(result["XLK"]["top"]) == 3
+            assert len(result["XLK"]["bottom"]) == 3
+
+    @freeze_time("2025-01-15 12:00:00")
+    def test_multiple_sectors_returns_all(self):
+        """Can fetch divergence for multiple sectors."""
+        result = fetch_intra_sector_divergence(["XLK", "XLF", "XLE"])
+
+        # At least some should succeed (API permitting)
+        assert len(result) >= 1
+
+    @freeze_time("2025-01-15 12:00:00")
+    def test_spread_pct_calculated_correctly(self):
+        """Spread is difference between best and worst performer."""
+        result = fetch_intra_sector_divergence(["XLK"], top_n=1)
+
+        if "XLK" in result:
+            top_ret = result["XLK"]["top"][0][1]
+            bottom_ret = result["XLK"]["bottom"][0][1]
+            expected_spread = round(top_ret - bottom_ret, 2)
+            assert result["XLK"]["spread_pct"] == expected_spread
+
+    @freeze_time("2025-01-15 12:00:00")
+    def test_top_bottom_are_lists_of_pairs(self):
+        """Top and bottom are lists of [ticker, return] pairs."""
+        result = fetch_intra_sector_divergence(["XLF"], top_n=2)
+
+        if "XLF" in result:
+            for ticker, return_val in result["XLF"]["top"]:
+                assert isinstance(ticker, str)
+                assert isinstance(return_val, (int, float))
+
+            for ticker, return_val in result["XLF"]["bottom"]:
+                assert isinstance(ticker, str)
+                assert isinstance(return_val, (int, float))
+
+    def test_sector_top_holdings_has_all_sectors(self):
+        """SECTOR_TOP_HOLDINGS contains all 11 sector ETFs."""
+        expected_sectors = ["XLK", "XLF", "XLE", "XLV", "XLI", "XLP", "XLY", "XLU", "XLRE", "XLC", "XLB"]
+
+        for sector in expected_sectors:
+            assert sector in SECTOR_TOP_HOLDINGS
+            assert len(SECTOR_TOP_HOLDINGS[sector]) == 15  # 15 holdings each

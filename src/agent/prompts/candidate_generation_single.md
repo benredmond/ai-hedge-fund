@@ -85,6 +85,47 @@ Mark each Q1/Q2/Q3 as ✅ PASS or ❌ FAIL. Fix all failures before proceeding.
 
 ---
 
+## Threshold Hygiene (REQUIRED - Syntax Error if violated)
+
+All numeric thresholds in conditions MUST be **relative**, not absolute magic numbers.
+
+### ALLOWED Patterns
+
+```python
+# Price vs own moving average (relative to history)
+"condition": "SPY_price > SPY_200d_MA"
+
+# Zero-bounded direction check (up/down only)
+"condition": "VIXY_cumulative_return_5d > 0"
+
+# Bounded indicator with standard threshold (RSI 0-100)
+"condition": "SPY_RSI_14d > 70"
+
+# Cross-asset comparison (relative performance)
+"condition": "XLK_cumulative_return_30d > XLF_cumulative_return_30d"
+```
+
+### REJECTED Patterns (Will fail validation)
+
+```python
+# Absolute price threshold - WHY 22? No empirical basis
+"condition": "VIXY_price > 22"  # ❌ SYNTAX ERROR
+
+# Arbitrary return threshold - WHY 5%? Magic number
+"condition": "SPY_cumulative_return_30d > 0.05"  # ❌ SYNTAX ERROR
+```
+
+### Fix Patterns
+
+| Magic Number | Relative Alternative |
+|--------------|---------------------|
+| `VIXY_price > 22` | `VIXY_cumulative_return_5d > 0` (volatility rising) |
+| `VIXY_price < 18` | `VIXY_cumulative_return_5d < 0` (volatility falling) |
+| `SPY_return > 0.05` | `SPY_cumulative_return_30d > 0` (positive trend) |
+| `TLT_price < 100` | `TLT_cumulative_return_30d < 0` (bonds falling) |
+
+---
+
 ## Worked Example: VIX Tactical Rotation
 
 **Context Pack Data:**
@@ -93,8 +134,8 @@ Mark each Q1/Q2/Q3 as ✅ PASS or ❌ FAIL. Fix all failures before proceeding.
 - Breadth: 75% sectors above 50d MA
 
 **Planning:**
-1. Conditional? YES (VIX threshold)
-2. Triggers: VIX > 22 → defensive, VIX < 18 (2 days) → growth
+1. Conditional? YES (VIX movement detection)
+2. Triggers: VIXY rising (5d return > 0) → defensive, VIXY falling (5d return < 0) → growth
 3. Weight Method: Mode-based (static within each mode)
 4. Frequency: Daily (volatility requires fast response)
 
@@ -104,13 +145,13 @@ Strategy(
   name="VIX Tactical Rotation",
 
   thesis_document="""
-  Market Analysis: VIX at 17.44 in strong bull market with 75% breadth. VIX spikes above 22 trigger institutional defensive rotation with 2-4 day lag.
+  Market Analysis: VIX at 17.44 in strong bull market with 75% breadth. VIX spikes trigger institutional defensive rotation with 2-4 day lag.
 
-  Edge Explanation: Risk parity funds have mechanical deleveraging at VIX 22+, but institutional mandates use weekly/monthly committees that cannot react daily. This creates 2-4 day window for defensive rotation. Capacity ~$500M AUM before VIX-based rotation signals become crowded; beyond this, institutional flows would front-run the same triggers.
+  Edge Explanation: Risk parity funds have mechanical deleveraging when volatility rises, but institutional mandates use weekly/monthly committees that cannot react daily. This creates 2-4 day window for defensive rotation. Capacity ~$500M AUM before volatility-based rotation signals become crowded.
 
-  Regime Fit: Currently in growth mode (VIX 17.44), positioned to rotate defensively when VIX exceeds 22.
+  Regime Fit: Currently in growth mode (VIX stable/falling), positioned to rotate defensively when volatility rises (VIXY 5d return positive).
 
-  Risk Factors: Whipsaw if VIX oscillates around 22. Mitigated via hysteresis (VIX < 18 for 2 days before re-entering growth). Max drawdown 8-12% during sustained VIX > 30.
+  Risk Factors: Whipsaw if volatility oscillates. Mitigated via directional confirmation (require positive/negative 5d return). Max drawdown 8-12% during sustained volatility spike.
   """,
 
   rebalancing_rationale="""
@@ -122,14 +163,14 @@ Strategy(
   rebalance_frequency="daily",
 
   logic_tree={
-    # NOTE: Use VIXY (VIX ETF) for conditions - Composer cannot evaluate VIX index directly
-    "condition": "VIXY_price > 22",
+    # NOTE: Use VIXY (VIX ETF) with RELATIVE thresholds - no magic numbers
+    "condition": "VIXY_cumulative_return_5d > 0",  # Volatility rising (relative)
     "if_true": {
       "assets": ["TLT", "GLD", "BIL"],
       "weights": {"TLT": 0.50, "GLD": 0.30, "BIL": 0.20}
     },
     "if_false": {
-      "condition": "VIXY_price < 18",  # Hysteresis for stability
+      "condition": "VIXY_cumulative_return_5d < 0",  # Volatility falling (relative)
       "if_true": {
         "assets": ["SPY", "QQQ", "AGG"],
         "weights": {"SPY": 0.50, "QQQ": 0.30, "AGG": 0.20}
@@ -144,7 +185,8 @@ Strategy(
 ```
 
 **Coherence Validation:**
-✅ Logic Tree: Thesis mentions "VIX > 22" → logic_tree implements using VIXY ETF proxy
+✅ Logic Tree: Thesis mentions "volatility rises" → logic_tree uses VIXY_cumulative_return_5d > 0 (relative)
+✅ Threshold Hygiene: No magic numbers - uses zero-bounded return checks
 ✅ Frequency: Volatility edge → daily rebalancing (PASS)
 ✅ Weights: Derivation explained (equal conviction defensive, bull tilt growth)
 ✅ Consistency: Thesis says "daily" → rebalance_frequency = "daily"
