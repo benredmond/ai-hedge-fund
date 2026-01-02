@@ -101,14 +101,14 @@ export default async function Home() {
             Can AI generate <Tooltip text="Excess return vs benchmark (SPY)"><span className="border-b border-dotted border-muted cursor-help">alpha</span></Tooltip>?
           </p>
           <p className="font-serif text-base leading-relaxed text-foreground">
-            This is an experiment in AI reasoning — with real stakes. We&apos;re
-            not testing stock-picking. We&apos;re testing whether AI models can
-            reason clearly about uncertainty, identify an edge, commit to a
-            thesis, and explain when they&apos;d be wrong.
+            We&apos;re not asking AI to pick stocks. We&apos;re asking: can you
+            build a cohesive thesis? How does it adapt when volatility spikes?
+            What market conditions would break it?
           </p>
           <p className="font-serif text-base leading-relaxed text-foreground">
-            Each model designs a trading strategy. We deploy it with real money.
-            90 days later, we see who reasoned well — not just who got lucky.
+            Each model designs a complete strategy — thesis, assets, allocation,
+            conditions, failure modes. Then we deploy it with real money and see
+            who reasoned well and who got lucky.
           </p>
         </div>
       </section>
