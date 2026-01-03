@@ -100,7 +100,8 @@ class CharterGenerator:
                 "anchor_date": market_context["metadata"]["anchor_date"],
                 "regime_tags": market_context.get("regime_tags", []),
                 "regime_snapshot": market_context.get("regime_snapshot", {})
-            }
+            },
+            "market_context": market_context
         }
 
         for i, (candidate, scorecard) in enumerate(zip(candidates, scorecards)):
@@ -134,13 +135,13 @@ Follow the workflow in the recipe:
 
 **Pre-Work**: Parse the SelectionReasoning and Edge Scorecard results above.
 
-**Phase 1: Market Data Gathering**
-- Use FRED tools (fred_get_series) for macro regime classification
-- Use yfinance tools (stock_get_historical_stock_prices) for market regime analysis
-- Ground Market Thesis section in tool data (not just the context summary above)
+**Phase 1: Context Review**
+- Use the full market_context above as the authoritative, anchor-dated source
+- Ground the Market Thesis section in market_context values (not live tool data)
+- Use tools only for gaps or added color not present in market_context, and do not override macro values
 
 **Phase 2: Charter Writing**
-- Section 1 (Market Thesis): Tool-cited, connect regime to strategy's edge
+- Section 1 (Market Thesis): Context-pack-cited, connect regime to strategy's edge
 - Section 2 (Strategy Selection): Integrate SelectionReasoning verbatim, cite Edge Scorecard scores, compare Edge evaluations vs alternatives
 - Section 3 (Expected Behavior): Best/base/worst case scenarios + regime transitions
 - Section 4 (Failure Modes): 3-8 specific, measurable conditions (use templates from recipe)
@@ -149,11 +150,11 @@ Follow the workflow in the recipe:
 **Critical Requirements**:
 1. Strategy Selection MUST reference why_selected, alternatives_rejected, tradeoffs_accepted
 2. MUST cite Edge Scorecard scores (total + 2-3 dimensions) and compare across all 5 candidates
-3. MUST use FRED and yfinance tools for current data (don't rely only on context summary)
+3. Macro indicators and regime numbers MUST come from market_context; tools are only for gaps and may not override anchor-dated values
 4. Failure modes MUST be specific with: Condition + Impact + Early Warning
 5. Run Pre-Submission Checklist before returning Charter
 
-Begin by using MCP tools to gather current market data, then write the 5-section charter.
+Begin by reviewing the market_context and selection context, then write the 5-section charter.
 """
 
         # Use 20 message history limit (complex synthesis with tools)

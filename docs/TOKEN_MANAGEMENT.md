@@ -49,7 +49,7 @@ def adaptive_history_processor(ctx: RunContext, messages: list) -> list:
 | Candidate Generation | 20 | May make multiple tool calls during generation |
 | Edge Scoring | 20 | Single evaluation per candidate (5 parallel) |
 | Winner Selection | 20 | Composite ranking + reasoning generation |
-| Charter Generation | 20 | May use tools for fresh market data |
+| Charter Generation | 20 | Uses full context pack; tools only for gaps |
 
 ### Why 20 Messages?
 
@@ -141,7 +141,7 @@ Compression is **documented but disabled by default** in most stages:
 - **Candidate Generation:** Compression available but not critical (context pack provides most data)
 - **Edge Scoring:** No tool usage (no compression needed)
 - **Winner Selection:** No tool usage (no compression needed)
-- **Charter Generation:** May use tools; compression disabled by default (let AI see full context)
+- **Charter Generation:** Uses full context pack; tools only for gaps; compression disabled by default (let AI see full context)
 
 **Why disable by default?**
 - Phase 1 elimination reduced tool usage by ~90%

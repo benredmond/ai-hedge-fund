@@ -35,6 +35,11 @@ def sample_market_context():
             "generated_at": "2024-01-15T12:00:00Z",
             "version": "v1.0.0"
         },
+        "macro_indicators": {
+            "fed_funds_rate": {"value": 5.25, "date": "2024-01-10"},
+            "cpi": {"value": 3.1, "date": "2023-12-01"},
+            "unemployment_rate": {"value": 3.7, "date": "2023-12-01"}
+        },
         "regime_snapshot": {
             "trend": {"regime": "bull"},
             "volatility": {"regime": "normal", "vix_latest": 15.5}
@@ -659,6 +664,7 @@ class TestCharterGenerator:
             assert reasoning.why_selected in captured_prompt, "Prompt should include selection reasoning"
             assert sample_market_context["metadata"]["anchor_date"] in captured_prompt, "Prompt should include market context date"
             assert "regime_tags" in captured_prompt, "Prompt should reference regime"
+            assert "macro_indicators" in captured_prompt, "Prompt should include macro indicators"
 
     @pytest.mark.asyncio
     async def test_detects_json_key_fragments_in_failure_modes(

@@ -799,7 +799,7 @@ log_charter_quality({
 
 3. **Enable Per-Stage or Global**?
    - Currently disabled by default
-   - **Recommendation**: Enable only in Charter Generation (highest tool usage)
+   - **Recommendation**: Enable in Charter Generation if tool usage remains highest; charter now uses context pack first and tools only for gaps
 
 4. **Scope**: FRED only or also yfinance?
    - **FRED**: `fred_get_series` (time series)

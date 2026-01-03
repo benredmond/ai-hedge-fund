@@ -97,9 +97,9 @@ Analysis of token usage and history requirements for each workflow stage.
 ## Stage 5: Charter Generation
 
 **Characteristics:**
-- May use FRED/yfinance tools for fresh market data
+- Uses full context pack as the anchor-dated source; tools only for gaps or added color
 - Synthesizes full context (winner + reasoning + scores)
-- Potentially iterative (tools → analysis → charter sections)
+- Potentially iterative (context review -> analysis -> charter sections; tools optional)
 
 **Current History Limit:** 20 messages
 
@@ -107,7 +107,7 @@ Analysis of token usage and history requirements for each workflow stage.
 
 **Reasoning:**
 - Most complex stage - needs full context
-- Tool usage optional but possible
+- Tool usage optional and limited to gaps
 - Charter has 5 sections (may iterate per section)
 
 **Token Impact:**
@@ -125,7 +125,7 @@ Analysis of token usage and history requirements for each workflow stage.
 | 2. Edge Scoring | 20 | **10** | ~5k total | Simple evaluation, no tools |
 | 3. Backtesting | 20 | **5** | ~2.5k total | Single tool call per agent |
 | 4. Winner Selection | 20 | **10** | ~1k | Single-pass reasoning |
-| 5. Charter Generation | 20 | **20** | 0 | Complex synthesis, tools |
+| 5. Charter Generation | 20 | **20** | 0 | Complex synthesis, context-pack-first; tools only for gaps |
 
 **Total Potential Savings:** ~8.5k tokens per workflow run
 
