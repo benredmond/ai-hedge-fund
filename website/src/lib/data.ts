@@ -5,7 +5,7 @@ import { generateMockPerformance, getCohortStartDate } from './mockData';
 import { fetchSymphonyPerformance } from './composerApi';
 import { fetchBenchmarkReturns, type BenchmarkReturns } from './benchmarkData';
 
-const DATA_DIR = path.join(process.cwd(), '..', 'data', 'cohorts');
+const DATA_DIR = path.join(process.cwd(), 'public', 'data', 'cohorts');
 
 export async function listCohorts(): Promise<string[]> {
   try {
