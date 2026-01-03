@@ -112,6 +112,7 @@ export interface RegimeSnapshot {
   factor_regime: {
     value_vs_growth: {
       regime: 'value_favored' | 'growth_favored' | 'neutral';
+      spread_30d: number | null;
     };
     momentum_premium_30d: TimeSeriesValue;
     quality_premium_30d: TimeSeriesValue;

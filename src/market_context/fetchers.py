@@ -342,16 +342,17 @@ def fetch_regime_snapshot(anchor_date: Optional[datetime] = None) -> Dict[str, A
     if vtv_current_idx[0] != -1 and vug_current_idx[0] != -1 and vtv_current_idx[0] >= 30 and vug_current_idx[0] >= 30:
         vtv_30d = ((vtv_prices.iloc[vtv_current_idx[0]] / vtv_prices.iloc[vtv_current_idx[0]-30]) - 1) * 100
         vug_30d = ((vug_prices.iloc[vug_current_idx[0]] / vug_prices.iloc[vug_current_idx[0]-30]) - 1) * 100
-        value_vs_growth = vtv_30d - vug_30d
-        
-        if value_vs_growth > 1.0:
+        value_vs_growth_spread = vtv_30d - vug_30d
+
+        if value_vs_growth_spread > 1.0:
             value_growth_regime = "value_favored"
-        elif value_vs_growth < -1.0:
+        elif value_vs_growth_spread < -1.0:
             value_growth_regime = "growth_favored"
         else:
             value_growth_regime = "neutral"
     else:
         value_growth_regime = "neutral"
+        value_vs_growth_spread = None
 
     return {
         "trend": {
@@ -376,7 +377,8 @@ def fetch_regime_snapshot(anchor_date: Optional[datetime] = None) -> Dict[str, A
         },
         "factor_regime": {
             "value_vs_growth": {
-                "regime": value_growth_regime
+                "regime": value_growth_regime,
+                "spread_30d": round(float(value_vs_growth_spread), 2) if value_vs_growth_spread is not None else None
             },
             "momentum_premium_30d": momentum_premium_ts,
             "quality_premium_30d": quality_premium_ts,

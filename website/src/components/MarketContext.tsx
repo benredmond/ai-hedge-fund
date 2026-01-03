@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { MarketContextPack } from "../lib/types";
+import { Tooltip } from "./Tooltip";
 
 interface MarketContextProps {
   contextPack: MarketContextPack;
@@ -59,21 +60,19 @@ export function MarketContext({ contextPack, cohortId }: MarketContextProps) {
   const regimeTags = `${trendRegime} · ${volRegime} Vol · ${factorRegime}`;
 
   return (
-    <div className="mb-8">
+    <div>
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full text-left group"
       >
-        <div className="flex items-center justify-between py-2 px-3 rounded hover:bg-stone-50/50 transition-colors">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="font-sans text-muted">{startDate}</span>
-            <span className="text-border">·</span>
-            <span className="font-mono text-xs text-foreground">
-              {regimeTags}
-            </span>
-          </div>
+        <div className="flex items-center gap-2 py-1 rounded hover:bg-stone-50/50 transition-colors text-sm">
           <span className="text-muted group-hover:text-foreground transition-colors">
             {isExpanded ? "▼" : "▶"}
+          </span>
+          <span className="font-sans text-muted">{startDate}</span>
+          <span className="text-border">·</span>
+          <span className="font-mono text-xs text-foreground">
+            {regimeTags}
           </span>
         </div>
       </button>
@@ -110,7 +109,17 @@ export function MarketContext({ contextPack, cohortId }: MarketContextProps) {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted">Factors</span>
-                    <span className="text-foreground">{factorRegime}</span>
+                    <span className="text-foreground">
+                      {factorRegime}
+                      {regime_snapshot.factor_regime.value_vs_growth.spread_30d !== null && (
+                        <Tooltip text="VTV vs VUG 30d spread (value vs growth ETFs)">
+                          <span className="text-muted border-b border-dotted border-muted cursor-help">
+                            {" "}
+                            ({formatPercent(regime_snapshot.factor_regime.value_vs_growth.spread_30d)})
+                          </span>
+                        </Tooltip>
+                      )}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted">Momentum</span>

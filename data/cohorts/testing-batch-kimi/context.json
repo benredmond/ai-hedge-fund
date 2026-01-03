@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "anchor_date": "2026-01-03T01:25:23.361710",
-    "data_cutoff": "2026-01-03T01:25:23.361710",
-    "generated_at": "2026-01-03T01:25:41.202987",
+    "anchor_date": "2026-01-03T03:09:45.845183",
+    "data_cutoff": "2026-01-03T03:09:45.845183",
+    "generated_at": "2026-01-03T03:10:01.217231",
     "version": "v2.0.0"
   },
   "regime_snapshot": {
@@ -72,7 +72,8 @@
     },
     "factor_regime": {
       "value_vs_growth": {
-        "regime": "value_favored"
+        "regime": "value_favored",
+        "spread_30d": 1.9
       },
       "momentum_premium_30d": {
         "current": 0.9,

@@ -95,6 +95,14 @@ export default async function Home() {
             5 AI models. 90 days. Real money.
           </span>
         </p>
+        {marketContext && (
+          <div className="mt-1">
+            <MarketContext
+              contextPack={marketContext}
+              cohortId={activeCohort.cohort_id}
+            />
+          </div>
+        )}
       </header>
 
       <section className="mb-8">
@@ -117,18 +125,6 @@ export default async function Home() {
           </p>
         </div>
       </section>
-
-      {marketContext && (
-        <section className="mb-8 max-w-2xl">
-          <p className="font-sans text-xs text-muted uppercase tracking-wide mb-2">
-            Market Context
-          </p>
-          <MarketContext
-            contextPack={marketContext}
-            cohortId={activeCohort.cohort_id}
-          />
-        </section>
-      )}
 
       <details className="mb-10 max-w-2xl">
         <summary className="font-sans text-xs text-muted uppercase tracking-wide cursor-pointer hover:text-foreground transition-colors">
