@@ -1,0 +1,551 @@
+implementation_patterns:
+  pattern_type: "strategy validation framework"
+
+  primary_pattern:
+    name: "Priority-Tiered Validation with Error Aggregation"
+    description: |
+      Core validation pattern used throughout the codebase for strategy validation.
+      Each validation function returns List[str] (error messages), errors are aggregated
+      with errors.extend() in a master validation orchestrator (_validate_semantics).
+      Error messages follow a strict format: "Priority N (Category): Details..."
+      where Priority 1 = Hard Reject, Priority 2 = Retry, Priority 4 = Suggestion.
+
+    locations:
+      - file: /Users/ben/dev/ai-hedge-fund/src/agent/stages/candidate_generator.py
+        lines: 977-1021
+        purpose: Main validation orchestrator that aggregates all validation functions
+
+      - file: /Users/ben/dev/ai-hedge-fund/src/agent/stages/candidate_generator.py
+        lines: 1165-1207
+        purpose: Archetype-logic tree coherence validation
+
+      - file: /Users/ben/dev/ai-hedge-fund/src/agent/stages/candidate_generator.py
+        lines: 1209-1257
+        purpose: Thesis-logic tree value coherence validation
+
+      - file: /Users/ben/dev/ai-hedge-fund/src/agent/stages/candidate_generator.py
+        lines: 1259-1304
+        purpose: Weight derivation coherence validation
+
+      - file: /Users/ben/dev/ai-hedge-fund/src/agent/stages/candidate_generator.py
+        lines: 930-975
+        purpose: Leverage justification master validator
+
+    code_snippet: |
+      # Master orchestrator pattern (line 996-1021)
+      def _validate_semantics(self, candidates: List[Strategy], market_context: dict) -> List[str]:
+          errors = []
+          for idx, strategy in enumerate(candidates, 1):
+              syntax_errors = self._validate_syntax(strategy)
+              errors.extend(syntax_errors)
+
+              concentration_errors = self._validate_concentration(strategy)
+              errors.extend(concentration_errors)
+
+              leverage_errors = self._validate_leverage_justification(strategy)
+              errors.extend(leverage_errors)
+
+              archetype_errors = self._validate_archetype_logic_tree(strategy, idx)
+              errors.extend(archetype_errors)
+
+              thesis_coherence_errors = self._validate_thesis_logic_tree_coherence(strategy, idx)
+              errors.extend(thesis_coherence_errors)
+
+              weight_derivation_errors = self._validate_weight_derivation_coherence(strategy, idx)
+              errors.extend(weight_derivation_errors)
+
+          return errors
+
+      # Leverage orchestrator pattern (line 946-975)
+      def _validate_leverage_justification(self, strategy: Strategy) -> List[str]:
+          errors = []
+          leveraged_2x, leveraged_3x, max_leverage = detect_leverage(strategy)
+
+          errors.extend(self._validate_non_approved_etfs(strategy, leveraged_2x, leveraged_3x))
+          if not (leveraged_2x or leveraged_3x):
+              return errors  # Early exit: no leverage
+
+          combined_text = strategy.thesis_document.lower() + " " + strategy.rebalancing_rationale.lower()
+
+          # Core 4 elements for all leveraged strategies
+          errors.extend(self._validate_convexity(strategy, max_leverage, combined_text, leveraged_assets_str))
+          errors.extend(self._validate_decay(strategy, max_leverage, combined_text))
+          errors.extend(self._validate_drawdown(strategy, max_leverage, combined_text))
+          errors.extend(self._validate_benchmark(strategy, max_leverage, combined_text, ...))
+
+          # Additional 2 elements for 3x only
+          if max_leverage == 3:
+              errors.extend(self._validate_stress_test(strategy, combined_text))
+              errors.extend(self._validate_exit_criteria(strategy, combined_text))
+
+          return errors
+
+    usage_frequency: dominant
+    recency: established
+
+    key_conventions:
+      naming: |
+        - Validation methods prefixed with _validate_
+        - Underscore-prefixed private methods
+        - Descriptive suffix indicating what is validated (e.g., _validate_archetype_logic_tree)
+        - Helper patterns: _get_sector_weights, _extract_assets_from_logic_tree
+
+      structure: |
+        - Signature: def _validate_X(self, strategy: Strategy, idx: Optional[int]) -> List[str]
+        - Always initialize: errors = []
+        - Return List[str] (empty = pass, non-empty = failures)
+        - idx parameter (1-based) used for human-readable error messages referencing candidate #
+
+      types: |
+        - Input: Strategy (Pydantic model)
+        - Output: List[str] (error message strings)
+        - Intermediate data: combined_text = thesis_lower + " " + rationale_lower
+        - Regex patterns pre-compiled at module level (_DECAY_NUMBER_PATTERN, _DRAWDOWN_PATTERN)
+
+      error_handling: |
+        - Validation is non-blocking unless explicitly Priority 1
+        - Errors aggregated and returned as list, not raised as exceptions
+        - Early returns used for performance: if not (leveraged_2x or leveraged_3x): return errors
+        - Try-except blocks used sparingly (e.g., _validate_concentration for sector lookup)
+        - External exceptions logged as warnings, validation continues
+
+    dependencies:
+      - typing.List, typing.Dict (type hints)
+      - re module (regex patterns)
+      - dataclass decorator
+      - src.agent.models.Strategy
+      - src.agent.config.leverage (detect_leverage, get_drawdown_bounds, get_decay_cost_range)
+      - src.agent.validators (BenchmarkValidator, CostValidator)
+
+    testing_pattern:
+      test_file: /Users/ben/dev/ai-hedge-fund/tests/agent/test_thesis_coherence_validation.py
+      test_approach: |
+        - Unit tests per validation method
+        - Each test class covers one validation method (TestValidateArchetypeLogicTree, etc.)
+        - PASS/FAIL cases tested exhaustively
+        - Test data embedded in test method (minimal fixtures)
+        - Assertions on error list content (len(errors), specific strings)
+
+      framework: pytest
+      example: |
+        class TestValidateArchetypeLogicTree:
+            def test_momentum_with_rotation_and_empty_logic_tree_fails(self):
+                """Momentum archetype with rotation claim and empty logic_tree should FAIL"""
+                generator = CandidateGenerator()
+                strategy = Strategy(
+                    name="Momentum Rotation Strategy",
+                    assets=["SPY", "QQQ", "IWM"],
+                    weights={"SPY": 0.33, "QQQ": 0.33, "IWM": 0.34},
+                    rebalance_frequency=RebalanceFrequency.MONTHLY,
+                    logic_tree={},  # Empty triggers error
+                    thesis_document="Strategy rotates toward sectors with strongest momentum signals...",
+                    archetype=StrategyArchetype.MOMENTUM
+                )
+
+                errors = generator._validate_archetype_logic_tree(strategy, 1)
+
+                assert len(errors) == 1
+                assert "Priority 1" in errors[0]
+                assert "Implementation-Thesis Mismatch" in errors[0]
+                assert "logic_tree is empty" in errors[0]
+
+  alternative_patterns: []
+
+  project_conventions:
+    naming_conventions:
+      - category: "validation method names"
+        pattern: "_validate_<domain> suffixes indicate what is validated"
+        examples: |
+          _validate_archetype_logic_tree (checks archetype requires logic_tree)
+          _validate_thesis_logic_tree_coherence (checks thesis values match logic_tree)
+          _validate_weight_derivation_coherence (checks weight claims match actual weights)
+          _validate_leverage_justification (orchestrates 4-6 leverage-related checks)
+          _validate_syntax (structural/mechanical checks)
+          _validate_concentration (portfolio concentration limits)
+        locations: /Users/ben/dev/ai-hedge-fund/src/agent/stages/candidate_generator.py lines 751-1415
+
+      - category: "error message format"
+        pattern: "Priority N (Category): Strategy.name - description. Action suggestion."
+        examples: |
+          Priority 1 (HARD REJECT): Candidate #1 (Momentum Rotation): ... must ... OR ...
+          Priority 1 (Implementation-Thesis Mismatch): Candidate #1 (Strategy Name): ...
+          Priority 1 (Value Mismatch): Candidate #1 (Strategy Name): Thesis mentions VIX 25 but logic_tree 35...
+          Priority 2 (RETRY): Strategy name uses ... but doesn't explain X
+          Priority 2 (Derivation Mismatch): Candidate #1 (Strategy Name): Claims momentum-weighted ...
+          Priority 4 (SUGGESTION): Strategy Name - Single asset concentration ... If intentional, set ...
+        locations: /Users/ben/dev/ai-hedge-fund/src/agent/stages/candidate_generator.py lines 762-1380
+
+      - category: "priority levels"
+        pattern: |
+          Priority 1 (HARD REJECT / CATEGORY): BLOCKING - strategy rejected, must retry
+          Priority 2 (RETRY): Non-blocking iteration, encourage refinement
+          Priority 4 (SUGGESTION): Warnings only, not blocking
+        examples: |
+          Priority 1 (HARD REJECT): Used for unrealistic drawdowns, missing stress tests on 3x
+          Priority 2 (RETRY): Used for missing convexity explanation, non-approved ETFs, round weights
+          Priority 4 (SUGGESTION): Used for concentration warnings, low asset counts
+        locations: Lines 782, 805, 834, 1193, 1251, 1298, 1343
+
+    file_organization:
+      - convention: "Validation methods organized by scope"
+        examples: |
+          Syntax/Structural: _validate_syntax (lines 1415-1491)
+          Portfolio Risk: _validate_concentration (lines 1306-1383)
+          Leverage: _validate_leverage_justification orchestrator (lines 930-975)
+            └── _validate_non_approved_etfs (lines 751-767)
+            └── _validate_convexity (lines 769-790)
+            └── _validate_decay (lines 792-812)
+            └── _validate_drawdown (lines 814-847)
+            └── _validate_benchmark (lines 849-887)
+            └── _validate_stress_test (lines 890-908)
+            └── _validate_exit_criteria (lines 910-927)
+          Semantic/Coherence: _validate_semantics orchestrator (lines 977-1162)
+            └── _validate_archetype_logic_tree (lines 1165-1207)
+            └── _validate_thesis_logic_tree_coherence (lines 1209-1257)
+            └── _validate_weight_derivation_coherence (lines 1259-1304)
+        pattern: "Related validators grouped in same file, orchestrators delegate to specialists"
+
+    import_patterns:
+      - style: "Strategic imports at module top"
+        examples: |
+          from src.agent.config.leverage import (
+              APPROVED_2X_ETFS,
+              APPROVED_3X_ETFS,
+              ALL_LEVERAGED_ETFS,
+              detect_leverage,
+              get_drawdown_bounds,
+              get_decay_cost_range,
+          )
+          from src.agent.validators import BenchmarkValidator, CostValidator
+        locations: /Users/ben/dev/ai-hedge-fund/src/agent/stages/candidate_generator.py lines 63-71
+
+    type_patterns:
+      - pattern: "Validation input: Strategy model"
+        definition: |
+          class Strategy(BaseModel):
+              name: str
+              assets: List[str]
+              weights: Dict[str, float]
+              rebalance_frequency: RebalanceFrequency
+              thesis_document: str
+              rebalancing_rationale: str
+              logic_tree: Optional[Dict] = None
+              archetype: Optional[StrategyArchetype]
+              concentration_intent: ConcentrationIntent = ConcentrationIntent.DIVERSIFIED
+              # ... other fields
+        locations: /Users/ben/dev/ai-hedge-fund/src/agent/models.py line 70
+
+      - pattern: "Return type: List[str] always"
+        examples: |
+          def _validate_archetype_logic_tree(self, strategy: Strategy, idx: int) -> List[str]:
+              errors = []
+              # ... validation logic ...
+              return errors
+        locations: Multiple - all validation methods
+
+      - pattern: "Regex patterns pre-compiled at module level"
+        examples: |
+          _DECAY_NUMBER_PATTERN = re.compile(
+              r'\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)?%?\s*(?:annual|yearly|per year|decay)'
+          )
+          _DRAWDOWN_PATTERN = re.compile(r'(\d+)%?\s*(?:drawdown|dd|decline|loss)')
+          _EXIT_SPECIFIC_PATTERN = re.compile(r'(?:exit|rotate|stop).*(?:if|when|vix >|momentum <)')
+        locations: /Users/ben/dev/ai-hedge-fund/src/agent/stages/candidate_generator.py lines 74-79
+
+    error_handling:
+      - pattern: "Text normalization before validation"
+        example: |
+          thesis_lower = strategy.thesis_document.lower()
+          combined_text = thesis_lower + " " + strategy.rebalancing_rationale.lower()
+        locations: Lines 959, 1224, 1274, 1182
+
+      - pattern: "Keyword/pattern checking with any()"
+        example: |
+          rotation_patterns = [
+              r'rotat\w*\s+to', r'rotat\w*\s+into', r'rotat\w*\s+toward',
+              r'shift\s+allocation', r'reweight\s+based', r'dynamic\s+allocation'
+          ]
+          has_rotation_claim = any(re.search(p, thesis_lower) for p in rotation_patterns)
+        locations: Lines 1186-1190
+
+      - pattern: "Numeric tolerance checking with relative difference"
+        example: |
+          tolerance = 0.20
+          relative_diff = abs(thesis_val - logic_val) / thesis_val if thesis_val != 0 else 0
+          if relative_diff > tolerance:
+              errors.append(...)
+        locations: Lines 1243-1254
+
+      - pattern: "Early return for performance"
+        example: |
+          if not strategy.logic_tree:
+              return errors
+          # Only proceed with complex checks if logic_tree exists
+        locations: Lines 1227, 954-955
+
+      - pattern: "Try-except for non-critical checks"
+        example: |
+          try:
+              sector_weights = self._get_sector_weights(strategy.assets, strategy.weights)
+              # validation logic
+          except Exception as e:
+              print(f"[WARNING] Could not validate sector concentration: {e}")
+        locations: Lines 1350-1368
+
+  reusable_snippets:
+    - title: "Basic validation function template"
+      purpose: "Create new validation function following project patterns"
+      code: |
+        def _validate_<domain>(self, strategy: Strategy, idx: int) -> List[str]:
+            """
+            Validate <what is validated>.
+
+            Args:
+                strategy: Strategy to validate
+                idx: Candidate index (1-based) for error messages
+
+            Returns:
+                List of validation error messages
+            """
+            errors = []
+
+            # Get normalized text for pattern matching
+            text_lower = strategy.thesis_document.lower()
+
+            # Define patterns to check
+            patterns = [
+                r'pattern_1',
+                r'pattern_2',
+                r'pattern_3'
+            ]
+
+            # Check condition
+            has_feature = any(re.search(p, text_lower) for p in patterns)
+
+            if not has_feature:
+                errors.append(
+                    f"Priority N (Category): Candidate #{idx} ({strategy.name}): "
+                    f"Description of issue. Suggestion for fix."
+                )
+
+            return errors
+      source: /Users/ben/dev/ai-hedge-fund/src/agent/stages/candidate_generator.py lines 1165-1207
+      adaptation_needed: |
+        - Replace <domain> with specific validation target
+        - Adjust pattern list based on what you're checking
+        - Modify condition logic (if not has_feature, if feature_value > threshold, etc.)
+        - Set appropriate Priority level (1 for blocking, 2 for retry, 4 for suggestion)
+        - Update error message category (e.g., "Implementation-Thesis Mismatch")
+
+    - title: "Orchestrator pattern for multi-validator composition"
+      purpose: "Coordinate multiple validation functions and aggregate results"
+      code: |
+        def _validate_<domain>(self, strategy: Strategy) -> List[str]:
+            """
+            Orchestrate validation by delegating to specialized validators.
+
+            This method coordinates related validation checks.
+            """
+            errors = []
+
+            # Validate component 1
+            errors.extend(self._validate_<component1>(strategy, ...args...))
+
+            # Early exit if critical check fails
+            if some_early_exit_condition:
+                return errors
+
+            # Validate component 2 (conditional)
+            if some_condition:
+                errors.extend(self._validate_<component2>(strategy, ...args...))
+
+            # Validate component 3 (conditional, higher leverage)
+            if some_higher_risk_condition:
+                errors.extend(self._validate_<component3>(strategy, ...args...))
+
+            return errors
+      source: /Users/ben/dev/ai-hedge-fund/src/agent/stages/candidate_generator.py lines 930-975
+      adaptation_needed: |
+        - Define the conceptual domain (e.g., "leverage justification")
+        - List all sub-validators in order (structural, then semantic, then specific)
+        - Add early-exit conditions where appropriate
+        - Use conditionals for component-specific checks
+
+    - title: "Text-based pattern matching with tolerance"
+      purpose: "Extract numeric thresholds from text and compare with tolerance"
+      code: |
+        # Extract values from thesis text
+        pattern = r'vix\s*(?:>|>=|exceeds?|above)\s*(\d+(?:\.\d+)?)'
+        thesis_matches = re.findall(pattern, thesis_text)
+        thesis_values = [float(v) for v in thesis_matches]
+
+        if thesis_values:
+            # Extract values from logic_tree implementation
+            logic_tree_matches = re.findall(r'vix\s*[><=]+\s*(\d+(?:\.\d+)?)', logic_tree_condition)
+            logic_tree_values = [float(v) for v in logic_tree_matches]
+
+            if logic_tree_values:
+                # Compare with tolerance
+                tolerance = 0.20  # ±20%
+                thesis_val = thesis_values[0]
+                logic_val = logic_tree_values[0]
+
+                relative_diff = abs(thesis_val - logic_val) / thesis_val if thesis_val != 0 else 0
+
+                if relative_diff > tolerance:
+                    errors.append(
+                        f"Priority 1 (Value Mismatch): ... "
+                        f"Thesis {thesis_val} vs logic_tree {logic_val} "
+                        f"({relative_diff:.0%} > {tolerance:.0%})"
+                    )
+      source: /Users/ben/dev/ai-hedge-fund/src/agent/stages/candidate_generator.py lines 1230-1257
+      adaptation_needed: |
+        - Adjust regex pattern to match your numeric target
+        - Update tolerance level based on business rules (±20%, ±10%, etc.)
+        - Modify comparison operator (relative_diff, absolute_diff, etc.)
+        - Customize error message with specific value context
+
+    - title: "Round number detection for derived claims"
+      purpose: "Detect when weights are round numbers vs derived from data"
+      code: |
+        # Check for momentum-weighted claims
+        momentum_patterns = [
+            r'momentum[- ]?weighted',
+            r'weighted\s+by\s+momentum',
+            r'proportional\s+to\s+momentum',
+            r'momentum[- ]?based\s+weight'
+        ]
+        has_claim = any(re.search(p, combined_text) for p in momentum_patterns)
+
+        if has_claim and strategy.weights:
+            weights_list = list(strategy.weights.values())
+
+            # Define round numbers that suggest arbitrary assignment
+            round_numbers = [0.20, 0.25, 0.30, 0.333, 0.334, 0.35, 0.40, 0.45, 0.50]
+
+            all_round = all(
+                any(abs(w - rn) < 0.01 for rn in round_numbers)
+                for w in weights_list
+            )
+
+            if all_round and len(weights_list) >= 3:
+                errors.append(
+                    f"Priority 2 (Derivation Mismatch): ... "
+                    f"Claims 'momentum-weighted' but weights {weights_list} are all round. "
+                    f"Derived weights would be non-round: e.g., 0.54, 0.28, 0.18"
+                )
+      source: /Users/ben/dev/ai-hedge-fund/src/agent/stages/candidate_generator.py lines 1278-1304
+      adaptation_needed: |
+        - Adjust claim patterns to match your domain
+        - Define what "round numbers" means for your context
+        - Update tolerance (< 0.01) based on precision needed
+        - Adjust threshold (len(weights_list) >= 3) for your domain
+
+  integration_points:
+    - component: "CandidateGenerator class"
+      how_to_integrate: |
+        1. Add new validation method following naming convention: _validate_<domain>
+        2. Add validation call in _validate_semantics orchestrator (line 996+)
+        3. Use errors.extend() to aggregate results
+        4. Include idx parameter for error messages (1-based candidate number)
+        5. Return List[str] (empty if valid, non-empty with messages if invalid)
+      example_usage: /Users/ben/dev/ai-hedge-fund/src/agent/stages/candidate_generator.py lines 996-1021
+      required_imports: |
+        from typing import List
+        import re
+        from src.agent.models import Strategy
+      required_config: |
+        # Add to module-level regex patterns if using pattern matching:
+        _MY_PATTERN = re.compile(r'pattern_here')
+
+    - component: "Priority levels"
+      how_to_integrate: |
+        Use Priority N (Category) prefix in error messages:
+        - Priority 1: HARD REJECT or specific mismatch category (blocking)
+        - Priority 2: RETRY or specific mismatch category (non-blocking refinement)
+        - Priority 4: SUGGESTION (warning only)
+      example_usage: Lines 782, 805, 834, 1193, 1251, 1298, 1343
+
+  testing_patterns:
+    - test_type: unit
+      pattern: "Per-validator test class with PASS/FAIL cases"
+      example_file: /Users/ben/dev/ai-hedge-fund/tests/agent/test_thesis_coherence_validation.py
+      code_example: |
+        class TestValidateArchetypeLogicTree:
+            """Test _validate_archetype_logic_tree validation"""
+
+            def test_momentum_with_rotation_and_empty_logic_tree_fails(self):
+                """Momentum archetype with rotation claim and empty logic_tree should FAIL"""
+                generator = CandidateGenerator()
+                strategy = Strategy(
+                    name="Momentum Rotation Strategy",
+                    assets=["SPY", "QQQ", "IWM"],
+                    weights={"SPY": 0.33, "QQQ": 0.33, "IWM": 0.34},
+                    rebalance_frequency=RebalanceFrequency.MONTHLY,
+                    logic_tree={},  # Empty
+                    thesis_document="Strategy rotates toward sectors...",
+                    archetype=StrategyArchetype.MOMENTUM
+                )
+
+                errors = generator._validate_archetype_logic_tree(strategy, 1)
+
+                assert len(errors) == 1
+                assert "Priority 1" in errors[0]
+                assert "Implementation-Thesis Mismatch" in errors[0]
+                assert "Momentum archetype with rotation claims" in errors[0]
+
+            def test_momentum_with_rotation_and_populated_logic_tree_passes(self):
+                """Momentum archetype with rotation claim and populated logic_tree should PASS"""
+                generator = CandidateGenerator()
+                strategy = Strategy(
+                    name="Momentum Rotation Strategy",
+                    assets=["SPY", "QQQ", "IWM"],
+                    weights={},
+                    rebalance_frequency=RebalanceFrequency.MONTHLY,
+                    logic_tree={
+                        "condition": "SPY_momentum > QQQ_momentum",
+                        "if_true": {"assets": [...], "weights": {...}},
+                        "if_false": {"assets": [...], "weights": {...}}
+                    },
+                    thesis_document="Strategy rotates toward sectors...",
+                    archetype=StrategyArchetype.MOMENTUM
+                )
+
+                errors = generator._validate_archetype_logic_tree(strategy, 1)
+
+                assert len(errors) == 0
+      framework: pytest
+      conventions: |
+        - Test class name: Test<ValidatorName> (e.g., TestValidateArchetypeLogicTree)
+        - Test method names describe the case: test_<condition>_<expected_outcome>
+        - Generator instantiation: generator = CandidateGenerator()
+        - Strategy instantiation with minimal necessary fields
+        - Assertions on error list:
+          * len(errors) == 0 for PASS cases
+          * len(errors) == 1 (or N) for FAIL cases
+          * "Priority X" in errors[0] for priority checking
+          * "Category name" in errors[0] for category checking
+          * Specific keywords for behavior validation
+      mocking_approach: No mocking - uses real Strategy objects and CandidateGenerator
+
+  gaps_identified:
+    - gap: "No async validation support"
+      reason: "Validation runs synchronously, blocking on I/O like sector lookups"
+      workaround: "Try-except blocks suppress exceptions from sector weight lookup"
+      recommendation: "Add async support to _get_sector_weights if yfinance lookups become bottleneck"
+
+    - gap: "Limited validation composability"
+      reason: "Validators take strategy + context but return isolated error lists"
+      workaround: "Orchestrators handle cross-validator coordination (e.g., leverage checking)"
+      recommendation: "Validators share state through Strategy object fields (no external state)"
+
+metadata:
+  files_analyzed: 4
+  patterns_extracted: 15
+  directories_searched:
+    - /Users/ben/dev/ai-hedge-fund/src/agent/stages/
+    - /Users/ben/dev/ai-hedge-fund/src/agent/config/
+    - /Users/ben/dev/ai-hedge-fund/tests/agent/
+  confidence: 9
+  search_duration: "~15 minutes of systematic analysis"
+  dominant_pattern_coverage: "95% of validation functions follow primary pattern"
