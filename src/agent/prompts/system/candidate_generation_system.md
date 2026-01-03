@@ -1,4 +1,4 @@
-# Single Candidate Generation System Prompt (Parallel Mode v1.0)
+# Candidate Generation System Prompt (Parallel Mode v1.0)
 
 ## CRITICAL RULES (Read First - Non-Negotiable)
 
@@ -101,6 +101,10 @@ Use tools ONLY for data NOT in context pack:
 **Correct:** [JPM, BAC, WFC, C] with fundamental analysis
 **Incorrect:** [XLF] (passive beta, not alpha)
 
+### Sector ETF Tradeoff
+
+Sector ETFs (XLK, XLF, XLE) are commoditized. **Acceptable:** Timing-based edges (VIX rotation, compound filters, defensive fallback). **Weak:** Selection-based edges (mean reversion, value). Check `intra_sector_divergence` - high spread (>10%) signals stock selection opportunity.
+
 ---
 
 ## Static vs Dynamic Patterns (Mutually Exclusive)
@@ -117,12 +121,11 @@ Use tools ONLY for data NOT in context pack:
 ### Dynamic Allocation (Conditional Logic)
 ```python
 {
-  "thesis_document": "WHEN VIX exceeds 25, rotate to defensive...",
+  "thesis_document": "WHEN SPY falls below its 200d MA, rotate to defensive...",
   "logic_tree": {
-    # NOTE: Use VIXY (VIX ETF) for conditions - Composer cannot evaluate VIX index directly
-    "condition": "VIXY_price > 25",  # Use VIXY proxy, not VIX index
-    "if_true": {"TLT": 0.6, "BIL": 0.4},
-    "if_false": {"SPY": 0.8, "BIL": 0.2}
+    "condition": "SPY_price > SPY_200d_MA",  # Relative trend condition
+    "if_true": {"SPY": 0.8, "BIL": 0.2},
+    "if_false": {"TLT": 0.6, "BIL": 0.4}
   },
   "weights": {}  # EMPTY - allocation from logic_tree
 }

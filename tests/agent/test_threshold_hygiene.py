@@ -29,6 +29,39 @@ RATIONALE_STUB = (
     "Frequency matched to edge decay timescale."
 )
 
+THESIS_NO_VOL = (
+    "This strategy focuses on trend persistence across equities and bonds, rotating "
+    "between risk-on and defensive assets based on long-term price signals. The edge "
+    "is behavioral underreaction to trend breaks and institutional allocation delays. "
+    "Capacity estimated at $300M AUM with a 4-8 week persistence window."
+)
+
+RATIONALE_NO_VOL = (
+    "Weekly rebalancing balances responsiveness with turnover by checking trend "
+    "conditions on a steady cadence. Weights are mode-based with a growth-tilted "
+    "risk-on mix and an equal-conviction defensive mix. Frequency matches the "
+    "expected regime shift timescale."
+)
+
+THESIS_WITH_VIXY = (
+    "This strategy uses VIXY as a regime proxy to detect market stress and switch "
+    "allocations when the signal turns positive. The edge comes from risk-budget "
+    "constraints that force systematic de-risking ahead of discretionary committees. "
+    "Capacity estimated at $250M AUM."
+)
+
+THESIS_WITH_VOLATILITY = (
+    "This strategy targets volatility regime shifts by reducing risk when volatility "
+    "spikes and increasing risk when volatility normalizes. The edge comes from slow "
+    "institutional responses to volatility regimes. Capacity estimated at $400M AUM."
+)
+
+THESIS_WITH_VOLUME = (
+    "This strategy uses volume signals and price persistence to manage exposure, "
+    "focusing on liquidity cycles and trend durability. The edge is flow-driven "
+    "allocation shifts among large caps with capacity estimated at $350M AUM."
+)
+
 
 class TestThresholdHygiene:
     """Test _validate_threshold_hygiene validation."""
@@ -257,3 +290,63 @@ class TestExtractAllConditions:
         }
         conditions = generator._extract_all_conditions(logic_tree)
         assert conditions == ["A", "B", "C"]
+
+
+class TestVixyThesisAlignment:
+    """Test _validate_vixy_thesis_alignment validation."""
+
+    @pytest.fixture
+    def generator(self):
+        return CandidateGenerator()
+
+    def _make_strategy(self, condition: str, thesis: str, rationale: str) -> Strategy:
+        return Strategy(
+            name="VIXY Alignment Test",
+            assets=["SPY", "TLT", "VIXY"],
+            weights={},
+            rebalance_frequency=RebalanceFrequency.DAILY,
+            logic_tree={
+                "condition": condition,
+                "if_true": {"assets": ["TLT"], "weights": {"TLT": 1.0}},
+                "if_false": {"assets": ["SPY"], "weights": {"SPY": 1.0}},
+            },
+            rebalancing_rationale=rationale,
+            thesis_document=thesis,
+        )
+
+    def test_vixy_without_volatility_fails(self, generator):
+        strategy = self._make_strategy(
+            "VIXY_cumulative_return_5d > 0",
+            THESIS_NO_VOL,
+            RATIONALE_NO_VOL,
+        )
+        errors = generator._validate_vixy_thesis_alignment(strategy, 1)
+        assert len(errors) == 1
+        assert "VIXY condition used (1 occurrence" in errors[0]
+
+    def test_vixy_with_vixy_keyword_passes(self, generator):
+        strategy = self._make_strategy(
+            "VIXY_cumulative_return_5d > 0",
+            THESIS_WITH_VIXY,
+            RATIONALE_NO_VOL,
+        )
+        errors = generator._validate_vixy_thesis_alignment(strategy, 1)
+        assert len(errors) == 0
+
+    def test_vixy_with_volatility_keyword_passes(self, generator):
+        strategy = self._make_strategy(
+            "VIXY_cumulative_return_5d > 0",
+            THESIS_WITH_VOLATILITY,
+            RATIONALE_NO_VOL,
+        )
+        errors = generator._validate_vixy_thesis_alignment(strategy, 1)
+        assert len(errors) == 0
+
+    def test_volume_word_does_not_pass(self, generator):
+        strategy = self._make_strategy(
+            "VIXY_cumulative_return_5d > 0",
+            THESIS_WITH_VOLUME,
+            RATIONALE_NO_VOL,
+        )
+        errors = generator._validate_vixy_thesis_alignment(strategy, 1)
+        assert len(errors) == 1

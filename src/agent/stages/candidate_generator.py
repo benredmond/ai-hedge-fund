@@ -333,9 +333,9 @@ Use different archetypes for each: Momentum, Mean Reversion, Carry, Volatility, 
         """
         # Load prompts for parallel single-candidate generation
         # System prompt for single-candidate generation (parallel mode)
-        system_prompt = load_prompt("system/candidate_generation_single_system.md")
+        system_prompt = load_prompt("system/candidate_generation_system.md")
         # Single-candidate recipe prompt with {placeholders}
-        recipe_prompt = load_prompt("candidate_generation_single.md")
+        recipe_prompt = load_prompt("candidate_generation.md")
 
         # Generate candidates via parallel prompts
         print("Generating candidate strategies (parallel mode)...")
@@ -614,7 +614,7 @@ logic_tree={{}}  # Empty dict - weights field defines fixed allocation
 You MUST use this EXACT nested structure with these EXACT keys:
 ```python
 logic_tree={{
-  "condition": "VIX > 22",  # String comparison expression (REQUIRED)
+  "condition": "SPY_price > SPY_200d_MA",  # Relative trend condition (REQUIRED)
   "if_true": {{              # Dict with allocation when condition is TRUE (REQUIRED)
     "assets": ["TLT", "GLD"],
     "weights": {{"TLT": 0.5, "GLD": 0.5}}
@@ -1054,6 +1054,10 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
             # NEW: Run weight derivation coherence validation
             weight_derivation_errors = self._validate_weight_derivation_coherence(strategy, idx)
             errors.extend(weight_derivation_errors)
+
+            # NEW: Run VIXY usage validation (requires volatility justification)
+            vixy_alignment_errors = self._validate_vixy_thesis_alignment(strategy, idx)
+            errors.extend(vixy_alignment_errors)
 
         # Continue with original semantic validation
         for idx, strategy in enumerate(candidates, 1):
@@ -1528,6 +1532,44 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
 
         return errors
 
+    def _validate_vixy_thesis_alignment(self, strategy: Strategy, idx: int) -> List[str]:
+        """
+        Validate that VIXY conditions are only used when volatility is central to the thesis.
+
+        Requires volatility-related keywords in thesis_document or rebalancing_rationale
+        when any logic_tree condition references VIXY.
+        """
+        errors = []
+
+        if not strategy.logic_tree:
+            return errors
+
+        conditions = self._extract_all_conditions(strategy.logic_tree)
+        vixy_count = sum(1 for condition in conditions if "vixy" in condition.lower())
+        if vixy_count == 0:
+            return errors
+
+        combined_text = f"{strategy.thesis_document} {strategy.rebalancing_rationale}"
+        keyword_patterns = [
+            r"\bvix\b",
+            r"\bvixy\b",
+            r"\bvolatility\b",
+            r"\bvol\s+regime\b",
+            r"\bvol\s+spike\b",
+        ]
+        has_volatility_context = any(
+            re.search(pattern, combined_text, re.IGNORECASE) for pattern in keyword_patterns
+        )
+
+        if not has_volatility_context:
+            errors.append(
+                f"Syntax Error: Candidate #{idx} ({strategy.name}): VIXY condition used "
+                f"({vixy_count} occurrence{'s' if vixy_count != 1 else ''}) but thesis or "
+                f"rebalancing rationale lacks volatility justification."
+            )
+
+        return errors
+
     def _validate_syntax(self, strategy: Strategy) -> List[str]:
         """
         Validate syntactic correctness of strategy structure.
@@ -1758,7 +1800,7 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
             fix_prompt += "logic_tree = {}  # Empty dict\n\n"
             fix_prompt += "# FOR CONDITIONAL STRATEGIES (if you need dynamic allocation):\n"
             fix_prompt += "logic_tree = {\n"
-            fix_prompt += '  "condition": "VIX > 22",  # String comparison expression (REQUIRED)\n'
+            fix_prompt += '  "condition": "SPY_price > SPY_200d_MA",  # Relative trend condition (REQUIRED)\n'
             fix_prompt += '  "if_true": {              # Allocation when TRUE (REQUIRED)\n'
             fix_prompt += '    "assets": ["TLT", "GLD"],\n'
             fix_prompt += '    "weights": {"TLT": 0.5, "GLD": 0.5}\n'
@@ -1785,13 +1827,13 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
                 fix_prompt += "```python\n"
                 fix_prompt += "# BEFORE (WRONG - SPY not in assets list):\n"
                 fix_prompt += 'logic_tree = {\n'
-                fix_prompt += '  "condition": "VIX > 22",\n'
+                fix_prompt += '  "condition": "SPY_price > SPY_200d_MA",\n'
                 fix_prompt += '  "if_true": {"assets": ["TLT", "GLD"], "weights": {"TLT": 0.5, "GLD": 0.5}},\n'
                 fix_prompt += '  "if_false": {"assets": ["SPY", "QQQ"], "weights": {"SPY": 0.6, "QQQ": 0.4}}  # ❌ SPY not in assets!\n'
                 fix_prompt += '}\n\n'
                 fix_prompt += "# AFTER (CORRECT - use only assets from your global assets list):\n"
                 fix_prompt += 'logic_tree = {\n'
-                fix_prompt += '  "condition": "VIX > 22",\n'
+                fix_prompt += '  "condition": "SPY_price > SPY_200d_MA",\n'
                 fix_prompt += '  "if_true": {"assets": ["TLT", "GLD"], "weights": {"TLT": 0.5, "GLD": 0.5}},\n'
                 fix_prompt += '  "if_false": {"assets": ["TLT", "GLD"], "weights": {"TLT": 0.4, "GLD": 0.6}}  # ✅ Uses same assets!\n'
                 fix_prompt += '}\n'
