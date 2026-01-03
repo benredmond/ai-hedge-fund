@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { WorkflowResult } from '../lib/types';
 
@@ -75,6 +76,7 @@ export function StrategyDetail({ result }: StrategyDetailProps) {
   const { strategy, charter, selection_reasoning } = result;
   const hasLogicTree = strategy.logic_tree && Object.keys(strategy.logic_tree).length > 0;
   const hasWeights = strategy.weights && Object.keys(strategy.weights).length > 0;
+  const [reasoningExpanded, setReasoningExpanded] = useState(false);
 
   return (
     <div className="px-8 py-8 md:px-16 lg:px-24">
@@ -146,22 +148,34 @@ export function StrategyDetail({ result }: StrategyDetailProps) {
           <Markdown>{charter.market_thesis}</Markdown>
         </section>
 
-        {/* Selection Reasoning */}
+        {/* Selection Reasoning - collapsed by default */}
         <section>
-          <SectionHeader>Selection Reasoning</SectionHeader>
-          <Markdown>{selection_reasoning.why_selected}</Markdown>
-          {selection_reasoning.tradeoffs_accepted && (
-            <div className="mt-4 pt-4 border-t border-border">
-              <p className="font-sans text-sm text-muted mb-2">Tradeoffs Accepted:</p>
-              <Markdown>{selection_reasoning.tradeoffs_accepted}</Markdown>
+          <button
+            onClick={() => setReasoningExpanded(!reasoningExpanded)}
+            className="w-full flex items-center gap-2 text-left group"
+          >
+            <span className="text-muted text-xs">{reasoningExpanded ? '▼' : '▶'}</span>
+            <h3 className="font-sans text-xs font-medium text-muted tracking-wide group-hover:text-foreground transition-colors">
+              SELECTION REASONING
+            </h3>
+          </button>
+          {reasoningExpanded && (
+            <div className="mt-3">
+              <Markdown>{selection_reasoning.why_selected}</Markdown>
+              {selection_reasoning.tradeoffs_accepted && (
+                <div className="mt-4 pt-4 border-t border-border">
+                  <p className="font-sans text-sm text-muted mb-2">Tradeoffs Accepted:</p>
+                  <Markdown>{selection_reasoning.tradeoffs_accepted}</Markdown>
+                </div>
+              )}
+              <div className="mt-4 flex items-center gap-4">
+                <span className="font-sans text-sm text-muted">Conviction:</span>
+                <span className="font-mono text-sm text-foreground">
+                  {(selection_reasoning.conviction_level * 100).toFixed(0)}%
+                </span>
+              </div>
             </div>
           )}
-          <div className="mt-4 flex items-center gap-4">
-            <span className="font-sans text-sm text-muted">Conviction:</span>
-            <span className="font-mono text-sm text-foreground">
-              {(selection_reasoning.conviction_level * 100).toFixed(0)}%
-            </span>
-          </div>
         </section>
 
         {/* Failure Modes */}
