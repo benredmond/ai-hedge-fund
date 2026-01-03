@@ -212,7 +212,7 @@ def print_summary(context_pack):
     if 'benchmark_performance' in context_pack:
         benchmarks = context_pack['benchmark_performance']
         print("📈 BENCHMARK PERFORMANCE")
-        print(f"  {'Ticker':12s} {'30d':>12s} {'60d':>12s} {'90d':>12s} {'YTD':>12s}")
+        print(f"  {'Ticker':12s} {'30d':>12s} {'60d':>12s} {'90d':>12s} {'1Y':>12s}")
         print(f"  {'-'*60}")
         
         for ticker in ['SPY', 'QQQ', 'AGG', '60_40', 'risk_parity']:
@@ -223,14 +223,14 @@ def print_summary(context_pack):
                 ret_30d = bench['returns'].get('30d')
                 ret_60d = bench['returns'].get('60d')
                 ret_90d = bench['returns'].get('90d')
-                ret_ytd = bench['returns'].get('ytd')
+                ret_1y = bench['returns'].get('1y')
                 
                 ret_30d_str = f"{ret_30d:+6.2f}%" if ret_30d is not None else "N/A"
                 ret_60d_str = f"{ret_60d:+6.2f}%" if ret_60d is not None else "N/A"
                 ret_90d_str = f"{ret_90d:+6.2f}%" if ret_90d is not None else "N/A"
-                ret_ytd_str = f"{ret_ytd:+6.2f}%" if ret_ytd is not None else "N/A"
+                ret_1y_str = f"{ret_1y:+6.2f}%" if ret_1y is not None else "N/A"
                 
-                print(f"  {display_name:12s} {ret_30d_str:>12s} {ret_60d_str:>12s} {ret_90d_str:>12s} {ret_ytd_str:>12s}")
+                print(f"  {display_name:12s} {ret_30d_str:>12s} {ret_60d_str:>12s} {ret_90d_str:>12s} {ret_1y_str:>12s}")
         print()
         
         # Show vol and Sharpe for 30d only

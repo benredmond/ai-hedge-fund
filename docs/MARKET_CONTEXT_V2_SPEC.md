@@ -11,7 +11,7 @@ This specification defines the enhancement of the Market Context Pack from stati
 **Key Changes:**
 - Convert all indicators to time series (current, 1m, 3m, 6m, 12m ago)
 - Add 19 new economic/market indicators
-- Expand benchmark performance to multi-period (30d, 60d, 90d, YTD)
+- Expand benchmark performance to multi-period (30d, 60d, 90d, 1y)
 - Maintain raw data only (no derived fields like "regime" or "changes")
 - Version bump: v1.0.0 → v2.0.0
 
@@ -294,7 +294,7 @@ Convert single-value fields to nested time series:
 Only 30-day returns and volatility for benchmarks.
 
 ### Enhanced State (v2.0)
-Multi-period analysis: 30d, 60d, 90d, YTD
+Multi-period analysis: 30d, 60d, 90d, 1y
 
 ### Structure (per benchmark)
 ```json
@@ -303,7 +303,7 @@ Multi-period analysis: 30d, 60d, 90d, YTD
     "30d": 2.28,
     "60d": 5.12,
     "90d": 8.45,
-    "ytd": 18.23
+    "1y": 18.23
   },
   "volatility_annualized": {
     "30d": 12.42,
@@ -444,31 +444,31 @@ Multi-period analysis: 30d, 60d, 90d, YTD
   
   "benchmark_performance": {
     "SPY": {
-      "returns": {"30d": 2.28, "60d": 5.12, "90d": 8.45, "ytd": 18.23},
+      "returns": {"30d": 2.28, "60d": 5.12, "90d": 8.45, "1y": 18.23},
       "volatility_annualized": {"30d": 12.42, "60d": 14.21, "90d": 15.33},
       "sharpe_ratio": {"30d": 2.24, "60d": 2.85, "90d": 3.12},
       "max_drawdown": {"30d": -2.1, "90d": -5.3}
     },
     "QQQ": {
-      "returns": {"30d": 4.46, "60d": 8.23, "90d": 12.15, "ytd": 24.88},
+      "returns": {"30d": 4.46, "60d": 8.23, "90d": 12.15, "1y": 24.88},
       "volatility_annualized": {"30d": 16.78, "60d": 18.45, "90d": 19.21},
       "sharpe_ratio": {"30d": 3.24, "60d": 3.65, "90d": 4.12},
       "max_drawdown": {"30d": -3.2, "90d": -7.8}
     },
     "AGG": {
-      "returns": {"30d": 0.70, "60d": 1.25, "90d": 2.15, "ytd": 3.88},
+      "returns": {"30d": 0.70, "60d": 1.25, "90d": 2.15, "1y": 3.88},
       "volatility_annualized": {"30d": 3.00, "60d": 3.15, "90d": 3.28},
       "sharpe_ratio": {"30d": 2.82, "60d": 2.95, "90d": 3.05},
       "max_drawdown": {"30d": -0.5, "90d": -1.2}
     },
     "60_40": {
-      "returns": {"30d": 1.65, "60d": 3.52, "90d": 5.78, "ytd": 12.45},
+      "returns": {"30d": 1.65, "60d": 3.52, "90d": 5.78, "1y": 12.45},
       "volatility_annualized": {"30d": 7.55, "60d": 8.12, "90d": 8.65},
       "sharpe_ratio": {"30d": 2.66, "60d": 3.08, "90d": 3.42},
       "max_drawdown": {"30d": -1.5, "90d": -3.8}
     },
     "risk_parity": {
-      "returns": {"30d": 1.49, "60d": 3.22, "90d": 5.35, "ytd": 11.28},
+      "returns": {"30d": 1.49, "60d": 3.22, "90d": 5.35, "1y": 11.28},
       "volatility_annualized": {"30d": 7.71, "60d": 8.25, "90d": 8.78},
       "sharpe_ratio": {"30d": 2.35, "60d": 2.88, "90d": 3.21},
       "max_drawdown": {"30d": -1.8, "90d": -4.2},
@@ -591,7 +591,7 @@ FRED_SERIES_V2 = {
 **Files:** `src/market_context/fetchers.py`
 
 7. Modify `fetch_benchmark_performance()`
-   - Accept multiple periods: 30d, 60d, 90d, YTD
+   - Accept multiple periods: 30d, 60d, 90d, 1y
    - Calculate returns, volatility, Sharpe for each period
    - Calculate max drawdown for 30d and 90d
    - Return nested structure by period

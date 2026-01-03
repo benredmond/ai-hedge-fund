@@ -731,7 +731,7 @@ def fetch_benchmark_performance(anchor_date: Optional[datetime] = None) -> Dict[
     """
     Fetch multi-period performance metrics for all evaluation benchmarks.
 
-    Returns 30d, 60d, 90d, YTD returns and volatility for benchmarks:
+    Returns 30d, 60d, 90d, 1y returns and volatility for benchmarks:
     - SPY (US large cap)
     - QQQ (Nasdaq tech)
     - AGG (US bonds)
@@ -745,7 +745,7 @@ def fetch_benchmark_performance(anchor_date: Optional[datetime] = None) -> Dict[
         Dict with structure:
         {
           "SPY": {
-            "returns": {"30d": 2.28, "60d": 5.12, "90d": 8.45, "ytd": 18.23},
+            "returns": {"30d": 2.28, "60d": 5.12, "90d": 8.45, "1y": 18.23},
             "volatility_annualized": {"30d": 12.42, "60d": 14.21, "90d": 15.33},
             "sharpe_ratio": {"30d": 2.24, "60d": 2.85, "90d": 3.12},
             "max_drawdown": {"30d": -2.1, "90d": -5.3}
@@ -756,7 +756,7 @@ def fetch_benchmark_performance(anchor_date: Optional[datetime] = None) -> Dict[
     if anchor_date is None:
         anchor_date = datetime.utcnow()
     
-    # Fetch price data (need 1 year for YTD + extra for calculations)
+    # Fetch price data (need 1 year for 1y + extra for calculations)
     start_date = anchor_date - timedelta(days=450)
 
     # Benchmark tickers
@@ -808,8 +808,8 @@ def fetch_benchmark_performance(anchor_date: Optional[datetime] = None) -> Dict[
             "max_dd": round(max_dd, 2)
         }
     
-    # Calculate YTD start (January 1 of current year)
-    ytd_start = anchor_date.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    # Calculate 1y start (trailing 365 calendar days)
+    one_year_start = anchor_date - timedelta(days=365)
     
     # Calculate metrics for each ticker across periods
     for ticker in tickers:
@@ -825,20 +825,20 @@ def fetch_benchmark_performance(anchor_date: Optional[datetime] = None) -> Dict[
         metrics_60d = calc_period_metrics(prices, 60)
         metrics_90d = calc_period_metrics(prices, 90)
         
-        # YTD calculation
-        ytd_metrics = None
-        ytd_idx = prices.index.get_indexer([ytd_start], method='nearest', tolerance=pd.Timedelta(days=10))
-        if ytd_idx[0] != -1:
-            ytd_days = len(prices) - ytd_idx[0]
-            if ytd_days > 0:
-                ytd_metrics = calc_period_metrics(prices, ytd_days)
+        # 1y calculation
+        one_year_metrics = None
+        one_year_idx = prices.index.get_indexer([one_year_start], method='nearest', tolerance=pd.Timedelta(days=10))
+        if one_year_idx[0] != -1:
+            one_year_days = len(prices) - one_year_idx[0]
+            if one_year_days > 0:
+                one_year_metrics = calc_period_metrics(prices, one_year_days)
         
         results[ticker] = {
             "returns": {
                 "30d": metrics_30d["return"] if metrics_30d else None,
                 "60d": metrics_60d["return"] if metrics_60d else None,
                 "90d": metrics_90d["return"] if metrics_90d else None,
-                "ytd": ytd_metrics["return"] if ytd_metrics else None
+                "1y": one_year_metrics["return"] if one_year_metrics else None
             },
             "volatility_annualized": {
                 "30d": metrics_30d["vol"] if metrics_30d else None,
@@ -858,7 +858,7 @@ def fetch_benchmark_performance(anchor_date: Optional[datetime] = None) -> Dict[
 
     # Calculate 60/40 portfolio (60% SPY, 40% AGG) for each period
     if 'SPY' in results and 'AGG' in results:
-        periods = ['30d', '60d', '90d', 'ytd']
+        periods = ['30d', '60d', '90d', '1y']
         
         returns_60_40 = {}
         vol_60_40 = {}
@@ -874,7 +874,7 @@ def fetch_benchmark_performance(anchor_date: Optional[datetime] = None) -> Dict[
             else:
                 returns_60_40[period] = None
             
-            if period != 'ytd':  # Vol only for fixed periods
+            if period != '1y':  # Vol only for fixed periods
                 spy_vol = results['SPY']['volatility_annualized'].get(period)
                 agg_vol = results['AGG']['volatility_annualized'].get(period)
                 
@@ -910,7 +910,7 @@ def fetch_benchmark_performance(anchor_date: Optional[datetime] = None) -> Dict[
 
     # Risk Parity approximation (simplified equal-weight SPY/AGG)
     if 'SPY' in results and 'AGG' in results:
-        periods = ['30d', '60d', '90d', 'ytd']
+        periods = ['30d', '60d', '90d', '1y']
         
         returns_rp = {}
         vol_rp = {}
@@ -926,7 +926,7 @@ def fetch_benchmark_performance(anchor_date: Optional[datetime] = None) -> Dict[
             else:
                 returns_rp[period] = None
             
-            if period != 'ytd':
+            if period != '1y':
                 spy_vol = results['SPY']['volatility_annualized'].get(period)
                 agg_vol = results['AGG']['volatility_annualized'].get(period)
                 

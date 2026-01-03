@@ -374,9 +374,9 @@ class TestFetchBenchmarkPerformance:
             assert "30d" in returns
             assert "60d" in returns
             assert "90d" in returns
-            assert "ytd" in returns
+            assert "1y" in returns
             
-            # Volatility and Sharpe for multiple periods (not YTD)
+            # Volatility and Sharpe for multiple periods (not 1y)
             vol = result[ticker]["volatility_annualized"]
             sharpe = result[ticker]["sharpe_ratio"]
             assert isinstance(vol, dict)
