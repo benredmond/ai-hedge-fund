@@ -1,5 +1,6 @@
 """Market context pack assembler."""
 
+import math
 from datetime import datetime
 from typing import Dict, Any, Optional
 from src.market_context.fetchers import (
@@ -11,6 +12,22 @@ from src.market_context.fetchers import (
     fetch_intra_sector_divergence,
     SECTOR_TOP_HOLDINGS
 )
+
+
+def _replace_nan(value: Any) -> Any:
+    """Recursively replace NaN values with None for JSON safety."""
+    if isinstance(value, dict):
+        return {key: _replace_nan(val) for key, val in value.items()}
+    if isinstance(value, list):
+        return [_replace_nan(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_replace_nan(item) for item in value)
+    try:
+        if math.isnan(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    return value
 
 
 def assemble_market_context_pack(fred_api_key: str, anchor_date: Optional[datetime] = None) -> Dict[str, Any]:
@@ -66,6 +83,5 @@ def assemble_market_context_pack(fred_api_key: str, anchor_date: Optional[dateti
         "recent_events": events
     }
 
-    return context_pack
-
+    return _replace_nan(context_pack)
 

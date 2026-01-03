@@ -70,6 +70,26 @@ class TestAssembleMarketContextPack:
     @patch('src.market_context.assembler.fetch_regime_snapshot')
     @patch('src.market_context.assembler.fetch_macro_indicators')
     @patch('src.market_context.assembler.fetch_recent_events')
+    def test_converts_nan_to_none(self, mock_events, mock_macro, mock_regime, mock_intl, mock_bench, mock_intra_sector):
+        """NaN values are converted to None for JSON serialization."""
+        mock_regime.return_value = {"trend": {"regime": "bull"}, "sector_leadership": {"leaders": []}}
+        mock_macro.return_value = {"inflation": {"cpi_yoy": {"3m_ago": float("nan")}}}
+        mock_intl.return_value = {}
+        mock_events.return_value = []
+        mock_bench.return_value = {}
+        mock_intra_sector.return_value = {}
+
+        result = assemble_market_context_pack(fred_api_key="test_key")
+
+        assert result["macro_indicators"]["inflation"]["cpi_yoy"]["3m_ago"] is None
+
+    @freeze_time("2025-01-15 12:00:00")
+    @patch('src.market_context.assembler.fetch_intra_sector_divergence')
+    @patch('src.market_context.assembler.fetch_benchmark_performance')
+    @patch('src.market_context.assembler.fetch_international_and_commodities')
+    @patch('src.market_context.assembler.fetch_regime_snapshot')
+    @patch('src.market_context.assembler.fetch_macro_indicators')
+    @patch('src.market_context.assembler.fetch_recent_events')
     def test_calls_all_fetchers(self, mock_events, mock_macro, mock_regime, mock_intl, mock_bench, mock_intra_sector):
         """Calls all data fetchers."""
         mock_regime.return_value = {"trend": {"regime": "bull"}, "sector_leadership": {"leaders": []}}
