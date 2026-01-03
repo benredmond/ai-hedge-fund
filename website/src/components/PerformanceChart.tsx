@@ -118,14 +118,16 @@ export function PerformanceChart({ performances }: PerformanceChartProps) {
   // Use perf.key for dataKey (unique) but formatModelName + strategyName for display name
   let colorIndex = 0;
   const strategyLines = performances.map((perf) => {
-    const displayName = `${formatModelName(perf.model)}: ${truncate(perf.strategyName, 40)}`;
+    // Legend shows just model name - full strategy name visible on hover/tooltip
+    const displayName = formatModelName(perf.model);
     const color = perf.isWinner ? '#ff3a2d' : STRATEGY_COLORS[colorIndex++ % STRATEGY_COLORS.length];
     const logo = getProviderLogo(perf.model);
-    return { dataKey: perf.key, name: displayName, color, isWinner: perf.isWinner, logo, model: perf.model };
+    return { dataKey: perf.key, name: displayName, color, isWinner: perf.isWinner, logo, model: perf.model, fullName: `${formatModelName(perf.model)}: ${perf.strategyName}` };
   });
 
-  // Create lookup map for tooltip/legend
+  // Create lookup map for tooltip/legend (keyed by both dataKey and name for legend clicks)
   const lineInfoMap = new Map(strategyLines.map(l => [l.dataKey, l]));
+  const lineInfoByName = new Map(strategyLines.map(l => [l.name, l]));
 
   // Custom tooltip
   const CustomTooltip = ({ active, payload, label }: {
@@ -135,11 +137,16 @@ export function PerformanceChart({ performances }: PerformanceChartProps) {
   }) => {
     if (!active || !payload?.length) return null;
 
+    // Sort by return value, highest first
+    const sortedPayload = [...payload].sort((a, b) => b.value - a.value);
+
     return (
       <div className="bg-background border border-border rounded shadow-lg p-3">
         <p className="font-mono text-xs text-muted mb-2">{label}</p>
-        {payload.map((entry) => {
-          const lineInfo = lineInfoMap.get(entry.dataKey);
+        {sortedPayload.map((entry) => {
+          const lineInfo = lineInfoMap.get(entry.dataKey) || lineInfoByName.get(entry.name);
+          // Show full strategy name in tooltip, not abbreviated legend name
+          const displayName = lineInfo?.fullName || entry.name;
           return (
             <div key={entry.dataKey} className="flex items-center gap-2">
               <span
@@ -149,7 +156,7 @@ export function PerformanceChart({ performances }: PerformanceChartProps) {
               {lineInfo?.logo && (
                 <Image src={lineInfo.logo} alt="" width={12} height={12} className="opacity-60" />
               )}
-              <span className="font-sans text-xs text-foreground">{entry.name}</span>
+              <span className="font-sans text-xs text-foreground">{displayName}</span>
               <span className="font-mono text-xs text-foreground ml-auto">
                 {formatPercent(entry.value)}
               </span>

@@ -189,24 +189,24 @@ export function LeaderboardRow({
             )}
           </div>
         </td>
-        <td className="px-4 py-3 text-right font-mono text-sm text-muted/40">
-          ···
+        <td className="px-4 py-3 text-right font-mono text-sm text-muted">
+          —
         </td>
-        <td className="px-4 py-3 text-right font-mono text-sm text-muted/40">
-          ···
+        <td className="px-4 py-3 text-right font-mono text-sm text-muted">
+          —
         </td>
-        <td className="px-4 py-3 text-right font-mono text-sm text-muted/40">
-          ···
+        <td className="px-4 py-3 text-right font-mono text-sm text-muted">
+          —
         </td>
-        <td className="px-4 py-3 text-right font-mono text-sm text-muted/40">
-          ···
+        <td className="px-4 py-3 text-right font-mono text-sm text-muted">
+          —
         </td>
       </tr>
 
       {/* Level 1: Summary */}
       {isExpanded && (
         <tr>
-          <td colSpan={8} className="bg-stone-50 px-6 py-5">
+          <td colSpan={8} className="bg-stone-100 px-6 py-5">
             <div className="max-w-2xl">
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-muted">▼</span>
@@ -231,7 +231,7 @@ export function LeaderboardRow({
               </p>
 
               {allocationCompact && (
-                <div className="mb-4 p-3 bg-stone-50 border border-border rounded">
+                <div className="mb-4 p-3 bg-white border border-border rounded">
                   {allocationCompact}
                 </div>
               )}
