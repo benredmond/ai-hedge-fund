@@ -7,7 +7,6 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from 'recharts';
 import type { PerformanceData } from '../lib/types';
@@ -200,7 +199,7 @@ export function PerformanceChart({ performances }: PerformanceChartProps) {
   };
 
   return (
-    <div className="bg-stone-50 border border-border rounded-lg p-4 sm:p-6">
+    <div className="bg-stone-50 border border-border rounded-lg p-4 sm:px-6 sm:pt-5 sm:pb-3">
       <div className="flex items-baseline justify-between mb-4">
         <h2 className="font-sans text-xs font-medium text-muted tracking-wide">
           Cumulative Returns
@@ -209,8 +208,8 @@ export function PerformanceChart({ performances }: PerformanceChartProps) {
           Day {daysElapsed} of 90
         </span>
       </div>
-      <ResponsiveContainer width="100%" height={280} className="sm:!h-[350px]">
-        <LineChart data={chartData} margin={{ top: 5, right: 25, left: -15, bottom: 5 }}>
+      <ResponsiveContainer width="100%" height={240} className="sm:!h-[260px]">
+        <LineChart data={chartData} margin={{ top: 5, right: 25, left: 0, bottom: 0 }}>
           <XAxis
             dataKey="displayDate"
             tick={{ fontSize: 10, fontFamily: 'var(--font-commit-mono)' }}
@@ -226,10 +225,6 @@ export function PerformanceChart({ performances }: PerformanceChartProps) {
             width={40}
           />
           <Tooltip content={<CustomTooltip />} />
-          <Legend
-            wrapperStyle={{ fontFamily: 'var(--font-satoshi)', fontSize: 11 }}
-            iconType="plainline"
-          />
 
           {/* Benchmark lines (thinner, gray) */}
           <Line
@@ -267,6 +262,24 @@ export function PerformanceChart({ performances }: PerformanceChartProps) {
           ))}
         </LineChart>
       </ResponsiveContainer>
+
+      {/* Custom legend outside chart for tighter spacing */}
+      <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-1 text-[11px] font-sans">
+        <div className="flex items-center gap-1.5">
+          <span className="h-[1px] w-3 bg-[#a3a3a3]" />
+          <span className="text-muted">QQQ</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="h-[1px] w-3 bg-[#8a8a8a]" />
+          <span className="text-muted">SPY</span>
+        </div>
+        {strategyLines.map((line) => (
+          <div key={line.dataKey} className="flex items-center gap-1.5">
+            <span className="h-[2px] w-3" style={{ backgroundColor: line.color }} />
+            <span style={{ color: line.isWinner ? line.color : undefined }}>{line.name}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
