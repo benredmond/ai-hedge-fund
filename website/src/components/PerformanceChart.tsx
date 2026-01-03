@@ -69,6 +69,10 @@ function formatPercent(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+function formatPercentCompact(value: number): string {
+  return `${Math.round(value * 100)}%`;
+}
+
 export function PerformanceChart({ performances }: PerformanceChartProps) {
   if (performances.length === 0) {
     return (
@@ -196,7 +200,7 @@ export function PerformanceChart({ performances }: PerformanceChartProps) {
   };
 
   return (
-    <div className="bg-stone-50 border border-border rounded-lg p-6">
+    <div className="bg-stone-50 border border-border rounded-lg p-4 sm:p-6">
       <div className="flex items-baseline justify-between mb-4">
         <h2 className="font-sans text-xs font-medium text-muted tracking-wide">
           Cumulative Returns
@@ -205,25 +209,25 @@ export function PerformanceChart({ performances }: PerformanceChartProps) {
           Day {daysElapsed} of 90
         </span>
       </div>
-      <ResponsiveContainer width="100%" height={350}>
-        <LineChart data={chartData} margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
+      <ResponsiveContainer width="100%" height={280} className="sm:!h-[350px]">
+        <LineChart data={chartData} margin={{ top: 5, right: 25, left: -15, bottom: 5 }}>
           <XAxis
             dataKey="displayDate"
-            tick={{ fontSize: 11, fontFamily: 'var(--font-commit-mono)' }}
+            tick={{ fontSize: 10, fontFamily: 'var(--font-commit-mono)' }}
             tickLine={false}
             axisLine={{ stroke: '#e5e5e5' }}
             tickFormatter={tickFormatter}
           />
           <YAxis
-            tickFormatter={(value) => formatPercent(value)}
-            tick={{ fontSize: 11, fontFamily: 'var(--font-commit-mono)' }}
+            tickFormatter={(value) => formatPercentCompact(value)}
+            tick={{ fontSize: 10, fontFamily: 'var(--font-commit-mono)' }}
             tickLine={false}
             axisLine={false}
-            width={50}
+            width={40}
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend
-            wrapperStyle={{ fontFamily: 'var(--font-satoshi)', fontSize: 12 }}
+            wrapperStyle={{ fontFamily: 'var(--font-satoshi)', fontSize: 11 }}
             iconType="plainline"
           />
 

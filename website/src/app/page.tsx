@@ -76,7 +76,7 @@ export default async function Home() {
     .filter((p): p is NonNullable<typeof p> => p !== null);
 
   return (
-    <main className="min-h-screen bg-background p-8">
+    <main className="min-h-screen bg-background p-4 sm:p-8">
       <header className="mb-6">
         <div className="flex items-center gap-3 mb-1">
           <h1 className="font-sans text-xl font-semibold text-foreground">
@@ -198,7 +198,7 @@ export default async function Home() {
         <PerformanceChart performances={performances} />
       </div>
 
-      <Leaderboard strategies={activeCohort.strategies} />
+      <Leaderboard strategies={activeCohort.strategies} performanceMap={performanceMap} />
 
       <footer className="mt-12 pt-6 border-t border-border">
         <p className="font-sans text-xs text-muted">

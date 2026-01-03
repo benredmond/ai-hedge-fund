@@ -4,6 +4,13 @@ import Image from 'next/image';
 import type { WorkflowResult } from '../lib/types';
 import { StrategyDetail } from './StrategyDetail';
 
+interface Metrics {
+  return: number;
+  alpha: number;
+  sharpe: number;
+  maxDrawdown: number;
+}
+
 interface LeaderboardRowProps {
   result: WorkflowResult;
   rank: number;
@@ -12,6 +19,33 @@ interface LeaderboardRowProps {
   showDetail: boolean;
   onToggleExpand: () => void;
   onToggleDetail: () => void;
+  metrics?: Metrics;
+  isMobile: boolean;
+}
+
+function formatPercent(value: number): string {
+  const sign = value >= 0 ? '+' : '';
+  return `${sign}${(value * 100).toFixed(1)}%`;
+}
+
+function formatSharpe(value: number): string {
+  return value.toFixed(2);
+}
+
+function ChevronDown({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 4.5L6 7.5L9 4.5" />
+    </svg>
+  );
+}
+
+function ChevronRight({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4.5 3L7.5 6L4.5 9" />
+    </svg>
+  );
 }
 
 function extractSummary(text: string, maxSentences = 2): string {
@@ -126,6 +160,8 @@ export function LeaderboardRow({
   showDetail,
   onToggleExpand,
   onToggleDetail,
+  metrics,
+  isMobile,
 }: LeaderboardRowProps) {
   const modelName = formatModelName(result.model || 'Unknown');
   const providerLogo = getProviderLogo(result.model || '');
@@ -139,6 +175,156 @@ export function LeaderboardRow({
       ? formatWeightsCompact(result.strategy.weights)
       : null;
 
+  // Shared Level 1 Summary content
+  const Level1Content = () => (
+    <div className="max-w-2xl">
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <ChevronDown className="text-muted" />
+        <span className="inline-flex items-center gap-1.5">
+          {providerLogo && (
+            <Image
+              src={providerLogo}
+              alt=""
+              width={14}
+              height={14}
+              className="opacity-60"
+            />
+          )}
+          <span className="font-mono text-sm text-foreground">{modelName}</span>
+        </span>
+        <span className="text-muted">—</span>
+        <span className="font-sans text-sm text-foreground">&ldquo;{result.strategy.name}&rdquo;</span>
+      </div>
+
+      <p className="font-serif text-lg leading-relaxed text-foreground mb-4">
+        {summary}
+      </p>
+
+      {allocationCompact && (
+        <div className="mb-4 p-3 bg-white border border-border rounded overflow-x-auto">
+          <div className="min-w-0 break-words">
+            {allocationCompact}
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleDetail();
+          }}
+          className="font-sans text-sm text-vermillion hover:underline py-2 sm:py-0 text-left"
+        >
+          {showDetail ? 'Hide full thesis ↑' : 'View full thesis →'}
+        </button>
+
+        {result.symphony_id && (
+          <a
+            href={`https://app.composer.trade/symphony/${result.symphony_id}/details`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="font-sans text-sm text-vermillion hover:underline py-2 sm:py-0"
+          >
+            View on Composer ↗
+          </a>
+        )}
+      </div>
+    </div>
+  );
+
+  // Mobile Card Layout
+  if (isMobile) {
+    return (
+      <div
+        onClick={onToggleExpand}
+        className={`
+          border border-border rounded-lg cursor-pointer
+          transition-colors duration-150
+          ${isWinner ? 'border-l-4 border-l-vermillion' : ''}
+          ${isExpanded ? 'bg-stone-50' : 'hover:bg-stone-50/50'}
+        `}
+      >
+        {/* Card Header */}
+        <div className="p-4">
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="font-mono text-sm text-muted">#{rank}</span>
+              {isWinner && <span>👑</span>}
+              {providerLogo && (
+                <Image
+                  src={providerLogo}
+                  alt=""
+                  width={16}
+                  height={16}
+                  className="opacity-60 shrink-0"
+                />
+              )}
+              <span className="font-mono text-sm font-medium text-foreground">{modelName}</span>
+            </div>
+            {isExpanded ? <ChevronDown className="text-muted" /> : <ChevronRight className="text-muted" />}
+          </div>
+
+          <p className="font-sans text-sm text-foreground mb-3">
+            {result.strategy.name}
+          </p>
+
+          {/* Metrics Row */}
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 font-mono text-sm">
+            {metrics ? (
+              <>
+                <span className={metrics.return >= 0 ? 'text-vermillion' : 'text-negative'}>
+                  {formatPercent(metrics.return)}
+                </span>
+                <span className="text-muted">
+                  Sharpe {formatSharpe(metrics.sharpe)}
+                </span>
+                <span className="text-muted">
+                  DD {formatPercent(metrics.maxDrawdown)}
+                </span>
+              </>
+            ) : (
+              <span className="text-muted">Performance pending</span>
+            )}
+          </div>
+
+          {/* Asset Pills */}
+          <div className="flex flex-wrap gap-1">
+            {result.strategy.assets.slice(0, 5).map((asset) => (
+              <span
+                key={asset}
+                className="px-1.5 py-0.5 bg-border rounded text-xs font-mono text-muted"
+              >
+                {asset}
+              </span>
+            ))}
+            {result.strategy.assets.length > 5 && (
+              <span className="px-1.5 py-0.5 text-xs font-mono text-muted">
+                +{result.strategy.assets.length - 5}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Level 1: Expanded Summary */}
+        {isExpanded && (
+          <div className="border-t border-border bg-stone-100 p-4">
+            <Level1Content />
+          </div>
+        )}
+
+        {/* Level 2: Full Detail */}
+        {isExpanded && showDetail && (
+          <div className="border-t border-border bg-stone-100">
+            <StrategyDetail result={result} />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Desktop Table Layout
   return (
     <>
       {/* Level 0: Table Row */}
@@ -189,17 +375,17 @@ export function LeaderboardRow({
             )}
           </div>
         </td>
-        <td className="px-4 py-3 text-right font-mono text-sm text-muted">
-          —
+        <td className={`px-4 py-3 text-right font-mono text-sm ${metrics && metrics.return >= 0 ? 'text-vermillion' : metrics ? 'text-negative' : 'text-muted'}`}>
+          {metrics ? formatPercent(metrics.return) : '—'}
         </td>
-        <td className="px-4 py-3 text-right font-mono text-sm text-muted">
-          —
+        <td className={`px-4 py-3 text-right font-mono text-sm ${metrics && metrics.alpha >= 0 ? 'text-vermillion' : metrics ? 'text-negative' : 'text-muted'}`}>
+          {metrics ? formatPercent(metrics.alpha) : '—'}
         </td>
-        <td className="px-4 py-3 text-right font-mono text-sm text-muted">
-          —
+        <td className="px-4 py-3 text-right font-mono text-sm text-foreground">
+          {metrics ? formatSharpe(metrics.sharpe) : '—'}
         </td>
-        <td className="px-4 py-3 text-right font-mono text-sm text-muted">
-          —
+        <td className="px-4 py-3 text-right font-mono text-sm text-negative">
+          {metrics ? formatPercent(metrics.maxDrawdown) : '—'}
         </td>
       </tr>
 
@@ -207,59 +393,7 @@ export function LeaderboardRow({
       {isExpanded && (
         <tr>
           <td colSpan={8} className="bg-stone-100 px-6 py-5">
-            <div className="max-w-2xl">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-muted">▼</span>
-                <span className="inline-flex items-center gap-1.5">
-                  {providerLogo && (
-                    <Image
-                      src={providerLogo}
-                      alt=""
-                      width={14}
-                      height={14}
-                      className="opacity-60"
-                    />
-                  )}
-                  <span className="font-mono text-sm text-foreground">{modelName}</span>
-                </span>
-                <span className="text-muted">—</span>
-                <span className="font-sans text-sm text-foreground">&ldquo;{result.strategy.name}&rdquo;</span>
-              </div>
-
-              <p className="font-serif text-lg leading-relaxed text-foreground mb-4">
-                {summary}
-              </p>
-
-              {allocationCompact && (
-                <div className="mb-4 p-3 bg-white border border-border rounded">
-                  {allocationCompact}
-                </div>
-              )}
-
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleDetail();
-                  }}
-                  className="font-sans text-sm text-vermillion hover:underline"
-                >
-                  {showDetail ? 'Hide full thesis ↑' : 'View full thesis →'}
-                </button>
-
-                {result.symphony_id && (
-                  <a
-                    href={`https://app.composer.trade/symphony/${result.symphony_id}/details`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="font-sans text-sm text-vermillion hover:underline"
-                  >
-                    View on Composer ↗
-                  </a>
-                )}
-              </div>
-            </div>
+            <Level1Content />
           </td>
         </tr>
       )}
