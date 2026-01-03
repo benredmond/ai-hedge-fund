@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import type { CohortData, PerformanceData, WorkflowResult, DailyPerformance } from './types';
+import type { CohortData, PerformanceData, WorkflowResult, DailyPerformance, MarketContextPack } from './types';
 import { generateMockPerformance, getCohortStartDate } from './mockData';
 import { fetchSymphonyPerformance } from './composerApi';
 import { fetchBenchmarkReturns, type BenchmarkReturns } from './benchmarkData';
@@ -23,6 +23,16 @@ export async function loadCohort(cohortId: string): Promise<CohortData | null> {
   try {
     const content = await fs.promises.readFile(filePath, 'utf-8');
     return JSON.parse(content) as CohortData;
+  } catch {
+    return null;
+  }
+}
+
+export async function loadMarketContext(cohortId: string): Promise<MarketContextPack | null> {
+  const filePath = path.join(DATA_DIR, cohortId, 'context.json');
+  try {
+    const content = await fs.promises.readFile(filePath, 'utf-8');
+    return JSON.parse(content) as MarketContextPack;
   } catch {
     return null;
   }

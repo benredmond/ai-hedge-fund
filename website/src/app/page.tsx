@@ -1,9 +1,11 @@
 import {
   listCohorts,
   loadCohort,
+  loadMarketContext,
   loadAllPerformance,
   getStrategyKey,
 } from "../lib/data";
+import { MarketContext } from "../components/MarketContext";
 import { Leaderboard } from "../components/Leaderboard";
 import { PerformanceChart } from "../components/PerformanceChart";
 import { Tooltip } from "../components/Tooltip";
@@ -29,6 +31,9 @@ export default async function Home() {
   const cohorts = await Promise.all(cohortIds.map((id) => loadCohort(id)));
 
   const activeCohort = cohorts.find((c) => c !== null);
+  const marketContext = activeCohort
+    ? await loadMarketContext(activeCohort.cohort_id)
+    : null;
 
   if (!activeCohort) {
     return (
@@ -112,6 +117,18 @@ export default async function Home() {
           </p>
         </div>
       </section>
+
+      {marketContext && (
+        <section className="mb-8 max-w-2xl">
+          <p className="font-sans text-xs text-muted uppercase tracking-wide mb-2">
+            Market Context
+          </p>
+          <MarketContext
+            contextPack={marketContext}
+            cohortId={activeCohort.cohort_id}
+          />
+        </section>
+      )}
 
       <details className="mb-10 max-w-2xl">
         <summary className="font-sans text-xs text-muted uppercase tracking-wide cursor-pointer hover:text-foreground transition-colors">
