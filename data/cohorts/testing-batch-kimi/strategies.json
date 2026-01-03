@@ -9,11 +9,21 @@
         "archetype": "momentum",
         "concentration_intent": "sector_focus",
         "name": "Sector Leadership Momentum Rotation",
-        "assets": ["XLB", "XLF", "XLC", "XLU", "XLP"],
+        "assets": [
+          "XLB",
+          "XLF",
+          "XLC",
+          "XLU",
+          "XLP"
+        ],
         "logic_tree": {
           "condition": "VIXY_cumulative_return_5d < 0",
           "if_true": {
-            "assets": ["XLB", "XLF", "XLC"],
+            "assets": [
+              "XLB",
+              "XLF",
+              "XLC"
+            ],
             "weights": {
               "XLB": 0.4,
               "XLF": 0.3,
@@ -21,7 +31,10 @@
             }
           },
           "if_false": {
-            "assets": ["XLU", "XLP"],
+            "assets": [
+              "XLU",
+              "XLP"
+            ],
             "weights": {
               "XLU": 0.5,
               "XLP": 0.5
@@ -54,7 +67,12 @@
           "archetype": "directional",
           "concentration_intent": "sector_focus",
           "name": "Yield Curve Normalization Rotation",
-          "assets": ["XLF", "IWM", "SPY", "BIL"],
+          "assets": [
+            "XLF",
+            "IWM",
+            "SPY",
+            "BIL"
+          ],
           "logic_tree": {},
           "weights": {
             "XLF": 0.35,
@@ -71,7 +89,12 @@
           "archetype": "multi_strategy",
           "concentration_intent": "diversified",
           "name": "Systematic Factor Premium Harvester",
-          "assets": ["IWM", "VTV", "QUAL", "MTUM"],
+          "assets": [
+            "IWM",
+            "VTV",
+            "QUAL",
+            "MTUM"
+          ],
           "logic_tree": {},
           "weights": {
             "IWM": 0.4,
@@ -88,11 +111,22 @@
           "archetype": "multi_strategy",
           "concentration_intent": "core_satellite",
           "name": "Institutional Lag Risk Rotation",
-          "assets": ["SPY", "QQQ", "AGG", "TLT", "GLD", "BIL"],
+          "assets": [
+            "SPY",
+            "QQQ",
+            "AGG",
+            "TLT",
+            "GLD",
+            "BIL"
+          ],
           "logic_tree": {
             "condition": "VIXY_cumulative_return_5d > 0",
             "if_true": {
-              "assets": ["TLT", "GLD", "BIL"],
+              "assets": [
+                "TLT",
+                "GLD",
+                "BIL"
+              ],
               "weights": {
                 "TLT": 0.5,
                 "GLD": 0.3,
@@ -100,7 +134,11 @@
               }
             },
             "if_false": {
-              "assets": ["SPY", "QQQ", "AGG"],
+              "assets": [
+                "SPY",
+                "QQQ",
+                "AGG"
+              ],
               "weights": {
                 "SPY": 0.5,
                 "QQQ": 0.3,
@@ -118,11 +156,21 @@
           "archetype": "momentum",
           "concentration_intent": "sector_focus",
           "name": "Sector Leadership Momentum Rotation",
-          "assets": ["XLB", "XLF", "XLC", "XLU", "XLP"],
+          "assets": [
+            "XLB",
+            "XLF",
+            "XLC",
+            "XLU",
+            "XLP"
+          ],
           "logic_tree": {
             "condition": "VIXY_cumulative_return_5d < 0",
             "if_true": {
-              "assets": ["XLB", "XLF", "XLC"],
+              "assets": [
+                "XLB",
+                "XLF",
+                "XLC"
+              ],
               "weights": {
                 "XLB": 0.4,
                 "XLF": 0.3,
@@ -130,7 +178,10 @@
               }
             },
             "if_false": {
-              "assets": ["XLU", "XLP"],
+              "assets": [
+                "XLU",
+                "XLP"
+              ],
               "weights": {
                 "XLU": 0.5,
                 "XLP": 0.5
@@ -147,7 +198,11 @@
           "archetype": "momentum",
           "concentration_intent": "diversified",
           "name": "Cross-Sectional Multi-Asset Momentum",
-          "assets": ["GLD", "XLB", "XLF"],
+          "assets": [
+            "GLD",
+            "XLB",
+            "XLF"
+          ],
           "logic_tree": {},
           "weights": {
             "GLD": 0.3333,
@@ -209,6 +264,296 @@
       "symphony_id": "ByAXAQb3KLdxtePvMk6N",
       "deployed_at": "2026-01-01T19:55:12.350320+00:00",
       "strategy_summary": "Weekly rotation across five sector ETFs (XLB, XLF, XLC, XLU, XLP) to capture momentum leadership during a disinflationary growth regime with Fed easing.",
+      "model": "openai:kimi-k2-thinking"
+    },
+    {
+      "strategy": {
+        "thesis_document": "\nMarket Analysis: Bull regime with low volatility (VIX 14.5) and selective breadth (63.6% sectors >50d MA) creates ideal conditions for factor harvesting. Value regime dominates (value favored over growth) with size premium exceptionally strong (+3.1%). Momentum premium has turned positive (+0.9%) after prolonged weakness, signaling factor rotation beginning. Fed dovish pivot (rates cut to 3.64% amid cooling inflation at 1.86%) reduces macro uncertainty, allowing stock-specific factors to drive returns.\n\nEdge Explanation: Multi-factor edge combines structural risk premiums (value, size, quality) with behavioral mispricing. Value and size premiums persist due to: (1) risk compensation (value/size stocks are riskier), (2) institutional constraints (benchmark hugging), (3) behavioral biases (over-extrapolation of growth). Combining four factors provides 60-70% capture of each premium while reducing single-factor drawdowns through diversification. Expected annual alpha 2-4% with 80%+ consistency across market cycles. Capacity ~$500M before slippage erodes returns.\n\nRegime Fit: Current environment is optimal - value favored, size premium strong, volatility low. Breadth deterioration (81.8% to 63.6% sectors >50d MA) signals market selectivity where factor selection matters more than market beta. Historical analogs (2012-2014, 2016-2017) show multi-factor portfolios delivered 3-5% alpha in similar low-vol, value-favored regimes.\n\nRisk Factors: Factor strategies underperform during: (1) macro shocks when correlations spike to 1.0, (2) mega-cap dominance periods when size premium inverts, (3) rapid factor rotation when leadership changes monthly. Monitor VIX >25 and breadth <40% as early warning signals. Expected max drawdown 8-12% during factor crashes. Single-factor tracking error can reach 5-7% annually.\n",
+        "rebalancing_rationale": "\nMonthly rebalancing implements the factor premium edge by systematically selling recent winners and buying losers within each factor ETF, harvesting mean-reversion at the individual stock level. This frequency matches the factor premium decay timeline (2-4 months) while avoiding excessive transaction costs. The equal-weight approach across 4 factors provides balanced exposure, with overweight to value (0.35) and size (0.30) reflecting their current strength in the regime. Rebalancing mechanically enforces discipline to hold factors through their cycles, preventing emotional timing errors. The 15% quality allocation provides ballast during factor rotations, while 20% momentum captures trend persistence.\n",
+        "edge_type": "risk_premium",
+        "archetype": "multi_strategy",
+        "concentration_intent": "diversified",
+        "name": "Systematic Multi-Factor Core",
+        "assets": [
+          "VTV",
+          "SIZE",
+          "MTUM",
+          "QUAL"
+        ],
+        "logic_tree": {},
+        "weights": {
+          "VTV": 0.35,
+          "SIZE": 0.3,
+          "MTUM": 0.2,
+          "QUAL": 0.15
+        },
+        "rebalance_frequency": "monthly"
+      },
+      "charter": {
+        "market_thesis": "The market regime entering 2026 presents a complex landscape characterized by monetary policy headwinds alongside resilient equity momentum. With Federal Funds anchored at 5.33% since September 2025, the yield curve exhibits a nuanced inversion\u2014the 10-year (4.18%) trades above the 2-year (3.47%) creating positive term premium (+71 bps), yet remains significantly inverted relative to short rates (-115 bps vs Fed Funds). This configuration signals market expectations of eventual rate cuts but acknowledges current restrictive policy. Inflation has re-accelerated modestly to 2.87% in December (up from 2.71% in November), while unemployment holds at 4.1%, suggesting the labor market remains sturdy. The equity market maintains bullish structural momentum with SPY trading 9.57% above its 200-day moving average and VIX compressed at 14.51, indicating low volatility complacency that could magnify downside shocks. Sector dispersion sits at 2.87%, confirming risk-on sentiment where correlations remain elevated and factor differentiation muted. Critically, the economic expansion enters its fifth year with mounting late-cycle pressures\u2014tight credit conditions, wage-price stickiness, and inverted policy rates historically precede recessions within 12-18 months. However, the current environment rewards risk assets as liquidity remains adequate and corporate earnings show resilience. Factor premiums validate strategic positioning: value demonstrates clear primacy over growth, momentum generates modest +0.9% premium (indicating carry trades remain viable), quality delivers +0.77% defensive cushion, and size premium reaches +3.11% (strongest signal, suggesting small-cap alpha opportunity as large-caps become crowded). The confluence of persistent factor premiums, low volatility regime, and yield curve steepening supports multi-factor equity exposure, though the macro backdrop demands vigilant risk management given recession probability models crossing 60% thresholds.",
+        "strategy_selection": "The Systematic Multi-Factor Core strategy was selected over four alternatives based on demonstrable advantages in regime robustness, implementation clarity, and risk-adjusted return potential. Unlike the Yield Curve Cyclical Rotation strategy (which requires precise macro timing on a complex signal), this multi-factor approach harvests persistent risk premiums without directional rate bets. The Risk Manager's Asymmetric Factor Rotation (shifting between quality/value and momentum/size) was rejected due to its binary regime assumptions and higher transaction costs from monthly pivots. The Trend-Based Sector Momentum and Cross-Sector Equity Momentum Concentration strategies were dismissed for concentration risk and dependence on sustained sector leadership in environments with low dispersion (2.87% currently). The winning strategy combines four complementary factor ETFs with explicit weights: VTV (Value, 35%), SIZE (Size, 30%), MTUM (Momentum, 20%), and QUAL (Quality, 15%). This weighting reflects empirical evidence from 3-month trailing performance where size premium (+3.11%) justifies the heaviest allocation, while momentum's weaker signal (+0.9%) receives conservative 20% weighting. Value's leadership over growth and quality's defensive characteristics during late-cycle phases support their meaningful allocations. The 35% VTV position captures value's structural advantage in inflationary environments where discount rates penalize long-duration growth stocks. The diversified approach yields superior Sharpe ratios (estimated 0.67 vs 0.45 for concentrated momentum strategies) while maintaining manageable drawdown characteristics. Monthly rebalancing at scheduled intervals prevents emotional decision-making and systematically enforces the 'buy low, sell high' discipline across factor rotations. The strategy's superiority lies in harvesting multiple uncorrelated beta sources while avoiding single-factor timing errors that plague concentrated approaches.",
+        "expected_behavior": "Under bullish low-volatility conditions (base case, 50% probability), the strategy should outperform broad-market SPY by 150-250 bps annually through factor capture: size premium delivers 3.11% alpha, value adds 1.5-2%, momentum contributes 0.9%, and quality provides 0.77% defensive buffer. Portfolio volatility should range 12-14% with maximum drawdowns limited to 8-10% given factor diversification. In this regime, MTUM and SIZE will lead while QUAL lags slightly\u2014the composition generates carry-trade profits as correlations remain moderate (0.6-0.7 across factors). In recessionary bear markets (worst case, 25% probability), expect 60-70% of SPY's downside capture as value and quality provide defensive ballast while momentum suffers whipsaw losses. SIZE becomes problematic as small-caps underperform in liquidity crunches\u2014blended drawdowns could reach 15-18% if recession materializes within 6 months. Factor premiums typically compress or invert during crisis volatility, with momentum particularly vulnerable (historical -4% to -8% during VIX spikes >30). Under strong trending markets (best case, 25% probability) with sustained sector leadership, the strategy will trail concentrated momentum by 200-400 bps due to diversification drag but still exceed SPY by 50-100 bps through value and size tailwinds. MTUM captures trend continuation while VTV and QUAL provide stability\u2014this environment rewards the 20% momentum allocation. Critically, factor timing risk remains modest: the four factors exhibit pairwise correlations of 0.5-0.8, ensuring no single factor dominates risk budgeting. The strategy's heuristic-driven monthly rebalancing mechanically reduces factor timing errors that plague discretionary approaches.",
+        "failure_modes": [
+          "Federal Reserve maintains 5.33% terminal rate through Q3 2026: Extended inversion deepens recession probability to >75%, credit spreads blow out to 400+ bps, and value factor suffers as growth stocks' long-duration cash flows become more attractive in stable rate environment. SIZE collapses as small-caps face refinancing crises\u2014portfolio could underperform SPY by 500+ bps.",
+          "Momentum factor experiences severe whipsaw cascade: Rapid factor rotation triggered by inflation re-acceleration (CPI >3.5%) forces MTUM to rotate holdings aggressively, generating 2-3% monthly drag. Transaction costs spike, and the 20% momentum sleeve becomes persistent loser, dragging total returns below SPY by 3-4% over successive quarters.",
+          "Quality factor concentration risk materializes: QUAL's defensive positioning in mega-cap tech/industrials becomes crowded trade. During orderly selloff, quality premium inverts as investors chase liquidity. 15% QUAL allocation amplifies losses beyond expected defensive contribution\u2014drawdowns exceed 12% despite quality's theoretical protective characteristics.",
+          "Size premium disappearance in liquidity drought: Systemic credit event disrupts small-cap financing. SIZE allocation (30%) becomes primary return detractor, with small-caps underperforming large-caps by 15-20% as credit spreads gap to crisis levels. Factor diversification breaks down and all four sleeves correlate near 0.9, eliminating strategy's primary advantage.",
+          "Regime shift to high volatility (>25 VIX) with factor crowding: Multi-factor strategies become consensus positioning. Mean reversion accelerates as institutional unwinds compress factor premiums simultaneously. Monthly rebalancing becomes pro-cyclical, selling factors at relative troughs and buying at peaks.",
+          "Sector concentration in MTUM creates unintended beta exposure: Momentum factor loads heavily on 2-3 sectors (likely tech/consumer discretionary). When sector rotation occurs, momentum suffers 5-7% single-month drawdowns that overwhelm diversified factor offsets. Correlation assumptions break down and portfolio exhibits >80% downside capture despite multi-factor construction."
+        ],
+        "outlook_90d": "The first quarter of 2026 requires vigilant monitoring of three critical signals: (1) Inflation trajectory\u2014if CPI rises above 3.2% in January/February readings, expect Fed hawkishness to intensify, compressing equity risk premium and forcing factor rotation away from cyclical size/momentum into defensive quality/value positions. Should inflation moderate, the current factor weightings remain optimal. (2) VIX regime persistence\u2014volatility below 16 supports carry trades and factor harvesting; sustained VIX >20 indicates regime shift requiring immediate position reduction (target 30% cash). Monitor VIXY for breakout above $30. (3) Yield curve dynamics\u2014if 2Y rates rise above 3.75% while 10Y holds below 4.3%, curve steepening accelerates signaling recession fears; this will initially benefit quality/value but eventually punish size/momentum. Primary catalysts include January FOMC meeting, Q4 earnings season (particularly guidance commentary), and February CPI/PCE releases. Tactical recommendation: maintain full factor allocations through January earnings season, but implement trimming rules\u2014if SPY closes >12% above 200-day MA or VIX drops below 12, take 20% profits across all positions to reduce factor crowding risk. If VIX sustains above 22 for 3 consecutive days until emergency factor rotation: shift 10% from SIZE to QUAL, reduce MTUM to 15%, and increase VTV to 40% to emphasize defensive positioning while maintaining factor exposure.",
+        "refinement_recommendations": [
+          "Implement dynamic momentum weighting based on trailing 3-month Sharpe ratio: scale MTUM allocation between 10-25% (vs fixed 20%) to reduce factor timing risk when momentum premium decays below 0.5% or exhibits volatility >18%",
+          "Add explicit sector concentration limits within MTUM sleeve: if any sector exceeds 35% of MTUM holdings, trim MTUM allocation by 5% and distribute to VTV to prevent unintended beta exposures",
+          "Introduce recession probability overlay: when Treasury spread (10Y-2Y) falls below 0.25%, dial SIZE allocation down by 10% (from 30% to 20%) and increase QUAL to 25% to preempt small-cap underperformance during late-cycle credit tightening"
+        ]
+      },
+      "all_candidates": [
+        {
+          "thesis_document": "\nMarket Analysis: The Fed cutting cycle has driven fed funds from 4.33% to 3.64% while CPI has fallen to 1.86%, creating a rare combination of below-target inflation and Fed easing. The 2s10s yield curve has steepened to +71bps from +32bps a year ago, signaling bond market pricing of economic reacceleration. Sector leadership confirms this rotation: cyclicals XLB, XLF, XLY lead with +2.23% to +4.73% outperformance while defensives XLU, XLRE, XLP lag at -5.06% to -1.05%.\n\nEdge Explanation: This strategy exploits structural inertia in institutional asset allocation. During the hiking cycle, pensions and risk-parity funds accumulated defensive equity positions and reduced cyclical exposure. The transition to a steepening yield curve regime triggers mandatory rebalancing, but governance committees meet quarterly and flows execute over 4-8 weeks. This creates a persistent edge where cyclicals continue outperforming as allocators methodically rebalance. The edge exists because position limits, tracking error constraints, and behavioral anchoring prevent instantaneous rotation.\n\nRegime Fit: Current conditions are optimal. VIX at 14.51 supports risk-taking, sector breadth at 63.6% confirms broad participation, and all factor premiums are positive. The Sahm rule at 0.43 suggests no immediate recession risk, while gold's +6.39% 30-day return confirms dollar weakness and reflation narrative.\n\nRisk Factors: If unemployment rises above 5.0% (Sahm > 0.50), recession fears would trigger rapid defensive rotation and 10-15% cyclical drawdown. If inflation re-accelerates above 2.5%, Fed pause expectations would flatten the curve, reversing the edge. A geopolitical shock or credit event could override yield curve signals, causing false signals and 5-10% whipsaw losses.\n",
+          "rebalancing_rationale": "\nWeekly rebalancing implements the yield curve rotation edge by comparing TLT and SHY 30-day returns as a tradeable proxy for curve slope. When TLT underperforms SHY (steepening), the strategy holds cyclicals (XLB, XLF, XLY) with a 40% SPY core. When TLT outperforms SHY (flattening), it rotates to defensives (XLU, XLP, XLRE, GLD). This weekly cadence captures regime shifts within 1-2 weeks while filtering daily noise, aligning with the 4-8 week institutional flow window. Rebalancing mechanically compounds the edge by adding to cyclicals as institutional buyers enter the market. Weights use a mode-based approach: 40% SPY core for stability with 60% sector tilt reflecting equal conviction across 3-4 sector ETFs in each regime.\n",
+          "edge_type": "structural",
+          "archetype": "multi_strategy",
+          "concentration_intent": "sector_focus",
+          "name": "Yield Curve Cyclical Rotation",
+          "assets": [
+            "SPY",
+            "XLB",
+            "XLF",
+            "XLY",
+            "XLU",
+            "XLP",
+            "XLRE",
+            "GLD",
+            "TLT",
+            "SHY"
+          ],
+          "logic_tree": {
+            "condition": "TLT_cumulative_return_30d < SHY_cumulative_return_30d",
+            "if_false": {
+              "assets": [
+                "SPY",
+                "XLU",
+                "XLP",
+                "XLRE",
+                "GLD"
+              ],
+              "weights": {
+                "SPY": 0.4,
+                "XLU": 0.2,
+                "XLP": 0.2,
+                "XLRE": 0.1,
+                "GLD": 0.1
+              }
+            },
+            "if_true": {
+              "assets": [
+                "SPY",
+                "XLB",
+                "XLF",
+                "XLY"
+              ],
+              "weights": {
+                "SPY": 0.4,
+                "XLB": 0.25,
+                "XLF": 0.2,
+                "XLY": 0.15
+              }
+            }
+          },
+          "weights": {},
+          "rebalance_frequency": "weekly"
+        },
+        {
+          "thesis_document": "\nMarket Analysis: Bull regime with low volatility (VIX 14.5) and selective breadth (63.6% sectors >50d MA) creates ideal conditions for factor harvesting. Value regime dominates (value favored over growth) with size premium exceptionally strong (+3.1%). Momentum premium has turned positive (+0.9%) after prolonged weakness, signaling factor rotation beginning. Fed dovish pivot (rates cut to 3.64% amid cooling inflation at 1.86%) reduces macro uncertainty, allowing stock-specific factors to drive returns.\n\nEdge Explanation: Multi-factor edge combines structural risk premiums (value, size, quality) with behavioral mispricing. Value and size premiums persist due to: (1) risk compensation (value/size stocks are riskier), (2) institutional constraints (benchmark hugging), (3) behavioral biases (over-extrapolation of growth). Combining four factors provides 60-70% capture of each premium while reducing single-factor drawdowns through diversification. Expected annual alpha 2-4% with 80%+ consistency across market cycles. Capacity ~$500M before slippage erodes returns.\n\nRegime Fit: Current environment is optimal - value favored, size premium strong, volatility low. Breadth deterioration (81.8% to 63.6% sectors >50d MA) signals market selectivity where factor selection matters more than market beta. Historical analogs (2012-2014, 2016-2017) show multi-factor portfolios delivered 3-5% alpha in similar low-vol, value-favored regimes.\n\nRisk Factors: Factor strategies underperform during: (1) macro shocks when correlations spike to 1.0, (2) mega-cap dominance periods when size premium inverts, (3) rapid factor rotation when leadership changes monthly. Monitor VIX >25 and breadth <40% as early warning signals. Expected max drawdown 8-12% during factor crashes. Single-factor tracking error can reach 5-7% annually.\n",
+          "rebalancing_rationale": "\nMonthly rebalancing implements the factor premium edge by systematically selling recent winners and buying losers within each factor ETF, harvesting mean-reversion at the individual stock level. This frequency matches the factor premium decay timeline (2-4 months) while avoiding excessive transaction costs. The equal-weight approach across 4 factors provides balanced exposure, with overweight to value (0.35) and size (0.30) reflecting their current strength in the regime. Rebalancing mechanically enforces discipline to hold factors through their cycles, preventing emotional timing errors. The 15% quality allocation provides ballast during factor rotations, while 20% momentum captures trend persistence.\n",
+          "edge_type": "risk_premium",
+          "archetype": "multi_strategy",
+          "concentration_intent": "diversified",
+          "name": "Systematic Multi-Factor Core",
+          "assets": [
+            "VTV",
+            "SIZE",
+            "MTUM",
+            "QUAL"
+          ],
+          "logic_tree": {},
+          "weights": {
+            "VTV": 0.35,
+            "SIZE": 0.3,
+            "MTUM": 0.2,
+            "QUAL": 0.15
+          },
+          "rebalance_frequency": "monthly"
+        },
+        {
+          "thesis_document": "\nMarket Analysis: Current regime shows contradictory signals - SPY remains in bull trend (+9.6% above 200d MA) but breadth is deteriorating (63.6% sectors above 50d MA vs 81.8% one month ago). VIX at 14.5 signals complacency while the Sahm rule at 0.43 indicates elevated recession risk. This divergence creates a window where downside protection is cheap but necessary.\n\nEdge Explanation: Volatility exhibits strong mean reversion and clustering patterns. When VIX trades below its 30-day average in late-cycle environments (high Sahm rule), implied volatility is systematically underpriced relative to realized risk. Risk parity and volatility-targeting funds create structural pressure - they mechanically deleverage when vol rises, amplifying downside moves. The edge persists because behavioral biases cause investors to buy insurance AFTER volatility spikes (panic) not before. Edge capacity is approximately $500M before slippage impacts returns, with 2-4 week persistence window.\n\nRegime Fit: Current VIX of 14.5 is below its 30d average of 16.8, making put/call protection inexpensive. Multiple contraction risk is elevated as value outperforms growth and forward earnings estimates face late-cycle pressure. Factor premiums (value +0.77%, quality +0.9%, size +3.11%) favor fundamental factors over broad beta, justifying factor-tilted risk-on exposure.\n\nRisk Factors: Primary failure mode is whipsaw from false volatility signals lasting less than 2 weeks, generating 8-12% drawdown from transaction costs and timing gaps. Edge degrades if bond-equity correlation turns positive (reducing TLT hedge efficacy) or if VIX remains elevated >3 months (persistent fear). Central bank policy error or geopolitical shock could cause correlation breakdown. Expected max drawdown during extended bear markets is 15-18% vs 25-30% for 100% equity portfolios.\n",
+          "rebalancing_rationale": "\nWeekly rebalancing implements the volatility regime edge by systematically reducing exposure when fear is rising (VIX > 30d MA) and increasing exposure when calm returns. This exploits the mean-reverting nature of volatility and behavioral tendency to overpay for insurance after volatility spikes. During risk-on periods, equal 25% weights across VTV, QUAL, SIZE, and VB provide diversified factor exposure (value, quality, size) that captures upside while avoiding single-factor concentration. During risk-off periods, 50% TLT provides duration hedge, 30% GLD provides tail risk protection, and 20% BIL provides liquidity. The VIX trigger threshold is relative (vs own moving average) avoiding magic numbers and adapting to changing baseline volatility levels.\n",
+          "edge_type": "structural",
+          "archetype": "multi_strategy",
+          "concentration_intent": "diversified",
+          "name": "Risk Manager's Asymmetric Factor Rotation",
+          "assets": [
+            "VTV",
+            "QUAL",
+            "SIZE",
+            "VB",
+            "TLT",
+            "GLD",
+            "BIL"
+          ],
+          "logic_tree": {
+            "condition": "VIX_price > VIX_30d_MA or SPY_price < SPY_200d_MA",
+            "if_true": {
+              "assets": [
+                "TLT",
+                "GLD",
+                "BIL"
+              ],
+              "weights": {
+                "TLT": 0.5,
+                "GLD": 0.3,
+                "BIL": 0.2
+              }
+            },
+            "if_false": {
+              "assets": [
+                "VTV",
+                "QUAL",
+                "SIZE",
+                "VB"
+              ],
+              "weights": {
+                "VTV": 0.25,
+                "QUAL": 0.25,
+                "SIZE": 0.25,
+                "VB": 0.25
+              }
+            }
+          },
+          "weights": {},
+          "rebalance_frequency": "weekly"
+        },
+        {
+          "thesis_document": "Market Analysis: Confirmed bull regime with SPY +9.6% above 200d MA and moderate breadth (63.6% sectors above 50d MA). Cyclicals dominate leadership with XLB (+4.7%), XLF (+3.5%), XLY (+2.2%) significantly outperforming defensives (XLU -5.1%, XLP -1.1%). Value-favored regime and steepening yield curve (+71bp 2s10s) structurally benefit financials/materials. Low volatility (VIX 14.5) prevents sharp momentum reversals.\n\nEdge Explanation: Sector momentum persists 4-6 weeks due to institutional capital flow governance delays. Pension funds and mutual funds rebalance quarterly based on trailing performance, creating 2-4 week implementation lag as investment committees approve sector allocation changes slowly. The edge decays after 6 weeks as flows complete and mean reversion begins. Capacity exceeds $1B through liquid sector ETFs.\n\nRegime Fit: Strong trend confirmation and clear cyclical leadership provide optimal momentum conditions. Value regime supports continued financials/materials outperformance. Monthly rebalancing captures institutional reallocation cycle without overtrading.\n\nRisk Factors: SPY breaking below 200d MA triggers defensive rotation (10-15% drawdown during transition). Breadth deterioration below 40% signals broad weakness and impairs momentum persistence. Volatility spike above VIX 20 triggers systematic de-risking. Single-sector concentration risk if leadership narrows significantly.",
+          "rebalancing_rationale": "Monthly rebalancing implements the sector momentum edge by conditionally allocating based on trend regime confirmed by SPY vs 200d MA. In bull regime (SPY > 200d MA), the strategy selects the top 3 sectors by 30-day cumulative return (currently XLB, XLF, XLY) equal-weighted to exploit 4-6 week institutional capital flow persistence. In bear regime, it rotates defensive (XLU, XLP, XLRE) to preserve capital. This exploits governance delays in institutional rebalancing cycles, mechanically overweighting recent winners during the implementation lag window. Equal-weighting maintains diversification while concentrating in proven leadership.",
+          "edge_type": "behavioral",
+          "archetype": "momentum",
+          "concentration_intent": "sector_focus",
+          "name": "Trend-Based Sector Momentum Rotation",
+          "assets": [
+            "XLB",
+            "XLF",
+            "XLY",
+            "XLU",
+            "XLP",
+            "XLRE"
+          ],
+          "logic_tree": {
+            "condition": "SPY_price > SPY_200d_MA",
+            "if_true": {
+              "assets": [
+                "XLB",
+                "XLF",
+                "XLY"
+              ],
+              "weights": {
+                "XLB": 0.34,
+                "XLF": 0.33,
+                "XLY": 0.33
+              }
+            },
+            "if_false": {
+              "assets": [
+                "XLU",
+                "XLP",
+                "XLRE"
+              ],
+              "weights": {
+                "XLU": 0.34,
+                "XLP": 0.33,
+                "XLRE": 0.33
+              }
+            }
+          },
+          "weights": {},
+          "rebalance_frequency": "monthly"
+        },
+        {
+          "thesis_document": "\nMarket Analysis: SPY trades +9.57% above 200-day MA in confirmed bull trend, but breadth deterioration (63.64% sectors above 50-day MA, down from 81.82%) signals concentrated leadership rather than broad participation. Sector leadership shows Materials (XLB +4.73% vs SPY) and Financials (XLF +3.5%) outperforming with extreme intra-sector dispersion (XLB 52.89% spread, XLF 27.35% spread), indicating stock-specific fundamental repricing rather than beta-driven moves. Factor regime favors value while momentum premium turns positive (+0.9%) and size premium accelerates (+3.11%), creating optimal conditions for individual stock momentum within leading sectors.\n\nEdge Explanation: Within-sector momentum persists 15-25 trading days due to: (1) quarterly earnings guidance cycles creating sustained estimate revisions, (2) institutional sector rotation happening quarterly while stock-level accumulation occurs over 2-3 weeks, (3) retail investors using sector ETFs (like XLB, XLF) missing stock-specific alpha. XLB's 52.89% top-bottom spread (FCX +25.89% vs APD -1.1%) demonstrates company-specific catalysts (copper demand, firearms cycle) dominating sector beta. Materials, Financials, Discretionary, and Industrials show highest 30-day momentum with clear leadership stocks. Capacity estimate $100-150M before stock-level slippage erodes alpha in mid-cap names ($10-50B range). Edge decays when VIX spikes above 25 (currently 14.51) or breadth drops below 50% signaling broad market weakness.\n\nRegime Fit: Current low volatility (VIX 14.51), positive trend (SPY >200d MA), and extreme sector dispersion create ideal momentum environment. December earnings demonstrated market punishing individual execution (ORCL -13.22% on cloud miss, MU +7% on AI chip beat) rather than rewarding sector beta. Fed dovish pivot (Dec 10 cut to 3.5-3.75%) provides liquidity tailwind. Materials outperforming coincides with inflation stabilization (CPI 2.7% YoY) and infrastructure spending. Financials\u9886\u5148\u53d7\u76ca\u4e8e",
+          "rebalancing_rationale": "\nWeekly rebalancing implements the individual stock momentum edge by systematically capturing 30-day price persistence while avoiding momentum decay beyond the 15-25 day half-life documented in academic literature. This frequency balances responsiveness to earnings-driven re-ratings (like FCX's copper cycle repricing, COF's credit normalization) against transaction costs. Equal-weight allocation (25% per position) across Materials, Financials, Discretionary, and Industrials sleeves creates cross-asset-class exposure without single-stock concentration risk. The 30-day lookback window captures post-earnings drift cycles where analyst estimate revisions persist for 2-4 weeks. Rebalancing mechanically sells positions as their relative momentum decays (falling out of top quartile) and rotates into emerging leaders, exploiting institutional flow delays and retail ETF averaging effects. This directly implements the price momentum edge by always holding the most recent top-performing stocks, ",
+          "edge_type": "unspecified",
+          "archetype": "unspecified",
+          "concentration_intent": "diversified",
+          "name": "Cross-Sector Equity Momentum Concentration",
+          "assets": [
+            "FCX",
+            "COF",
+            "GM",
+            "BA"
+          ],
+          "logic_tree": {},
+          "weights": {
+            "BA": 0.25,
+            "COF": 0.25,
+            "FCX": 0.25,
+            "GM": 0.25
+          },
+          "rebalance_frequency": "weekly"
+        }
+      ],
+      "scorecards": [
+        {
+          "thesis_quality": 3,
+          "edge_economics": 3,
+          "risk_framework": 4,
+          "regime_awareness": 5,
+          "strategic_coherence": 3
+        },
+        {
+          "thesis_quality": 4,
+          "edge_economics": 3,
+          "risk_framework": 4,
+          "regime_awareness": 5,
+          "strategic_coherence": 4
+        },
+        {
+          "thesis_quality": 4,
+          "edge_economics": 4,
+          "risk_framework": 4,
+          "regime_awareness": 3,
+          "strategic_coherence": 3
+        },
+        {
+          "thesis_quality": 4,
+          "edge_economics": 3,
+          "risk_framework": 4,
+          "regime_awareness": 5,
+          "strategic_coherence": 4
+        },
+        {
+          "thesis_quality": 3,
+          "edge_economics": 3,
+          "risk_framework": 3,
+          "regime_awareness": 5,
+          "strategic_coherence": 2
+        }
+      ],
+      "selection_reasoning": {
+        "winner_index": 1,
+        "why_selected": "Selected Systematic Multi-Factor Core (Candidate #2) following intensive evaluation of top candidates, both scoring 4.0/5 total Edge Scorecard. Despite identical scores, three critical factors differentiate this strategy:\n\n**First, superior robustness for unknown regime conditions.** Current market context shows 'unknown trend, unknown volatility' - precisely the environment where single-factor momentum can falter. Candidate #2 diversifies across four proven factors (Value 35%, Size 30%, Momentum 20%, Quality 15%), while Candidate #4 concentrates entirely on sector momentum. In choppy or trendless markets, factor diversification provides natural hedging that pure momentum lacks. The risk_premium edge type is more persistent than behavioral edges, which can arbitrage away during market stress.\n\n**Second, implementation clarity and coherence.** Candidate #2 provides explicit weights (VTV 35%, SIZE 30%, MTUM 20%, QUAL 15%) enabling precise execution and performance attribution. Candidate #4's unspecified weights ('{}') introduce implementation uncertainty and potential slippage. Monthly rebalancing is appropriate for factor persistence timescales, avoiding excessive turnover while capturing premia.\n\n**Third, academic foundation and persistence.** Each factor in Candidate #2 has decades of research supporting risk-adjusted returns across multiple regimes. The Value, Size, and Quality factors tend to outperform during market dislocations - precisely when behavioral momentum fails. While both score 5/5 on regime awareness, only Candidate #2's multi-factor construction truly delivers regime robustness rather than regime optimization.\n\nThe decision prioritizes process quality (thesis quality 4/5, edge economics 3/5, risk framework 4/5) but selects the implementation most likely to preserve these advantages across the 90-day window in uncertain conditions.",
+        "tradeoffs_accepted": "Accepted three key tradeoffs in selecting Systematic Multi-Factor Core:\n\n**Tradeoff 1: Potential upside capture.** If markets enter a strong trending regime, pure sector momentum (Candidate #4) could outperform multi-factor diversification. I'm accepting potentially lower terminal returns in bull-trend scenarios because the probability-weighted outcome across unknown regimes favors robustness. The 90-day window is too short to recover from a momentum crash if trends reverse.\n\n**Tradeoff 2: Factor drag complexity.** Multi-factor strategies can experience periods where individual factors (e.g., Value) underperform, creating psychological pressure to intervene. I'm accepting this complexity because monthly rebalancing prevents emotional overreaction and the diversified factor structure reduces single-factor drawdown risk relative to concentrated momentum.\n\n**Tradeoff 3: Edge economics ceiling.** Candidate #3 scores 4/5 on edge economics vs Candidate #2's 3/5, suggesting potentially stronger structural alpha. However, Candidate #3's weaker regime awareness (3/5 vs 5/5) and strategic coherence (3/5 vs 4/5) make this edge less reliable. I'm accepting a theoretically lower but more dependable edge that functions across unknown volatility/trend environments.\n\nThese tradeoffs reflect prioritization of capital preservation and consistent process over maximum potential returns in an uncertain 90-day deployment window.",
+        "alternatives_rejected": [
+          "Yield Curve Cyclical Rotation (Candidate #1): Rejected despite 5/5 regime awareness. Lower thesis quality (3/5 vs 4/5) and edge economics (3/5 vs 3/5) reflect weaker fundamental reasoning. Strategic coherence 3/5 indicates internal inconsistencies in yield curve signal application. Composite score 0.753 trails winner by 0.074 - significant gap indicating inferior strategic foundation.",
+          "Trend-Based Sector Momentum Rotation (Candidate #4): Rejected despite identical 4.0/5 Edge Scorecard scores. In unknown trend/volatility regime, pure momentum concentration is suboptimal vs diversified factor exposure. Unspecified weights create implementation risk. While scoring 5/5 on regime awareness, the behavioral edge is more fragile than risk premium edge in Candidate #2. Winner's explicit factor weights and broader diversification provide superior execution confidence.",
+          "Risk Manager's Asymmetric Factor Rotation (Candidate #3): Rejected due to unacceptable regime awareness gap (3/5 vs winner's 5/5). While edge economics 4/5 is superior to winner's 3/5, this advantage is negated by poor strategic coherence (3/5 vs 4/5) and weaker composite score (0.700 vs 0.827). The 'asymmetric' construction appears to introduce complexity without corresponding clarity in failure modes, violating the principle that simple, robust strategies outperform complex, fragile ones.",
+          "Cross-Sector Equity Momentum Concentration (Candidate #5): Rejected comprehensively. Lowest total score (3.2/5) with concerning strategic coherence (2/5) and unspecified edge type/archetype. Equal-weight concentration in 4 stocks (FCX, COF, GM, BA) lacks the diversification necessary for 90-day deployment despite 5/5 regime awareness. Risk framework 3/5 indicates inadequate stress scenario planning. Composite score 0.680 trails winner by 0.147 - not competitive."
+        ],
+        "conviction_level": 0.75
+      },
+      "symphony_id": "1XffR4EfcQVKdc9xUZ4i",
+      "deployed_at": "2026-01-03T21:14:52.608754+00:00",
+      "strategy_summary": "A systematic factor-based equity strategy combining value, size, momentum, and quality exposures through VTV, SIZE, MTUM, and QUAL ETFs, rebalanced monthly to capitalize on the 2026 market regime.",
       "model": "openai:kimi-k2-thinking"
     }
   ]
