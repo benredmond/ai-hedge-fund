@@ -1,43 +1,40 @@
-# Virtual environment
-venv/
-.venv/
 
-# Python
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
+.coverage
+.DS_Store
+.eggs/
+.env
+.env.local
+.idea/
+.installed.cfg
+.pytest_cache/
 .Python
+.venv/
+.vscode/
+*.egg
+*.egg-info/
+*.py[cod]
+*.so
+*.swo
+*.swp
+*$py.class
+/lib/
+/lib64/
+# Data
+# Environment
+# IDE
+# Python
+# Testing
+# Virtual environment
 build/
+data/context_packs/
 develop-eggs/
 dist/
 downloads/
 eggs/
-.eggs/
-/lib/
-/lib64/
+htmlcov/
 parts/
 sdist/
 var/
+venv/
 wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Environment
-.env
-.env.local
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Data
-data/context_packs/
