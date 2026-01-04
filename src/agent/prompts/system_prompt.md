@@ -48,5 +48,5 @@ All strategy outputs must be structured Pydantic models with proper validation.
 - Strategies must be executable on Composer.trade platform
 - Must always be invested (use BIL for cash-like positions)
 - No direct shorting (use inverse ETFs like SH, PSQ)
-- No direct leverage (use leveraged ETFs if needed)
+- No direct leverage (leveraged ETFs are the only supported proxy if used)
 - Daily price data only (no intraday)

@@ -89,11 +89,11 @@ Generic sector ETF strategies are commoditized. Apply this heuristic:
 - Non-obvious structural mechanism (index rebalancing flows, regulatory lag, fund flow patterns)
 - Stock selection WITHIN sectors (JPM/BAC/WFC instead of just XLF)
 - Company-specific catalyst with falsifiable trigger
-- Novel timing signal beyond standard indicators (200d MA, simple VIX threshold)
+- Novel timing signal beyond standard indicators (200d MA, simple VIX proxy threshold)
 
 **Examples:**
 - "Equal-weight XLB/XLF/XLC sector rotation based on 30d momentum" → cap at 3/5 (commoditized)
-- "Top-3 momentum sectors with VIX < 18 AND breadth > 60% filter" → allow 4/5 (compound timing logic)
+- "Top-3 momentum sectors with VIX proxy (VIXY_price < threshold) AND breadth > 60% filter" → allow 4/5 (compound timing logic)
 - "Financials via JPM/BAC/WFC based on NIM expansion thesis" → allow 4/5 (stock selection within sector)
 
 ### Anti-Gaming
@@ -201,7 +201,7 @@ Evaluate fit against provided tags:
 | "Momentum rotation" | logic_tree with ranking/comparison | Static weights, no rotation logic |
 | "Sector leadership" | Dynamic selection (filter/ranking) | Static sector ETF allocation |
 | "Defensive triggers" | IF conditions in logic_tree | No conditional logic |
-| "VIX-based adaptation" | VIX threshold in logic_tree | No VIX conditions |
+| "VIX-based adaptation" | VIX proxy threshold in logic_tree | No VIX proxy conditions |
 
 **Example Auto-Fail:**
 ```
@@ -261,13 +261,13 @@ Return JSON with scores and reasoning:
   },
   "risk_framework": {
     "score": 4,
-    "reasoning": "Enumerated failure modes with VIX threshold. Quantified max DD. Missing Sharpe target but strong relative to candidate set.",
+    "reasoning": "Enumerated failure modes with VIX proxy threshold. Quantified max DD. Missing Sharpe target but strong relative to candidate set.",
     "key_strengths": ["Specific triggers", "Quantified drawdown"],
     "key_weaknesses": ["No explicit Sharpe target"]
   },
   "regime_awareness": {
     "score": 5,
-    "reasoning": "Perfect fit for strong_bull + volatility_low. Explicit VIX-based adaptation triggers. 90-day horizon matches Q4 catalyst.",
+    "reasoning": "Perfect fit for strong_bull + volatility_low. Explicit VIX proxy adaptation triggers. 90-day horizon matches Q4 catalyst.",
     "key_strengths": ["Regime alignment", "Adaptation plan", "Time horizon fit"],
     "key_weaknesses": []
   },

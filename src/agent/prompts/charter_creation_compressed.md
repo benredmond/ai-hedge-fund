@@ -83,11 +83,29 @@ Be specific. Not "market crashes" but "value underperforms growth 5%+ despite ra
 
 **Purpose**: Document exactly how the strategy implements its claimed edge.
 
-**If logic_tree is populated:**
+**If logic_tree is populated with conditional branches:**
 ```
 Condition: [paste actual condition from logic_tree]
-If True: [assets and weights]
-If False: [assets and weights]
+If True: [assets and weights OR filter/weighting leaf]
+If False: [assets and weights OR filter/weighting leaf]
+```
+
+**If a branch uses a filter leaf:**
+```
+Filter: sort_by=[cumulative_return|moving_average_return|...], window=[N or omit for current_price], select=[top|bottom], n=[N]
+Assets: [list]
+```
+
+**If a branch uses a weighting leaf:**
+```
+Weighting: method=[inverse_vol], window=[N]
+Assets: [list]
+```
+
+**If logic_tree is filter-only (no condition):**
+```
+Filter: sort_by=[...], window=[N or omit for current_price], select=[top|bottom], n=[N]
+Assets: [list]
 ```
 
 **Edge Implementation Mapping:**
@@ -103,6 +121,7 @@ If False: [assets and weights]
 - ❌ Thesis claims "rotation" but logic_tree is empty
 - ❌ Thesis claims "momentum" but no ranking/comparison logic
 - ❌ Thesis claims "sector leadership" but static ETF allocation
+- ❌ Thesis claims "ranking/selection" but no filter leaf
 
 ---
 

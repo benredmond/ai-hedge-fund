@@ -153,8 +153,8 @@ Return a JSON object with your selection decision:
   "selection_rationale": {
     "primary_reasons": [
       "Strongest thesis quality (5/5): Specific AI capex catalyst with Q2 timing matching 90-day window",
-      "Comprehensive risk framework (5/5): Enumerated failure triggers (VIX >35, capex cuts >15%) with quantified pain thresholds",
-      "Excellent regime fit (5/5): Bull + low-vol regime perfectly suited for momentum; explicit VIX >28 adaptation trigger"
+      "Comprehensive risk framework (5/5): Enumerated failure triggers (VIX proxy spike, capex cuts >15%) with quantified pain thresholds",
+      "Excellent regime fit (5/5): Bull + low-vol regime perfectly suited for momentum; explicit VIX proxy adaptation trigger"
     ],
     "tradeoffs_accepted": [
       "Regime awareness 4/5 vs best candidate's 5/5: Accepted slightly weaker regime fit for superior thesis and edge quality",
@@ -204,23 +204,23 @@ Return a JSON object with your selection decision:
     "winner_vs_runner_up": "Winner (Tech Momentum) vs Runner-Up (Sector Rotation): Winner selected despite slightly lower composite Edge score (4.0 vs 4.2) because: (1) Runner-up has no articulated edge (beta exposure only, edge economics 1/5), (2) Winner has institutional-grade risk framework with specific failure triggers (5/5 vs 3/5), (3) Forward-looking reasoning quality (thesis 5/5 vs 2/5) predicts better out-of-sample performance. Tradeoff: Accept weaker execution scores for significantly better strategic thinking.",
     "key_differentiators": [
       "Thesis quality: Winner has falsifiable catalyst (AI capex Q2); runner-up has no thesis",
-      "Risk framework: Winner specifies failure triggers (VIX >35, capex cuts >15%); runner-up has vague risk statements",
+      "Risk framework: Winner specifies failure triggers (VIX proxy spike, capex cuts >15%); runner-up has vague risk statements",
       "Time horizon: Winner's catalyst timing matches 90-day window; runner-up has no time-sensitive thesis"
     ]
   },
   "deployment_recommendations": {
     "monitoring_priorities": [
       "Track hyperscaler Q4/Q1 earnings for capex guidance (failure trigger: cuts >15%)",
-      "Monitor VIX daily; if >28 for 3+ days, prepare defensive rotation per adaptation plan",
+      "Monitor VIX proxy (VIXY_price) daily; if above threshold for 3+ days, prepare defensive rotation per adaptation plan",
       "Watch TSMC Arizona fab timeline; delays beyond Q2 invalidate thesis"
     ],
     "early_warning_signals": [
-      "VIX sustained >25 (momentum regime may be weakening)",
+      "VIX proxy sustained above threshold (momentum regime may be weakening)",
       "Semiconductor equipment inventory builds >90 days",
       "Sector correlation spike >0.80 (diversification breaking down)"
     ],
     "contingency_plans": [
-      "IF VIX >28: Rotate 50% to TLT/GLD per strategy adaptation plan",
+      "IF VIX proxy exceeds threshold: Rotate 50% to TLT/GLD per strategy adaptation plan",
       "IF capex guidance disappoints: Exit within 48 hours",
       "IF max drawdown reaches -15%: Trigger review; -18% triggers full exit per risk framework"
     ]
@@ -229,7 +229,7 @@ Return a JSON object with your selection decision:
   "confidence_reasoning": "Winner has (1) clear edge with structural reasoning, (2) comprehensive risk framework with quantified triggers, (3) perfect regime alignment with explicit adaptation logic, (4) coherent execution plan. All critical dimensions score ≥4/5. Sharpe tradeoff justified by process quality delta.",
   "critical_assumptions": [
     "AI infrastructure capex cycle continues through Q1-Q2 2025 (hyperscaler guidance confirms this)",
-    "VIX remains <28 (current: 16; historical avg: 18; assumption reasonable for base case)",
+    "VIX proxy remains below threshold (use VIXY_price; context-defined)",
     "Momentum persistence timescale remains 5-10 days (academic consensus; weekly rebalancing appropriate)"
   ],
   "recommendation": "DEPLOY - Select Tech Momentum with Tail Hedge. Strong thesis + comprehensive risk management + regime alignment outweigh Sharpe delta vs alternatives."
@@ -327,7 +327,7 @@ Return a JSON object with your selection decision:
 **Decision:** Select Candidate A
 
 **Rationale:**
-"Candidate A is the dominant choice with total Edge score 4.2/5 vs runner-up's 3.1/5 (1.1 point margin). While Candidate B scores high on regime awareness (4/5) and strategic coherence (4/5), it fails on fundamentals: thesis quality 2/5 (no clear edge articulated) and edge economics 1/5 (pure beta exposure, no structural advantage). Without sound thesis and edge, high execution scores are meaningless. Candidate A scores ≥4 on all strategic dimensions with comprehensive risk framework (failure triggers at VIX >30, capex cuts >10%) and perfect regime alignment. This balanced excellence across all Edge dimensions provides confidence in forward success."
+"Candidate A is the dominant choice with total Edge score 4.2/5 vs runner-up's 3.1/5 (1.1 point margin). While Candidate B scores high on regime awareness (4/5) and strategic coherence (4/5), it fails on fundamentals: thesis quality 2/5 (no clear edge articulated) and edge economics 1/5 (pure beta exposure, no structural advantage). Without sound thesis and edge, high execution scores are meaningless. Candidate A scores ≥4 on all strategic dimensions with comprehensive risk framework (failure triggers at VIX proxy threshold, capex cuts >10%) and perfect regime alignment. This balanced excellence across all Edge dimensions provides confidence in forward success."
 
 ---
 
@@ -340,7 +340,7 @@ Return a JSON object with your selection decision:
 **Decision:** Select Candidate A (slightly lower total score, but superior core reasoning)
 
 **Rationale:**
-"Close call: Candidate B leads total Edge score by 0.1 (effectively tied). However, selecting Candidate A because: (1) Thesis quality 5/5 with falsifiable catalyst vs B's generic 3/5 thesis, (2) Edge economics 5/5 with clear structural advantage vs B's basic 3/5, (3) Risk framework 5/5 with quantified triggers (VIX >35, -18% max DD) vs B's acceptable-but-basic 3/5. Candidate B scores higher on regime fit and coherence, but excels at execution while failing at strategy. **Tradeoff:** Accepting slightly weaker regime fit (3/5 vs 5/5) for 2-point advantages on thesis, edge, and risk. Reasoning: Strong fundamentals (thesis/edge/risk) matter more than perfect execution (regime/coherence). You can't execute your way out of a weak thesis."
+"Close call: Candidate B leads total Edge score by 0.1 (effectively tied). However, selecting Candidate A because: (1) Thesis quality 5/5 with falsifiable catalyst vs B's generic 3/5 thesis, (2) Edge economics 5/5 with clear structural advantage vs B's basic 3/5, (3) Risk framework 5/5 with quantified triggers (VIX proxy threshold, -18% max DD) vs B's acceptable-but-basic 3/5. Candidate B scores higher on regime fit and coherence, but excels at execution while failing at strategy. **Tradeoff:** Accepting slightly weaker regime fit (3/5 vs 5/5) for 2-point advantages on thesis, edge, and risk. Reasoning: Strong fundamentals (thesis/edge/risk) matter more than perfect execution (regime/coherence). You can't execute your way out of a weak thesis."
 
 **Confidence:** Medium-High (close total scores but clear reasoning quality advantage)
 

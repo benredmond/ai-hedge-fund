@@ -70,7 +70,7 @@ Characteristics:
 - Lacks depth but has logical foundation
 
 Example:
-> "Buy technology momentum in current low-volatility environment. Works because trends persist in low-VIX regimes."
+> "Buy technology momentum in current low-volatility environment. Works because trends persist in low VIX-proxy regimes."
 
 **2 - Weak Thesis**
 
@@ -196,11 +196,11 @@ Generic sector ETF strategies are commoditized and offer minimal edge. Apply thi
 - Non-obvious structural mechanism (index rebalancing flows, regulatory lag, fund flow patterns, capacity limits)
 - Stock selection WITHIN sectors (e.g., JPM/BAC/WFC instead of just XLF)
 - Company-specific catalyst with falsifiable trigger and timing
-- Novel timing signal beyond standard indicators (simple 200d MA, basic VIX threshold)
+- Novel timing signal beyond standard indicators (simple 200d MA, basic VIX proxy threshold)
 
 **Examples:**
 - "Equal-weight XLB/XLF/XLC sector rotation based on 30d momentum" → cap at 3/5 (commoditized; everyone can do this)
-- "Top-3 momentum sectors with VIX < 18 AND breadth > 60% compound filter" → allow 4/5 (compound timing logic adds specificity)
+- "Top-3 momentum sectors with VIX proxy (VIXY_price < threshold) AND breadth > 60% compound filter" → allow 4/5 (compound timing logic adds specificity)
 - "Financials via JPM/BAC/WFC based on NIM expansion thesis from rate steepening" → allow 4/5 (stock selection with catalyst)
 - "Sector rotation exploiting quarterly mutual fund rebalancing flows with 2-week lead time" → allow 4/5 (structural mechanism)
 
@@ -237,7 +237,7 @@ Characteristics:
 - Risk-adjusted return expectations (not just return targets)
 
 Example:
-> "**Failure modes:** (1) VIX spike >35 for 5+ consecutive days [momentum reversal regime], (2) Fed emergency rate cut [recession signal], (3) sector correlation >0.85 [diversification breaks]. **Risk budget:** Max tolerable drawdown -18%; targeting 1.3 Sharpe (20% return, 15% vol). Pain threshold: -15% triggers review; -20% triggers exit. **Tail risk:** Long gamma via TLT allocation (bonds rally in equity crashes); negative correlation -0.4 in crisis periods. **Position-level risk:** No single position >25%; pairwise correlation <0.7 required."
+> "**Failure modes:** (1) VIX proxy spike above threshold for 5+ consecutive days [momentum reversal regime], (2) Fed emergency rate cut [recession signal], (3) sector correlation >0.85 [diversification breaks]. **Risk budget:** Max tolerable drawdown -18%; targeting 1.3 Sharpe (20% return, 15% vol). Pain threshold: -15% triggers review; -20% triggers exit. **Tail risk:** Long gamma via TLT allocation (bonds rally in equity crashes); negative correlation -0.4 in crisis periods. **Position-level risk:** No single position >25%; pairwise correlation <0.7 required."
 
 **4 - Strong Risk Awareness**
 
@@ -257,7 +257,7 @@ Characteristics:
 - Recognizes strategy has limitations
 
 Example:
-> "Could fail in bear market or volatility spike. Max drawdown likely -10% to -15%. Strategy optimized for current low-vol regime; performance will suffer if VIX >25."
+> "Could fail in bear market or volatility spike. Max drawdown likely -10% to -15%. Strategy optimized for current low-vol regime; performance will suffer if VIX proxy (VIXY_price) exceeds a threshold."
 
 **2 - Weak Risk Framework**
 
@@ -321,7 +321,7 @@ Two paths to score 5:
 - Time horizon matches catalyst timing
 
 Example (regime-optimized):
-> "Current regime: `strong_bull`, `volatility_low`, `growth_favored`. **Strategy fit:** 70% equity momentum (QQQ, tech leaders) optimized for low-vol trend continuation. **Adaptation plan:** IF `volatility_spike` (VIX >28): rotate 50% to defensive (TLT, GLD). IF `trend_break` (SPY < 50d MA): reduce equity to 40%, increase bonds. **Time horizon:** 90-day window matches earnings season catalyst (tech Q4 reports Jan-Feb)."
+> "Current regime: `strong_bull`, `volatility_low`, `growth_favored`. **Strategy fit:** 70% equity momentum (QQQ, tech leaders) optimized for low-vol trend continuation. **Adaptation plan:** IF `volatility_spike` (VIX proxy above threshold): rotate 50% to defensive (TLT, GLD). IF `trend_break` (SPY < 50d MA): reduce equity to 40%, increase bonds. **Time horizon:** 90-day window matches earnings season catalyst (tech Q4 reports Jan-Feb)."
 
 **Path B: Regime-Robust Strategy**
 - Intentionally designed to work across multiple regimes
@@ -339,7 +339,7 @@ Characteristics:
 - Some consideration of regime shifts
 
 Example:
-> "Current regime: `growth_favored`, `volatility_normal`. Strategy: 60% tech/growth, 40% bonds. Fits current environment; aware that rotation to value would hurt performance. Monitoring VIX and sector rotation as early warning."
+> "Current regime: `growth_favored`, `volatility_normal`. Strategy: 60% tech/growth, 40% bonds. Fits current environment; aware that rotation to value would hurt performance. Monitoring VIX proxy (VIXY_price) and sector rotation as early warning."
 
 **3 - Acceptable Fit or Regime-Neutral**
 
@@ -529,14 +529,14 @@ When a strategy uses 2x or 3x leveraged ETFs (e.g., TQQQ, UPRO, TMF), apply thes
 **Additional Requirements for 3x Only:**
 
 5. **Stress Test**: Historical crisis analog (2022, 2020, or 2008) with drawdown data
-6. **Exit Criteria**: Specific triggers to de-risk (VIX threshold, momentum reversal, etc.)
+6. **Exit Criteria**: Specific triggers to de-risk (VIX proxy threshold, momentum reversal, etc.)
 
 **Scoring Rubric (Leveraged):**
 
 **5/5 - Institutional Grade (3x requires ALL 6 elements; 2x requires 4 core + stress OR exit)**
 
 Example (3x):
-> "Thesis: TQQQ for AI momentum capture. **Convexity**: Edge window (2-4 weeks) shorter than decay threshold (30+ days); 3x captures spike before mean reversion. **Decay**: 2-5% annually in sideways markets; targeting 18-22% alpha vs QQQ. **Drawdown**: 2022 analog: TQQQ -80% vs QQQ -35% during rate shock. Acceptable for aggressive conviction. **Benchmark**: TQQQ vs QQQ: 3x amplifies 2-week momentum bursts (avg +15% QQQ → +45% TQQQ) before decay dominates. **Stress Test**: 2020 COVID: TQQQ -75% in 30 days vs QQQ -30%. **Exit**: If VIX >30 for 5+ days OR momentum turns negative (3-month cumulative return <0) OR AI CapEx growth <10% YoY."
+> "Thesis: TQQQ for AI momentum capture. **Convexity**: Edge window (2-4 weeks) shorter than decay threshold (30+ days); 3x captures spike before mean reversion. **Decay**: 2-5% annually in sideways markets; targeting 18-22% alpha vs QQQ. **Drawdown**: 2022 analog: TQQQ -80% vs QQQ -35% during rate shock. Acceptable for aggressive conviction. **Benchmark**: TQQQ vs QQQ: 3x amplifies 2-week momentum bursts (avg +15% QQQ → +45% TQQQ) before decay dominates. **Stress Test**: 2020 COVID: TQQQ -75% in 30 days vs QQQ -30%. **Exit**: If VIX proxy exceeds threshold for 5+ days OR momentum turns negative (3-month cumulative return <0) OR AI CapEx growth <10% YoY."
 
 **4/5 - Strong (requires 4 core elements for 2x; 4 core + stress OR exit for 3x)**
 
@@ -633,17 +633,17 @@ Example:
 **5/5 - Comprehensive (3x requires stress test + specific exit + realistic DD; 2x requires realistic DD + exit)**
 
 Example (3x):
-> "**Stress Test**: 2022 analog: TQQQ -80% vs QQQ -35% during rate shock. 2020: TQQQ -75% in 30 days. **Max Drawdown**: -65% tolerable for aggressive conviction. **Exit**: (1) VIX >30 for 5+ consecutive days, (2) momentum turns negative (3-mo cumulative return <0), (3) AI CapEx growth <10% YoY. **Position Risk**: 50% TQQQ allocation; max portfolio DD -45% in 80% TQQQ drawdown scenario."
+> "**Stress Test**: 2022 analog: TQQQ -80% vs QQQ -35% during rate shock. 2020: TQQQ -75% in 30 days. **Max Drawdown**: -65% tolerable for aggressive conviction. **Exit**: (1) VIX proxy exceeds threshold for 5+ consecutive days, (2) momentum turns negative (3-mo cumulative return <0), (3) AI CapEx growth <10% YoY. **Position Risk**: 50% TQQQ allocation; max portfolio DD -45% in 80% TQQQ drawdown scenario."
 
 **4/5 - Strong (3x requires stress test + exit; 2x requires realistic DD)**
 
 Example (2x):
-> "**Drawdown**: SSO -40% in 2022 (vs SPY -20%). **Exit**: Rotate to SPY if VIX >28 or trend breaks (SPY <50d MA). Stress test less detailed but present."
+> "**Drawdown**: SSO -40% in 2022 (vs SPY -20%). **Exit**: Rotate to SPY if VIX proxy exceeds threshold or trend breaks (SPY <50d MA). Stress test less detailed but present."
 
 **3/5 - Basic (realistic drawdown acknowledged)**
 
 Example:
-> "UPRO expected max drawdown -50% to -60%. Aware of 2022 analog. Basic exit plan (VIX threshold)."
+> "UPRO expected max drawdown -50% to -60%. Aware of 2022 analog. Basic exit plan (VIX proxy threshold)."
 
 **2/5 - Weak (unrealistic drawdown OR no stress test for 3x)**
 
@@ -730,8 +730,8 @@ Return a JSON object with your evaluation:
 {
   "thesis_quality": {
     "score": 4,
-    "reasoning": "Clear thesis: tech momentum driven by AI infrastructure capex cycle. Causal mechanism explained (enterprise adoption → capex → equipment demand). Falsifiable conditions enumerated (VIX >30, capex cuts). Lacks institutional-grade specificity on timing catalysts.",
-    "evidence_cited": ["AI capex cycle", "VIX threshold", "momentum persistence mechanism"],
+    "reasoning": "Clear thesis: tech momentum driven by AI infrastructure capex cycle. Causal mechanism explained (enterprise adoption → capex → equipment demand). Falsifiable conditions enumerated (VIX proxy threshold, capex cuts). Lacks institutional-grade specificity on timing catalysts.",
+    "evidence_cited": ["AI capex cycle", "VIX proxy threshold", "momentum persistence mechanism"],
     "key_strengths": ["Causal reasoning", "Falsifiable conditions"],
     "key_weaknesses": ["Timing less precise than score 5 requires"]
   },
@@ -744,15 +744,15 @@ Return a JSON object with your evaluation:
   },
   "risk_framework": {
     "score": 5,
-    "reasoning": "Comprehensive risk enumeration: VIX >35, Fed cuts, sector correlation >0.85. Quantified risk budget: -18% max drawdown, 1.3 Sharpe target. Tail risk addressed via TLT hedge with negative correlation. Position-level correlation limits. Institutional-grade risk thinking.",
+    "reasoning": "Comprehensive risk enumeration: VIX proxy threshold, Fed cuts, sector correlation >0.85. Quantified risk budget: -18% max drawdown, 1.3 Sharpe target. Tail risk addressed via TLT hedge with negative correlation. Position-level correlation limits. Institutional-grade risk thinking.",
     "evidence_cited": ["Specific failure triggers", "Quantified drawdown", "Sharpe target", "Correlation limits", "Tail hedge"],
     "key_strengths": ["Specific triggers", "Risk-adjusted thinking", "Tail risk management"],
     "key_weaknesses": []
   },
   "regime_awareness": {
     "score": 4,
-    "reasoning": "Strong fit for current strong_bull + volatility_low regime. Momentum strategy aligns with low-vol trend environment. Adaptation plan present: rotate to defensive if VIX >28. Minor gap: could be more specific on trend-break triggers.",
-    "evidence_cited": ["Regime tags alignment", "VIX adaptation trigger"],
+    "reasoning": "Strong fit for current strong_bull + volatility_low regime. Momentum strategy aligns with low-vol trend environment. Adaptation plan present: rotate to defensive if VIX proxy exceeds threshold. Minor gap: could be more specific on trend-break triggers.",
+    "evidence_cited": ["Regime tags alignment", "VIX proxy adaptation trigger"],
     "key_strengths": ["Good current fit", "Explicit adaptation plan"],
     "key_weaknesses": ["Trend-break trigger less specific"]
   },
