@@ -92,7 +92,7 @@ def get_model_settings(
         if is_reasoning:
             return ModelSettings(
                 temperature=1.0,  # Balanced creativity/consistency for reasoning models
-                max_tokens=16384,  # Minimum for reasoning + answer
+                max_tokens=32768,  # Increased from 16384 to prevent thesis truncation
                 parallel_tool_calls=False,  # Fix for Pydantic AI bug #1429
                 timeout=DEFAULT_TIMEOUT,
             )
