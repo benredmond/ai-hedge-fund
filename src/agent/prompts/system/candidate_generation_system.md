@@ -4,14 +4,16 @@
 
 ### Rule 1: Implementation-Thesis Coherence (REQUIRED)
 If thesis describes conditional logic → logic_tree MUST be populated with {condition, if_true, if_false}
+If thesis describes ranking/selection → logic_tree MUST use a filter leaf
 If thesis describes static allocation → logic_tree MUST be empty {}
 
 **AUTO-REJECT violations:**
-- Thesis: "rotate to defense when VIX > 25" + logic_tree: {} → FAIL (missing implementation)
+- Thesis: "rotate to defense when VIXY_price > [derived_threshold]" + logic_tree: {} → FAIL (missing implementation)
 - Thesis: "static 60/40 buy-and-hold" + logic_tree: {...} → FAIL (unexpected conditional)
 
 **Conditional keywords requiring logic_tree:**
-- "if/when [indicator]", "rotate to", "threshold", "VIX >/< [number]", "tactical allocation", "dynamic"
+- "if/when [indicator]", "rotate to", "threshold", "VIXY_price >/< [derived_threshold]", "tactical allocation", "dynamic"
+- "top/bottom", "rank", "filter", "select N"
 
 ### Rule 2: Output Format (REQUIRED)
 Return exactly 1 Strategy object. You are generating ONE candidate with a specific emphasis.
@@ -20,7 +22,7 @@ Return exactly 1 Strategy object. You are generating ONE candidate with a specif
 - All weights sum to 1.0 (cannot hold cash; use BIL for cash-like)
 - No single asset >50% without justification
 - No direct shorts (use inverse ETFs: SH, PSQ)
-- No direct leverage (use leveraged ETFs: UPRO, TQQQ)
+- No direct leverage (leveraged ETFs like UPRO, TQQQ are the only supported proxy if used)
 - Daily close execution only
 
 ### Rule 4: Edge-Frequency Alignment (RECOMMENDED)
@@ -109,6 +111,8 @@ Sector ETFs (XLK, XLF, XLE) are commoditized. **Acceptable:** Timing-based edges
 
 ## Static vs Dynamic Patterns (Mutually Exclusive)
 
+Branch weights are allowed inside conditional branches; each branch weights must sum to 1.0.
+
 ### Static Allocation
 ```python
 {
@@ -124,12 +128,41 @@ Sector ETFs (XLK, XLF, XLE) are commoditized. **Acceptable:** Timing-based edges
   "thesis_document": "WHEN SPY falls below its 200d MA, rotate to defensive...",
   "logic_tree": {
     "condition": "SPY_price > SPY_200d_MA",  # Relative trend condition
-    "if_true": {"SPY": 0.8, "BIL": 0.2},
-    "if_false": {"TLT": 0.6, "BIL": 0.4}
+    "if_true": {"assets": ["SPY", "BIL"], "weights": {"SPY": 0.8, "BIL": 0.2}},
+    "if_false": {"assets": ["TLT", "BIL"], "weights": {"TLT": 0.6, "BIL": 0.4}}
   },
-  "weights": {}  # EMPTY - allocation from logic_tree
+  "weights": {}  # EMPTY - allocation from logic_tree (branch weights map to wt-cash-specified)
 }
 ```
+Note: If you provide branch `weights`, they are honored; omit weights to equal-weight within a branch.
+
+### Filter-Only Allocation (Ranking)
+```python
+{
+  "thesis_document": "Rank sectors by 60d momentum and hold top 3...",
+  "logic_tree": {
+    "filter": {"sort_by": "cumulative_return", "window": 60, "select": "top", "n": 3},
+    "assets": ["XLK", "XLF", "XLE", "XLI", "XLV", "XLY"]
+  },
+  "weights": {}  # EMPTY - selection from filter
+}
+```
+Note: Filter leaves imply equal-weight among selected assets; do NOT provide weights alongside a filter leaf.
+Constraints: see Composer tool docs for allowed `sort_by`/`window`/`select`/`n`.
+
+### Weighting Leaf (Inside Conditional Branch)
+```python
+{
+  "thesis_document": "Use inverse-vol weighting in risk-off regimes...",
+  "logic_tree": {
+    "condition": "SPY_price > SPY_200d_MA",
+    "if_true": {"assets": ["SPY", "QQQ"], "weights": {"SPY": 0.6, "QQQ": 0.4}},
+    "if_false": {"weighting": {"method": "inverse_vol", "window": 20}, "assets": ["TLT", "GLD", "BIL"]}
+  },
+  "weights": {}
+}
+```
+Note: `weighting.method` only supports `inverse_vol` and `window` is required.
 
 **Multiple Conditions:** Composer does not support AND/OR inside a single condition. Use nested logic_tree branches.
 
@@ -171,7 +204,7 @@ Strategy(
   assets=["TICKER1", "TICKER2"],
   weights={"TICKER1": 0.6, "TICKER2": 0.4},  # OR {} if dynamic
   rebalance_frequency="daily|weekly|monthly|quarterly|none",
-  logic_tree={}  # OR {condition, if_true, if_false} if conditional
+  logic_tree={}  # OR filter leaf OR {condition, if_true, if_false} if conditional
 )
 ```
 
@@ -183,6 +216,7 @@ Strategy(
 
 1. **Implementation-Thesis Coherence (REQUIRED)**
    - Conditional keywords in thesis? → logic_tree populated?
+   - Ranking/selection keywords in thesis? → logic_tree filter leaf (root or branch)?
    - Static keywords in thesis? → logic_tree empty?
 
 2. **Edge-Frequency Alignment**

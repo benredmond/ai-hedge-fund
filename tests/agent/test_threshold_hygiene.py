@@ -1,12 +1,13 @@
 """Tests for threshold hygiene validation.
 
 Validates that _validate_threshold_hygiene correctly:
-- Rejects absolute price thresholds (VIXY_price > 20)
+- Rejects absolute price thresholds for non-proxy tickers
 - Rejects arbitrary return thresholds (SPY_return > 0.05)
 - Allows relative comparisons (SPY_price > SPY_200d_MA)
 - Allows zero-bounded checks (VIXY_return > 0)
 - Allows RSI with standard thresholds (RSI > 70)
 - Allows cross-asset comparisons (XLK_return > XLF_return)
+- Allows absolute price thresholds for approved proxies (VIXY_price > 20)
 - Handles nested logic_tree structures
 - Handles AND/OR compound conditions
 """
@@ -14,6 +15,7 @@ Validates that _validate_threshold_hygiene correctly:
 import pytest
 from src.agent.stages.candidate_generator import CandidateGenerator
 from src.agent.models import Strategy, RebalanceFrequency
+from src.agent.config.proxies import ALLOWED_ABSOLUTE_PRICE_TICKERS
 
 
 # Minimum length strings to satisfy model validation
@@ -89,16 +91,16 @@ class TestThresholdHygiene:
     # ==================== REJECTION TESTS ====================
 
     def test_absolute_price_threshold_fails(self, generator):
-        """VIXY_price > 20 should fail - absolute price threshold."""
-        strategy = self._make_strategy("VIXY_price > 20")
+        """SPY_price > 450 should fail - absolute price threshold."""
+        strategy = self._make_strategy("SPY_price > 450")
         errors = generator._validate_threshold_hygiene(strategy, 1)
         assert len(errors) == 1
         assert "Syntax Error" in errors[0]
         assert "absolute price threshold" in errors[0].lower()
 
     def test_reversed_absolute_price_fails(self, generator):
-        """20 < VIXY_price should also fail - reversed syntax."""
-        strategy = self._make_strategy("20 < VIXY_price")
+        """20 < SPY_price should also fail - reversed syntax."""
+        strategy = self._make_strategy("20 < SPY_price")
         errors = generator._validate_threshold_hygiene(strategy, 1)
         assert len(errors) == 1
         assert "Syntax Error" in errors[0]
@@ -138,6 +140,27 @@ class TestThresholdHygiene:
         strategy = self._make_strategy("VIXY_cumulative_return_5d < 0")
         errors = generator._validate_threshold_hygiene(strategy, 1)
         assert len(errors) == 0
+
+    def test_proxy_absolute_price_passes(self, generator):
+        """VIXY_price > 20 should pass - approved proxy absolute price threshold."""
+        strategy = self._make_strategy("VIXY_price > 20")
+        errors = generator._validate_threshold_hygiene(strategy, 1)
+        assert len(errors) == 0
+
+    @pytest.mark.parametrize("ticker", sorted(ALLOWED_ABSOLUTE_PRICE_TICKERS))
+    def test_absolute_price_allowlist_passes(self, generator, ticker):
+        """All allowed proxy tickers should pass absolute price thresholds."""
+        strategy = self._make_strategy(f"{ticker}_price > 20")
+        errors = generator._validate_threshold_hygiene(strategy, 1)
+        assert len(errors) == 0
+
+    @pytest.mark.parametrize("ticker", ["SPY", "QQQ"])
+    def test_absolute_price_non_proxy_rejected(self, generator, ticker):
+        """Non-proxy tickers should fail absolute price thresholds."""
+        strategy = self._make_strategy(f"{ticker}_price > 20")
+        errors = generator._validate_threshold_hygiene(strategy, 1)
+        assert len(errors) == 1
+        assert "absolute price threshold" in errors[0].lower()
 
     def test_price_vs_ma_passes(self, generator):
         """SPY_price > SPY_200d_MA should pass - relative to own history."""
@@ -190,11 +213,11 @@ class TestThresholdHygiene:
     def test_mixed_and_catches_violation(self, generator):
         """Valid AND invalid should catch the invalid part."""
         strategy = self._make_strategy(
-            "SPY_price > SPY_200d_MA and VIXY_price > 20"
+            "SPY_price > SPY_200d_MA and XLK_price > 150"
         )
         errors = generator._validate_threshold_hygiene(strategy, 1)
         assert len(errors) == 1
-        assert "VIXY_price > 20" in errors[0]
+        assert "XLK_price > 150" in errors[0]
 
     def test_both_valid_and_passes(self, generator):
         """Two valid conditions should pass."""
@@ -207,7 +230,7 @@ class TestThresholdHygiene:
     def test_or_with_violation(self, generator):
         """OR condition with one violation should catch it."""
         strategy = self._make_strategy(
-            "SPY_RSI_14d > 70 or VIXY_price > 25"
+            "SPY_RSI_14d > 70 or XLK_price > 150"
         )
         errors = generator._validate_threshold_hygiene(strategy, 1)
         assert len(errors) == 1

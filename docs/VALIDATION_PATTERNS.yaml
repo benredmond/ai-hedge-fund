@@ -95,6 +95,7 @@ implementation_patterns:
         - Always initialize: errors = []
         - Return List[str] (empty = pass, non-empty = failures)
         - idx parameter (1-based) used for human-readable error messages referencing candidate #
+        - logic_tree may be empty, conditional (condition/if_true/if_false), or filter leaf (filter + assets)
 
       types: |
         - Input: Strategy (Pydantic model)

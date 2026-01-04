@@ -82,7 +82,11 @@ class TestEdgeScorer:
             assets=['QQQ', 'AGG', 'GLD'],
             weights={'QQQ': 0.5, 'AGG': 0.3, 'GLD': 0.2},
             rebalance_frequency='weekly',
-            logic_tree={'condition': 'VIX < 20', 'true_branch': {}},
+            logic_tree={
+                'condition': 'VIXY_price < 20',
+                'if_true': {'assets': ['QQQ', 'GLD'], 'weights': {'QQQ': 0.7, 'GLD': 0.3}},
+                'if_false': {'assets': ['AGG'], 'weights': {'AGG': 1.0}},
+            },
             rebalancing_rationale="Weekly rebalancing exploits volatility regime transitions by rapidly shifting between growth and defensive assets when VIX crosses key thresholds, capturing inefficiencies in institutional rebalancing lags."
         )
         context = {

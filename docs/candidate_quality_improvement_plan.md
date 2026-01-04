@@ -242,6 +242,10 @@ IF thesis contains conditional keywords: ["if", "when", "rotate", "tactical", "V
 → THEN logic_tree MUST be populated with {condition, if_true, if_false}
 → VIOLATION = AUTO-REJECT
 
+IF thesis contains ranking/selection keywords: ["top", "bottom", "rank", "filter", "select N"]
+→ THEN logic_tree MUST use a filter leaf ({filter, assets})
+→ VIOLATION = AUTO-REJECT
+
 IF thesis contains static keywords: ["buy-and-hold", "static", "quarterly rebalance ONLY"]
 → THEN logic_tree MUST be empty {}
 → VIOLATION = AUTO-REJECT
@@ -550,11 +554,13 @@ def _validate_syntax(self, strategy: Strategy) -> List[str]:
         required_keys = {"condition", "if_true", "if_false"}
         tree_keys = set(strategy.logic_tree.keys())
 
-        if not required_keys.issubset(tree_keys):
+        is_conditional = required_keys.issubset(tree_keys)
+        is_filter_leaf = "filter" in tree_keys and "assets" in tree_keys
+        if not (is_conditional or is_filter_leaf):
             missing = required_keys - tree_keys
             errors.append(
                 f"Syntax Error: logic_tree missing required keys: {missing}. "
-                f"Must have: condition, if_true, if_false"
+                f"Must have: condition, if_true, if_false OR a filter leaf"
             )
 
         # Check condition has comparison operator
@@ -582,6 +588,8 @@ def _extract_assets_from_logic_tree(self, logic_tree: dict) -> set:
     assets = set()
 
     if isinstance(logic_tree, dict):
+        if "assets" in logic_tree:
+            assets.update(logic_tree["assets"])
         # Check if_true/if_false branches for asset lists
         for branch in ["if_true", "if_false"]:
             if branch in logic_tree:

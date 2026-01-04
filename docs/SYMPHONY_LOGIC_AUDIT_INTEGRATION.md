@@ -81,7 +81,7 @@ async def generate(
     )
 
     # ===== NEW: Symphony Logic Audit (Stage 4) =====
-    if winner.logic_tree:  # Only audit conditional strategies
+    if winner.logic_tree:  # Audit logic_tree strategies (conditional or filter-only)
         audit_result = await self._audit_symphony_logic(
             strategy=winner,
             charter=charter,
@@ -116,7 +116,7 @@ def _validate_condition_syntax(self, condition: str) -> tuple[bool, str]:
     Validate condition syntax is parseable.
 
     Valid patterns:
-    - "VIX > 25" (indicator, operator, threshold)
+    - "VIXY_price > 25" (vol proxy threshold)
     - "SPY 200d MA > 0" (asset comparison)
     - "momentum < -0.05" (factor metric)
     - "drawdown > 15%" (risk metric)
@@ -219,7 +219,7 @@ def _validate_asset_consistency(
     """
     Validate branch assets make logical sense for their scenarios.
 
-    For if_true branch (condition met, e.g., "VIX > 25"):
+    For if_true branch (condition met, e.g., "VIXY_price > 25"):
     - Should have defensive assets (bonds, utilities) or hedges (gold, VIX calls)
     - OK to have growth if paired with hedge
 

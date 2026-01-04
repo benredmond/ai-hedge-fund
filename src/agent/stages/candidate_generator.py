@@ -68,6 +68,11 @@ from src.agent.config.leverage import (
     get_drawdown_bounds,
     get_decay_cost_range,
 )
+from src.agent.config.proxies import (
+    APPROVED_SIGNAL_TICKERS,
+    PROXY_TICKER_MAP,
+    ALLOWED_ABSOLUTE_PRICE_TICKERS,
+)
 from src.agent.validators import BenchmarkValidator, CostValidator
 
 
@@ -79,10 +84,9 @@ _DRAWDOWN_PATTERN = re.compile(r'(\d+)%?\s*(?:drawdown|dd|decline|loss)')
 _EXIT_SPECIFIC_PATTERN = re.compile(r'(?:exit|rotate|stop).*(?:if|when|vix >|momentum <)')
 
 # Threshold hygiene patterns - detect magic numbers vs relative thresholds
-# Absolute price threshold: VIXY_price > 20 or 20 < VIXY_price
-_ABSOLUTE_PRICE_THRESHOLD = re.compile(
-    r'(\d+(?:\.\d+)?)\s*[><]=?\s*\w+_price|'  # 20 < VIXY_price
-    r'\w+_price\s*[><]=?\s*(\d+(?:\.\d+)?)',   # VIXY_price > 20
+_ABSOLUTE_PRICE_TICKER = re.compile(
+    r'(?P<ticker>[A-Z]+)_price\s*[><]=?\s*(?P<value>\d+(?:\.\d+)?)|'
+    r'(?P<value2>\d+(?:\.\d+)?)\s*[><]=?\s*(?P<ticker2>[A-Z]+)_price',
     re.IGNORECASE
 )
 
@@ -626,6 +630,23 @@ logic_tree={{
 }}
 ```
 
+**FOR FILTER-ONLY STRATEGIES (rank/select assets with no conditions):**
+```python
+logic_tree={{
+  "filter": {{"sort_by": "cumulative_return", "window": 30, "select": "top", "n": 2}},
+  "assets": ["XLK", "XLF", "XLE"]
+}}
+```
+
+**FOR WEIGHTING LEAVES (inside conditional branches only):**
+```python
+logic_tree={{
+  "condition": "SPY_price > SPY_200d_MA",
+  "if_true": {{"weighting": {{"method": "inverse_vol", "window": 20}}, "assets": ["SPY", "QQQ"]}},
+  "if_false": {{"assets": ["BIL"], "weights": {{"BIL": 1.0}}}}
+}}
+```
+
 **❌ WRONG - DO NOT GENERATE FLAT PARAMETER DICTS:**
 ```python
 # THIS IS WRONG - flat dict with arbitrary parameters
@@ -642,7 +663,7 @@ logic_tree={{"condition": "...", "if_true": {{...}}, "if_false": {{...}}}}  # �
 ```
 
 The logic_tree field is for CONDITIONAL ALLOCATION LOGIC ONLY, not for storing strategy parameters.
-If your strategy doesn't switch allocations based on conditions, use logic_tree={{}}.
+If your strategy doesn't switch allocations based on conditions, use logic_tree={{}} (or a filter-only leaf if you are ranking assets).
 
 **IMPORTANT:**
 - Primary data source: Context pack above
@@ -1272,10 +1293,15 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
         thesis_vix_thresholds = [float(v) for v in thesis_vix_matches]
 
         if thesis_vix_thresholds:
-            # Extract VIX threshold from logic_tree condition
+            # Extract VIX/VIXY proxy thresholds from logic_tree condition
             condition = str(strategy.logic_tree.get("condition", "")).lower()
-            logic_tree_vix_matches = re.findall(r'vix\s*[><=]+\s*(\d+(?:\.\d+)?)', condition)
-            logic_tree_vix_thresholds = [float(v) for v in logic_tree_vix_matches]
+            logic_tree_vix_matches = re.findall(
+                r'vixy?_price\s*[><=]+\s*(\d+(?:\.\d+)?)|vix\s*[><=]+\s*(\d+(?:\.\d+)?)',
+                condition
+            )
+            logic_tree_vix_thresholds = [
+                float(match[0] or match[1]) for match in logic_tree_vix_matches if match[0] or match[1]
+            ]
 
             if logic_tree_vix_thresholds:
                 # Check if ANY thesis threshold is within ±20% of ANY logic_tree threshold
@@ -1474,7 +1500,7 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
         """
         Validate that logic_tree conditions use relative thresholds, not magic numbers.
 
-        Rejects absolute thresholds (VIXY_price > 20) in favor of relative patterns
+        Rejects absolute thresholds for non-proxy tickers in favor of relative patterns
         (VIXY_cumulative_return_5d > 0, SPY_price > SPY_200d_MA).
 
         Allowed patterns:
@@ -1484,7 +1510,7 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
         - RSI standard: RSI_14d > 70 (bounded 0-100)
 
         Rejected patterns:
-        - Absolute price: VIXY_price > 20
+        - Absolute price (non-proxy): SPY_price > 450
         - Arbitrary return: SPY_cumulative_return_30d > 0.05
 
         Args:
@@ -1516,7 +1542,11 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
                     continue
 
                 # Check for violations (blacklist)
-                if _ABSOLUTE_PRICE_THRESHOLD.search(comparison):
+                absolute_match = _ABSOLUTE_PRICE_TICKER.search(comparison)
+                if absolute_match:
+                    ticker = (absolute_match.group("ticker") or absolute_match.group("ticker2") or "").upper()
+                    if ticker in ALLOWED_ABSOLUTE_PRICE_TICKERS:
+                        continue
                     errors.append(
                         f"Syntax Error: {strategy.name} - condition '{comparison}' uses "
                         f"absolute price threshold (magic number). "
@@ -1616,22 +1646,30 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
         if strategy.logic_tree:
             required_keys = {"condition", "if_true", "if_false"}
             tree_keys = set(strategy.logic_tree.keys())
+            is_conditional_root = required_keys.issubset(tree_keys)
+            is_filter_root = "filter" in tree_keys and "assets" in tree_keys
+            is_weighting_root = "weighting" in tree_keys and "assets" in tree_keys
 
-            if not required_keys.issubset(tree_keys):
+            if is_weighting_root:
+                errors.append(
+                    f"Syntax Error: {strategy.name} - logic_tree root cannot be a weighting leaf. "
+                    "Use conditional branches for weighting or keep logic_tree empty for static allocation."
+                )
+            elif not (is_conditional_root or is_filter_root):
                 missing = required_keys - tree_keys
                 errors.append(
                     f"Syntax Error: {strategy.name} - logic_tree missing required keys: {missing}. "
-                    f"Must have: condition, if_true, if_false. Current keys: {tree_keys}"
+                    f"Must have: condition, if_true, if_false OR a filter leaf. Current keys: {tree_keys}"
                 )
 
             # Check condition has comparison operator (single comparison only)
             conditions = self._extract_all_conditions(strategy.logic_tree)
-            comparison_ops = [">", "<", ">=", "<=", "==", "!="]
+            comparison_ops = [">", "<", ">=", "<=", "=="]
             for condition in conditions:
                 if condition and not any(op in str(condition) for op in comparison_ops):
                     errors.append(
                         f"Syntax Error: {strategy.name} - logic_tree condition '{condition}' lacks "
-                        f"comparison operator. Must include >, <, >=, <=, ==, !="
+                        f"comparison operator. Must include >, <, >=, <=, =="
                     )
 
         # Check 4: All assets in logic_tree must be in global assets list
@@ -1677,12 +1715,40 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
         conditions = self._extract_all_conditions(strategy.logic_tree)
         for condition in conditions:
             try:
-                _parse_condition(condition)
+                parsed = _parse_condition(condition)
             except ValueError as exc:
                 errors.append(
                     f"Syntax Error: {strategy.name} - logic_tree condition '{condition}' "
                     f"is not Composer-compatible: {exc}. Use nested logic_tree for multiple conditions."
                 )
+                continue
+
+            allowed_tickers = {
+                t.upper()
+                for t in (
+                    list(strategy.assets)
+                    + list(APPROVED_SIGNAL_TICKERS)
+                    + list(PROXY_TICKER_MAP.values())
+                )
+            }
+            for side in ("lhs-val", "rhs-val"):
+                value = parsed.get(side)
+                if isinstance(value, str):
+                    ticker = value.upper()
+                    if ticker in allowed_tickers:
+                        continue
+                    if ticker in PROXY_TICKER_MAP:
+                        proxy = PROXY_TICKER_MAP[ticker]
+                        errors.append(
+                            f"Syntax Error: {strategy.name} - logic_tree condition '{condition}' "
+                            f"uses unsupported signal '{ticker}'. Use proxy '{proxy}' instead."
+                        )
+                    else:
+                        errors.append(
+                            f"Syntax Error: {strategy.name} - logic_tree condition '{condition}' "
+                            f"uses unsupported operand '{ticker}'. Use tradeable tickers from assets "
+                            f"or approved signals."
+                        )
 
         return errors
 
@@ -1699,6 +1765,10 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
         assets = set()
 
         if isinstance(logic_tree, dict):
+            if "assets" in logic_tree:
+                branch_assets = logic_tree.get("assets")
+                if isinstance(branch_assets, list):
+                    assets.update(branch_assets)
             # Check if_true/if_false branches for asset lists
             for branch in ["if_true", "if_false"]:
                 if branch in logic_tree:
@@ -1843,13 +1913,25 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
             fix_prompt += '    "weights": {"SPY": 0.6, "QQQ": 0.4}\n'
             fix_prompt += "  }\n"
             fix_prompt += "}\n"
+            fix_prompt += "# FOR FILTER-ONLY STRATEGIES (rank/select assets):\n"
+            fix_prompt += "logic_tree = {\n"
+            fix_prompt += '  "filter": {"sort_by": "cumulative_return", "window": 30, "select": "top", "n": 2},\n'
+            fix_prompt += '  "assets": ["XLK", "XLF", "XLE"]\n'
+            fix_prompt += "}\n"
+            fix_prompt += "# FOR WEIGHTING LEAVES (inside conditional branches only):\n"
+            fix_prompt += "logic_tree = {\n"
+            fix_prompt += '  "condition": "SPY_price > SPY_200d_MA",\n'
+            fix_prompt += '  "if_true": {"weighting": {"method": "inverse_vol", "window": 20}, "assets": ["SPY", "QQQ"]},\n'
+            fix_prompt += '  "if_false": {"assets": ["BIL"], "weights": {"BIL": 1.0}}\n'
+            fix_prompt += "}\n"
             fix_prompt += "```\n\n"
             fix_prompt += "**❌ WRONG (flat parameter dict):**\n"
             fix_prompt += "```python\n"
             fix_prompt += 'logic_tree = {"momentum_threshold": 0.15, "vix_level": 22}  # ❌ WRONG!\n'
             fix_prompt += "```\n\n"
             fix_prompt += "**If your strategy is STATIC (fixed allocation), use logic_tree = {}**\n"
-            fix_prompt += "**Only use nested structure if you need CONDITIONAL allocation switching.**\n\n"
+            fix_prompt += "**Only use nested structure if you need CONDITIONAL allocation switching.**\n"
+            fix_prompt += "**Filter-only strategies can use a filter leaf without conditions.**\n\n"
 
             # Add asset removal guidance if error mentions unlisted assets
             has_asset_error = any("not in global list" in error.lower() for error in validation_errors)

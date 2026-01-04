@@ -161,10 +161,8 @@ Use this as your template for multi-asset portfolios:
 ```
 
 **Key points in this example:**
-- `id` field on EVERY node (UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
-- `weight: null` on EVERY node (root, wt-cash-specified, all assets)
-- `allocation` on EACH asset (0.5 + 0.25 + 0.25 = 1.0)
-- Each asset has exactly: step, id, ticker, exchange, name, weight, allocation
+- Every node needs `id` and `weight: null`.
+- Assets under `wt-cash-specified` must include `allocation` and sum to 1.0.
 
 ### Conditional Logic (if blocks)
 
@@ -172,14 +170,38 @@ Use this as your template for multi-asset portfolios:
 
 **✅ VALID conditions:**
 - Asset price vs moving average: `SPY_price > SPY_200d_MA`
-- Cumulative returns: `SPY_cumulative_return_30d > 0.05`
+- Cumulative returns (direction only): `SPY_cumulative_return_30d > 0`
+- Relative performance: `XLK_cumulative_return_30d > XLF_cumulative_return_30d`
 - RSI: `SPY_RSI_14d > 70`
-- Volatility via ETF proxy: `VIXY_price > 22` (NOT `VIX > 22`)
+- Volatility via ETF proxy: `VIXY_price > [derived_threshold]` (derive from lookback stats; cite lookback/stat)
 
 **❌ INVALID conditions (will cause deployment failure):**
 - Macro indicators: `fed_funds_rate`, `inflation`, `GDP`, `unemployment`
-- VIX index directly: `VIX > 25` (use `VIXY_price > 22` instead)
+- VIX index directly: `VIX > [index_threshold]` (use `VIXY_price > [derived_threshold]` with a documented lookback/stat instead)
 - Conceptual conditions: `fed_pivot_dovish`, `recession_risk_high`
+
+**Branch weighting:** `wt-cash-specified` is valid inside `if-child` branches; include `allocation` on each asset.
+
+Minimal complete weighted-branch snippet:
+```json
+{
+  "step": "if-child",
+  "id": "11111111-2222-3333-4444-555555555555",
+  "is-else-condition?": false,
+  "weight": null,
+  "children": [
+    {
+      "step": "wt-cash-specified",
+      "id": "66666666-7777-8888-9999-aaaaaaaaaaaa",
+      "weight": null,
+      "children": [
+        {"step": "asset", "id": "bbbbbbbb-cccc-dddd-eeee-ffffffffffff", "ticker": "QQQ", "exchange": "XNYS", "name": "Invesco QQQ Trust", "weight": null, "allocation": 0.70},
+        {"step": "asset", "id": "99999999-aaaa-bbbb-cccc-dddddddddddd", "ticker": "TLT", "exchange": "NASDAQ", "name": "iShares 20+ Year Treasury Bond ETF", "weight": null, "allocation": 0.30}
+      ]
+    }
+  ]
+}
+```
 
 #### If Node Structure
 
@@ -196,11 +218,11 @@ Use this as your template for multi-asset portfolios:
       "comparator": "gt",
       "lhs-val": "SPY",
       "lhs-fn": "cumulative-return",
-      "lhs-fn-params": {"window": 200},
+      "lhs-fn-params": {"window": 30},
       "rhs-val": 0,
       "rhs-fixed-value?": true,
-      "rhs-fn": null,
-      "rhs-fn-params": {},
+      "rhs-fn": "cumulative-return",
+      "rhs-fn-params": {"window": 30},
       "weight": null,
       "children": [
         {"step": "asset", "id": "66666666-7777-8888-9999-aaaaaaaaaaaa", "ticker": "SPY", "exchange": "XNYS", "name": "SPDR S&P 500 ETF Trust", "weight": null}
@@ -228,7 +250,7 @@ Use this as your template for multi-asset portfolios:
 - `lhs-fn-params`: `{"window": int}` - lookback window in days
 - `rhs-val`: Right-hand value (number or ticker)
 - `rhs-fixed-value?`: `true` if rhs-val is a number, `false` if ticker
-- `rhs-fn` / `rhs-fn-params`: Function for right side (or null)
+- `rhs-fn` / `rhs-fn-params`: Function for right side (mirrors `lhs-fn` when rhs is fixed)
 
 ### Filter Node (Ranking/Selection)
 
@@ -258,6 +280,18 @@ Select top/bottom N assets from a pool based on a ranking function:
 - `sort-by-fn-params`: `{"window": int}` - lookback window
 - `select-fn`: `"top"` or `"bottom"`
 - `select-n`: How many to select
+
+### Logic Tree Leaf Mapping (Strategy → Symphony)
+
+When converting Strategy.logic_tree leaves:
+- **Simple leaf**: `{"assets": [...], "weights": {...}}` → `wt-cash-specified` (branch) or `wt-cash-equal` if weights omitted
+- **Conditional branch**: `{condition, if_true, if_false}` → `if` node with two `if-child` branches
+- **Filter leaf**: `{"filter": {...}, "assets": [...]}` → `filter` node
+  - Root-level filter leaf must be wrapped in `wt-cash-equal`
+- **Weighting leaf**: `{"weighting": {"method": "inverse_vol", "window": N}, "assets": [...]}` → `wt-inverse-vol`
+  - Weighting leaves are for conditional branches (not root-only strategies)
+
+Examples: see weighted-branch and filter node samples above.
 
 ### Group Node
 
@@ -352,6 +386,6 @@ composer_save_symphony(
 
 - ❌ Cannot hold 100% cash (use BIL for cash proxy)
 - ❌ No direct shorts (use inverse ETFs: SH, PSQ, SQQQ)
-- ❌ No direct leverage (use leveraged ETFs: UPRO, TQQQ, SSO)
+- ❌ No direct leverage (leveraged ETFs like UPRO, TQQQ, SSO are the only supported proxy if used)
 - ⚠️ Trades execute near market close (~3:50 PM ET)
 - ⚠️ Daily price data only (no intraday)

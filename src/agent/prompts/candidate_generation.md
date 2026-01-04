@@ -87,6 +87,7 @@ Verify your candidate:
 
 **Q1: Implementation Coherence**
 - Conditional keywords in thesis? → logic_tree MUST be populated
+- Ranking/selection keywords in thesis? → logic_tree MUST use a filter leaf (root or branch)
 - Empty logic_tree + conditional thesis = AUTO-REJECT
 
 **Q2: Weight Justification**
@@ -115,6 +116,10 @@ All numeric thresholds in conditions MUST be **relative**, not absolute magic nu
 # Price vs own moving average (relative to history)
 "condition": "SPY_price > SPY_200d_MA"
 
+# Absolute price threshold allowed ONLY for approved volatility proxies
+# (example only; derive threshold from recent VIXY distribution and cite lookback/stat)
+"condition": "VIXY_price > [derived_threshold]"
+
 # Zero-bounded direction check (up/down only)
 "condition": "SPY_cumulative_return_30d > 0"
 
@@ -129,7 +134,7 @@ All numeric thresholds in conditions MUST be **relative**, not absolute magic nu
 
 ```python
 # Absolute price threshold - WHY 22? No empirical basis
-"condition": "SPY_price > 450"  # ❌ SYNTAX ERROR
+"condition": "SPY_price > 450"  # ❌ SYNTAX ERROR (non-proxy absolute)
 
 # Arbitrary return threshold - WHY 5%? Magic number
 "condition": "SPY_cumulative_return_30d > 0.05"  # ❌ SYNTAX ERROR
@@ -157,6 +162,57 @@ Use these as syntax references; derive your trigger from your thesis.
 | Cross-asset | `VTV_cumulative_return_30d > VUG_cumulative_return_30d` | Factor rotation |
 | RSI threshold | `SPY_RSI_14d < 30` | Mean-reversion entry |
 | Volatility proxy | `VIXY_cumulative_return_5d > 0` | Vol regime (vol-focused thesis only) |
+| Vol proxy (absolute) | `VIXY_price > [derived_threshold]` | Example only; derive threshold from lookback stats (e.g., 60d mean + 1σ or 75th pct) |
+
+---
+
+## Filter + Weighting Constraints (REQUIRED)
+
+**Filter leaf rules:**
+- `sort_by` must be one of: `cumulative_return`, `current_price`, `moving_average_return`, `moving_average_price`, `relative_strength_index`, `standard_deviation_return`, `standard_deviation_price`, `max_drawdown`
+- `window` is required (positive int) for every `sort_by` except `current_price` (omit `window` entirely for `current_price`)
+- `select` must be `"top"` or `"bottom"`
+- `n` must be an int >= 1 and **n <= len(assets)**
+
+**Weighting leaf rules:**
+- `method` must be `"inverse_vol"` (only supported method)
+- `window` is required (positive int)
+- Weighting leaves only appear inside conditional branches
+
+---
+
+## Advanced Logic Patterns (Copyable Skeletons; Replace Tickers With Context-Driven Picks)
+
+Use these templates and swap tickers/thresholds with context-driven picks. Justify any absolute VIXY threshold with a concrete derivation (lookback + statistic).
+Weighting leaves are only valid inside conditional branches (not as a root-level logic_tree).
+
+```python
+# A) Nested gate + filter + inverse-vol
+logic_tree = {
+  "condition": "SPY_price > SPY_200d_MA",
+  "if_true": {
+    "filter": {"sort_by": "cumulative_return", "window": 30, "select": "top", "n": 2},
+    "assets": ["XLK", "XLF", "XLE", "XLI", "XLY"]
+  },
+  "if_false": {
+    "weighting": {"method": "inverse_vol", "window": 20},
+    "assets": ["TLT", "GLD", "BIL"]
+  }
+}
+
+# B) Filter-only root
+logic_tree = {
+  "filter": {"sort_by": "cumulative_return", "window": 60, "select": "top", "n": 3},
+  "assets": ["XLK", "XLF", "XLE", "XLI", "XLY", "XLV"]
+}
+
+# C) Weighted branches (uses wt-cash-specified in if-child)
+logic_tree = {
+  "condition": "SPY_cumulative_return_50d > 0",
+  "if_true": {"assets": ["QQQ", "TLT"], "weights": {"QQQ": 0.70, "TLT": 0.30}},
+  "if_false": {"assets": ["TLT", "GLD"], "weights": {"TLT": 0.80, "GLD": 0.20}}
+}
+```
 
 ---
 
@@ -212,6 +268,7 @@ Strategy(
   }
 )
 ```
+Note: This example uses explicit branch weights; Composer maps these to `wt-cash-specified` inside `if-child`.
 
 ### Example 2: Factor Regime Switch (Value vs Momentum)
 
@@ -309,11 +366,91 @@ Strategy(
 )
 ```
 
+### Example 4: Trend Gate + Vol Filter (Nested + Filter Leaf)
+
+**Context Pack Data:** Trend weak (SPY < 200d MA), volatility elevated, dispersion high.
+
+**Planning:** Trend gate → filter top-2 sector momentum; inverse-vol defense; weekly.
+
+**Complete Strategy:**
+```python
+Strategy(
+  name="Trend Gate with Sector Filter",
+
+  thesis_document="""
+  Market Analysis: Trend signals are mixed with elevated volatility and high sector dispersion. A trend gate avoids buying sector momentum in weak regimes.
+
+  Edge Explanation: Trend regimes persist for weeks; when trend is positive, sector momentum concentrates in leaders. When trend breaks, inverse-vol defense reduces drawdown while staying invested.
+
+  Regime Fit: Use SPY trend as a regime filter, then select top-2 sectors by momentum only in risk-on regimes.
+
+  Risk Factors: Whipsaw during rapid trend reversals and factor crowding in momentum leaders. Expected drawdown 12-18% in false-break scenarios.
+  """,
+
+  rebalancing_rationale="""
+  Weekly rebalancing captures trend and sector momentum without daily noise. The filter leaf selects the top 2 sectors by 30d return in risk-on regimes. In risk-off regimes, inverse-vol weighting balances duration and defensive assets to stabilize volatility.
+  """,
+
+  assets=["XLK", "XLF", "XLE", "XLI", "XLY", "TLT", "GLD", "BIL"],
+  weights={},  # Dynamic
+  rebalance_frequency="weekly",
+
+  logic_tree={
+    "condition": "SPY_price > SPY_200d_MA",
+    "if_true": {
+      "filter": {"sort_by": "cumulative_return", "window": 30, "select": "top", "n": 2},
+      "assets": ["XLK", "XLF", "XLE", "XLI", "XLY"]
+    },
+    "if_false": {
+      "weighting": {"method": "inverse_vol", "window": 20},
+      "assets": ["TLT", "GLD", "BIL"]
+    }
+  }
+)
+```
+
+### Example 5: Filter-Only Sector Momentum
+
+**Context Pack Data:** Leadership concentrated; breadth healthy but uneven.
+
+**Planning:** Filter-only; top-3 sector momentum; equal-weight; monthly.
+
+**Complete Strategy:**
+```python
+Strategy(
+  name="Top-3 Sector Momentum",
+
+  thesis_document="""
+  Market Analysis: Sector leadership is concentrated in a small set of cyclical leaders with healthy breadth. Selecting the top sectors captures persistent leadership while avoiding laggards.
+
+  Edge Explanation: Sector momentum persists due to flows and analyst revisions that update monthly. Ranking sectors directly captures the leadership effect.
+
+  Regime Fit: Momentum leadership is strongest in stable volatility regimes with improving breadth.
+
+  Risk Factors: Leadership can rotate abruptly after macro shocks. Expected drawdown 10-16% during regime flips.
+  """,
+
+  rebalancing_rationale="""
+  Monthly rebalancing aligns with sector leadership updates and reduces churn. The filter leaf ranks sectors by 60d cumulative return and equal-weights the top three to avoid concentration in a single sector.
+  """,
+
+  assets=["XLK", "XLF", "XLE", "XLI", "XLY", "XLV"],
+  weights={},  # Dynamic
+  rebalance_frequency="monthly",
+
+  logic_tree={
+    "filter": {"sort_by": "cumulative_return", "window": 60, "select": "top", "n": 3},
+    "assets": ["XLK", "XLF", "XLE", "XLI", "XLY", "XLV"]
+  }
+)
+```
+
 **Coherence Validation (Apply to Every Strategy):**
 ✅ Logic Tree matches thesis trigger
-✅ Threshold hygiene: relative comparisons only
+✅ Threshold hygiene: relative comparisons only (proxy absolute thresholds allowed for VIXY)
 ✅ Frequency matches edge timescale
 ✅ Weights sum to 1 with clear rationale
+✅ If using branch weights, each branch weights sum to 1.0
 
 ---
 

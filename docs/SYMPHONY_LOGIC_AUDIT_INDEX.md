@@ -128,6 +128,8 @@ ASCII diagrams and visualizations:
 | 4 | Charter Generation | **← NEW: Symphony Logic** | charter_generator.py | ⚠️ WARN (non-block) |
 | 5 | Deployment | **← NEW: Deployment Check** | composer_deployer.py | ✅ YES (block) |
 
+**Note:** `logic_tree` may be empty (static), conditional (`condition/if_true/if_false`), or filter-only (`filter + assets`). Weighting leaves are supported inside conditional branches.
+
 ### Optimal Insertion Point
 
 **Recommendation**: **Hybrid Approach (Stage 4 + Stage 5)**

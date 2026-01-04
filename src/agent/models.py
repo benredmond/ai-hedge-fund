@@ -67,6 +67,20 @@ class ConcentrationIntent(str, Enum):
     SECTOR_FOCUS = "sector_focus"        # Intentional sector concentration
 
 
+LOGIC_TREE_ALLOWED_FILTER_SORT_BY = {
+    "cumulative_return",
+    "current_price",
+    "moving_average_return",
+    "moving_average_price",
+    "relative_strength_index",
+    "standard_deviation_return",
+    "standard_deviation_price",
+    "max_drawdown",
+}
+
+LOGIC_TREE_ALLOWED_WEIGHTING_METHODS = {"inverse_vol"}
+
+
 class Strategy(BaseModel):
     """
     Trading strategy specification.
@@ -128,32 +142,128 @@ class Strategy(BaseModel):
     @field_validator("logic_tree")
     @classmethod
     def logic_tree_valid_structure(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate logic_tree has correct conditional structure if non-empty."""
+        """Validate logic_tree has correct conditional/filter structure if non-empty."""
         if not v:
             return v  # Empty dict valid for static strategies
 
         required_keys = {"condition", "if_true", "if_false"}
-        if not required_keys.issubset(v.keys()):
-            missing = required_keys - set(v.keys())
-            raise ValueError(
-                f"Non-empty logic_tree must have keys: {required_keys}. "
-                f"Missing: {missing}. Got flat dict with keys: {set(v.keys())}. "
-                f"If strategy has no conditional logic, use logic_tree={{}}."
-            )
 
-        def validate_branch(branch_data: Any, path: str) -> None:
+        def _validate_assets_list(branch_data: dict, path: str) -> list:
+            assets = branch_data.get("assets")
+            if not isinstance(assets, list) or not assets:
+                raise ValueError(
+                    f"logic_tree['{path}']['assets'] must be a non-empty list. "
+                    f"Got: {assets!r}"
+                )
+            return assets
+
+        def _validate_filter_spec(filter_spec: Any, assets: list, path: str) -> None:
+            if not isinstance(filter_spec, dict):
+                raise ValueError(f"logic_tree['{path}']['filter'] must be a dict")
+
+            sort_by = filter_spec.get("sort_by")
+            if sort_by not in LOGIC_TREE_ALLOWED_FILTER_SORT_BY:
+                raise ValueError(
+                    f"logic_tree['{path}']['filter']['sort_by'] must be one of "
+                    f"{sorted(LOGIC_TREE_ALLOWED_FILTER_SORT_BY)}. Got: {sort_by!r}"
+                )
+
+            window = filter_spec.get("window")
+            if sort_by == "current_price":
+                if window is not None:
+                    raise ValueError(
+                        f"logic_tree['{path}']['filter']['window'] must be omitted for current_price. "
+                        f"Got: {window!r}"
+                    )
+            else:
+                if not isinstance(window, int) or window <= 0:
+                    raise ValueError(
+                        f"logic_tree['{path}']['filter']['window'] must be a positive integer. "
+                        f"Got: {window!r}"
+                    )
+
+            select = filter_spec.get("select")
+            if select not in {"top", "bottom"}:
+                raise ValueError(
+                    f"logic_tree['{path}']['filter']['select'] must be 'top' or 'bottom'. "
+                    f"Got: {select!r}"
+                )
+
+            n_value = filter_spec.get("n")
+            if not isinstance(n_value, int) or n_value < 1:
+                raise ValueError(
+                    f"logic_tree['{path}']['filter']['n'] must be an integer >= 1. "
+                    f"Got: {n_value!r}"
+                )
+            if n_value > len(assets):
+                raise ValueError(
+                    f"logic_tree['{path}']['filter']['n'] ({n_value}) cannot exceed "
+                    f"assets length ({len(assets)})."
+                )
+
+        def _validate_weighting_spec(weighting_spec: Any, path: str) -> None:
+            if not isinstance(weighting_spec, dict):
+                raise ValueError(f"logic_tree['{path}']['weighting'] must be a dict")
+
+            method = weighting_spec.get("method")
+            if method not in LOGIC_TREE_ALLOWED_WEIGHTING_METHODS:
+                raise ValueError(
+                    f"logic_tree['{path}']['weighting']['method'] must be one of "
+                    f"{sorted(LOGIC_TREE_ALLOWED_WEIGHTING_METHODS)}. Got: {method!r}"
+                )
+
+            window = weighting_spec.get("window")
+            if not isinstance(window, int) or window <= 0:
+                raise ValueError(
+                    f"logic_tree['{path}']['weighting']['window'] must be a positive integer. "
+                    f"Got: {window!r}"
+                )
+
+        def _validate_branch_weights(weights: dict, assets: list, path: str) -> None:
+            if set(weights.keys()) != set(assets):
+                raise ValueError(
+                    f"logic_tree['{path}']['weights'] keys must match assets. "
+                    f"Assets: {assets}, Weights: {list(weights.keys())}"
+                )
+
+            normalized = {}
+            for ticker, value in weights.items():
+                try:
+                    weight = float(value)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        f"logic_tree['{path}']['weights'] for {ticker} must be numeric. "
+                        f"Got: {value!r}"
+                    ) from exc
+                if weight < 0:
+                    raise ValueError(
+                        f"logic_tree['{path}']['weights'] for {ticker} must be non-negative. "
+                        f"Got: {weight}"
+                    )
+                normalized[ticker] = weight
+
+            total = sum(normalized.values())
+            if not 0.99 <= total <= 1.01:
+                raise ValueError(
+                    f"logic_tree['{path}']['weights'] sum to {total:.4f}, "
+                    "must be between 0.99 and 1.01"
+                )
+
+        def validate_branch(branch_data: Any, path: str, is_root: bool = False) -> None:
             if not isinstance(branch_data, dict):
                 raise ValueError(f"logic_tree['{path}'] must be a dict")
 
             is_conditional = required_keys.issubset(branch_data.keys())
             has_assets = "assets" in branch_data
             has_weights = "weights" in branch_data
+            has_filter = "filter" in branch_data
+            has_weighting = "weighting" in branch_data
 
             if is_conditional:
-                if has_assets or has_weights:
+                if has_assets or has_weights or has_filter or has_weighting:
                     raise ValueError(
-                        f"logic_tree['{path}'] mixes conditional logic with assets/weights. "
-                        "Use either condition/if_true/if_false OR assets/weights."
+                        f"logic_tree['{path}'] mixes conditional logic with leaf definitions. "
+                        "Use either condition/if_true/if_false OR a leaf (assets/weights/filter/weighting)."
                     )
                 if not isinstance(branch_data.get("condition"), str) or not branch_data["condition"].strip():
                     raise ValueError(f"logic_tree['{path}']['condition'] must be a non-empty string")
@@ -161,15 +271,43 @@ class Strategy(BaseModel):
                 validate_branch(branch_data["if_false"], f"{path}.if_false")
                 return
 
+            if has_filter:
+                if has_weights or has_weighting:
+                    raise ValueError(
+                        f"logic_tree['{path}'] mixes filter with weights/weighting. "
+                        "Filter leaves must only define assets and filter spec."
+                    )
+                assets = _validate_assets_list(branch_data, path)
+                _validate_filter_spec(branch_data.get("filter"), assets, path)
+                return
+
+            if has_weighting:
+                if has_weights or has_filter:
+                    raise ValueError(
+                        f"logic_tree['{path}'] mixes weighting with weights/filter. "
+                        "Weighting leaves must only define assets and weighting spec."
+                    )
+                if is_root:
+                    raise ValueError(
+                        f"logic_tree['{path}'] weighting leaf is not allowed at root. "
+                        "Use conditional branches or keep logic_tree empty for static allocation."
+                    )
+                _validate_assets_list(branch_data, path)
+                _validate_weighting_spec(branch_data.get("weighting"), path)
+                return
+
+            if is_root and not is_conditional:
+                missing = required_keys - set(branch_data.keys())
+                raise ValueError(
+                    f"Non-empty logic_tree must have keys: {required_keys}. "
+                    f"Missing: {missing}. Got flat dict with keys: {set(v.keys())}. "
+                    "If strategy has no conditional logic, use logic_tree={} or define a filter leaf."
+                )
+
             if not (has_assets and has_weights):
                 raise ValueError(f"logic_tree['{path}'] must have 'assets' and 'weights'")
 
-            assets = branch_data.get("assets")
-            if not isinstance(assets, list) or not assets:
-                raise ValueError(
-                    f"logic_tree['{path}']['assets'] must be a non-empty list. "
-                    f"Got: {assets!r}"
-                )
+            _validate_assets_list(branch_data, path)
 
             weights = branch_data.get("weights")
             if not isinstance(weights, dict) or not weights:
@@ -177,9 +315,9 @@ class Strategy(BaseModel):
                     f"logic_tree['{path}']['weights'] must be a non-empty dict. "
                     f"Got: {weights!r}"
                 )
+            _validate_branch_weights(weights, branch_data.get("assets", []), path)
 
-        for branch in ["if_true", "if_false"]:
-            validate_branch(v[branch], branch)
+        validate_branch(v, "root", is_root=True)
         return v
 
     @field_validator("weights", mode="before")

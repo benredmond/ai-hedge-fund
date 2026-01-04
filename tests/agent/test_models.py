@@ -27,6 +27,25 @@ class TestStrategyModel:
         assert len(strategy.assets) == 2
         assert sum(strategy.weights.values()) == pytest.approx(1.0)
 
+    def test_empty_thesis_document_allowed(self):
+        """Empty thesis_document is allowed for backward compatibility."""
+        from src.agent.models import Strategy
+
+        strategy = Strategy(
+            name="Backcompat Strategy",
+            assets=["SPY", "AGG"],
+            weights={"SPY": 0.6, "AGG": 0.4},
+            rebalance_frequency="monthly",
+            logic_tree={},
+            thesis_document="",
+            rebalancing_rationale=(
+                "Monthly rebalancing maintains target weights by systematically buying dips and selling "
+                "rallies, implementing contrarian exposure that captures mean-reversion across asset classes."
+            ),
+        )
+
+        assert strategy.thesis_document == ""
+
     def test_empty_assets_rejected(self):
         """Strategy with empty assets list fails validation"""
         from src.agent.models import Strategy
@@ -146,7 +165,7 @@ class TestStrategyModel:
             assets=["SPY", "TLT", "GLD"],
             weights={},  # Empty - allocation defined in logic_tree
             logic_tree={
-                "condition": "VIX > 20",
+                "condition": "VIXY_price > 20",
                 "if_true": {"assets": ["TLT", "GLD"], "weights": {"TLT": 0.6, "GLD": 0.4}},
                 "if_false": {"assets": ["SPY"], "weights": {"SPY": 1.0}}
             },
@@ -217,7 +236,7 @@ class TestStrategyModel:
                 assets=["SPY", "TLT"],
                 weights={"SPY": 0.6, "GLD": 0.4},  # GLD not in assets list
                 logic_tree={
-                    "condition": "VIX > 20",
+                    "condition": "VIXY_price > 20",
                     "if_true": {"assets": ["TLT"], "weights": {"TLT": 1.0}},
                     "if_false": {"assets": ["SPY"], "weights": {"SPY": 1.0}}
                 },
@@ -235,7 +254,7 @@ class TestStrategyModel:
                 assets=["XLK", "XLF", "XLY"],
                 weights={"XLK": 0.3, "XLF": 0.3},  # Sums to 0.6, not 1.0
                 logic_tree={
-                    "condition": "VIX > 20",
+                    "condition": "VIXY_price > 20",
                     "if_true": {"assets": ["XLK"], "weights": {"XLK": 1.0}},
                     "if_false": {"assets": ["XLF", "XLY"], "weights": {"XLF": 0.5, "XLY": 0.5}}
                 },
@@ -270,7 +289,7 @@ class TestLogicTreeValidation:
             assets=["SPY", "TLT", "GLD"],
             weights={},
             logic_tree={
-                "condition": "VIX > 22",
+                "condition": "VIXY_price > 22",
                 "if_true": {"assets": ["TLT", "GLD"], "weights": {"TLT": 0.6, "GLD": 0.4}},
                 "if_false": {"assets": ["SPY"], "weights": {"SPY": 1.0}}
             },
@@ -352,7 +371,7 @@ class TestLogicTreeValidation:
                 assets=["SPY", "TLT"],
                 weights={},
                 logic_tree={
-                    "condition": "VIX > 20",
+                    "condition": "VIXY_price > 20",
                     "if_true": {"weights": {"SPY": 1.0}},  # Missing assets
                     "if_false": {"assets": ["TLT"], "weights": {"TLT": 1.0}}
                 },
@@ -370,7 +389,7 @@ class TestLogicTreeValidation:
                 assets=["SPY", "TLT"],
                 weights={},
                 logic_tree={
-                    "condition": "VIX > 20",
+                    "condition": "VIXY_price > 20",
                     "if_true": "SPY",  # Not a dict
                     "if_false": {"assets": ["TLT"], "weights": {"TLT": 1.0}}
                 },
@@ -388,7 +407,7 @@ class TestLogicTreeValidation:
                 assets=["SPY", "TLT"],
                 weights={},
                 logic_tree={
-                    "condition": "VIX > 20",
+                    "condition": "VIXY_price > 20",
                     "if_true": {"assets": [], "weights": {"SPY": 1.0}},  # Empty assets
                     "if_false": {"assets": ["TLT"], "weights": {"TLT": 1.0}}
                 },
@@ -406,12 +425,221 @@ class TestLogicTreeValidation:
                 assets=["SPY", "TLT"],
                 weights={},
                 logic_tree={
-                    "condition": "VIX > 20",
+                    "condition": "VIXY_price > 20",
                     "if_true": {"assets": ["SPY"], "weights": {}},  # Empty weights
                     "if_false": {"assets": ["TLT"], "weights": {"TLT": 1.0}}
                 },
                 rebalance_frequency="monthly",
                 rebalancing_rationale="Monthly rebalancing maintains target weights."
+            )
+
+    def test_logic_tree_branch_weights_keys_must_match_assets(self):
+        """logic_tree branch weights must match the branch assets."""
+        from src.agent.models import Strategy
+
+        with pytest.raises(ValidationError, match="weights.*must match assets"):
+            Strategy(
+                name="Bad Strategy",
+                assets=["SPY", "TLT"],
+                weights={},
+                logic_tree={
+                    "condition": "VIXY_price > 20",
+                    "if_true": {"assets": ["SPY", "TLT"], "weights": {"SPY": 0.6}},
+                    "if_false": {"assets": ["TLT"], "weights": {"TLT": 1.0}},
+                },
+                rebalance_frequency="monthly",
+                rebalancing_rationale="Monthly rebalancing maintains target weights."
+            )
+
+    def test_logic_tree_branch_weights_must_sum_to_one(self):
+        """logic_tree branch weights must sum to 1.0."""
+        from src.agent.models import Strategy
+
+        with pytest.raises(ValidationError, match="weights.*sum to"):
+            Strategy(
+                name="Bad Strategy",
+                assets=["SPY", "TLT"],
+                weights={},
+                logic_tree={
+                    "condition": "VIXY_price > 20",
+                    "if_true": {"assets": ["SPY", "TLT"], "weights": {"SPY": 0.7, "TLT": 0.6}},
+                    "if_false": {"assets": ["TLT"], "weights": {"TLT": 1.0}},
+                },
+                rebalance_frequency="monthly",
+                rebalancing_rationale="Monthly rebalancing maintains target weights."
+            )
+
+    def test_filter_logic_tree_root_accepted(self):
+        """Root-level filter leaf is accepted for filter-only strategies."""
+        from src.agent.models import Strategy
+
+        strategy = Strategy(
+            name="Top Momentum Filter",
+            assets=["XLK", "XLF", "XLE"],
+            weights={},
+            logic_tree={
+                "filter": {
+                    "sort_by": "cumulative_return",
+                    "window": 30,
+                    "select": "top",
+                    "n": 2,
+                },
+                "assets": ["XLK", "XLF", "XLE"],
+            },
+            rebalance_frequency="monthly",
+            rebalancing_rationale=(
+                "Monthly rebalancing refreshes the top-2 momentum selections from the sector pool, "
+                "implementing a rules-based rotation that captures short-term trend persistence while "
+                "controlling turnover. The window and ranking function are matched to the expected "
+                "momentum decay horizon, keeping exposure aligned with recent leadership shifts."
+            )
+        )
+        assert strategy.logic_tree != {}
+
+    def test_filter_current_price_without_window_accepted(self):
+        """current_price filters should not require a window."""
+        from src.agent.models import Strategy
+
+        strategy = Strategy(
+            name="Top Price Filter",
+            assets=["XLK", "XLF", "XLE"],
+            weights={},
+            logic_tree={
+                "filter": {
+                    "sort_by": "current_price",
+                    "select": "top",
+                    "n": 2,
+                },
+                "assets": ["XLK", "XLF", "XLE"],
+            },
+            rebalance_frequency="monthly",
+            rebalancing_rationale=(
+                "Monthly rebalancing selects the top-priced assets as a proxy for leadership, "
+                "reweighting the portfolio to maintain exposure to the strongest performers."
+            ),
+        )
+        assert strategy.logic_tree != {}
+
+    @pytest.mark.parametrize("sort_by", ["invalid", "foo", "momentum"])
+    def test_filter_invalid_sort_by_rejected(self, sort_by):
+        """Filter sort_by must be one of the allowed values."""
+        from src.agent.models import Strategy
+
+        with pytest.raises(ValidationError, match="sort_by"):
+            Strategy(
+                name="Bad Filter Sort",
+                assets=["XLK", "XLF", "XLE"],
+                weights={},
+                logic_tree={
+                    "filter": {
+                        "sort_by": sort_by,
+                        "window": 30,
+                        "select": "top",
+                        "n": 2,
+                    },
+                    "assets": ["XLK", "XLF", "XLE"],
+                },
+                rebalance_frequency="monthly",
+                rebalancing_rationale=(
+                    "Monthly rebalancing refreshes top-ranked assets based on a consistent ranking window, "
+                    "keeping exposure aligned with momentum persistence while controlling turnover."
+                ),
+            )
+
+    def test_filter_n_exceeds_assets_rejected(self):
+        """Filter n cannot exceed assets length."""
+        from src.agent.models import Strategy
+
+        with pytest.raises(ValidationError, match="cannot exceed"):
+            Strategy(
+                name="Bad Filter N",
+                assets=["XLK", "XLF", "XLE"],
+                weights={},
+                logic_tree={
+                    "filter": {
+                        "sort_by": "cumulative_return",
+                        "window": 30,
+                        "select": "top",
+                        "n": 4,
+                    },
+                    "assets": ["XLK", "XLF", "XLE"],
+                },
+                rebalance_frequency="monthly",
+                rebalancing_rationale=(
+                    "Monthly rebalancing refreshes top-ranked assets based on a consistent ranking window, "
+                    "keeping exposure aligned with momentum persistence while controlling turnover."
+                ),
+            )
+
+    def test_weighting_leaf_in_branch_accepted(self):
+        """Weighting leaf is accepted inside conditional branches."""
+        from src.agent.models import Strategy
+
+        strategy = Strategy(
+            name="Inverse Vol Branch",
+            assets=["SPY", "QQQ", "BIL"],
+            weights={},
+            logic_tree={
+                "condition": "SPY_price > SPY_200d_MA",
+                "if_true": {
+                    "weighting": {"method": "inverse_vol", "window": 20},
+                    "assets": ["SPY", "QQQ"],
+                },
+                "if_false": {"assets": ["BIL"], "weights": {"BIL": 1.0}},
+            },
+            rebalance_frequency="weekly",
+            rebalancing_rationale=(
+                "Weekly rebalancing shifts between a trend-following inverse-vol sleeve and a cash proxy, "
+                "aligning risk exposure with trend signals while preventing overreaction to daily noise. "
+                "Inverse-vol weighting is used to equalize risk contribution between the equity legs and "
+                "avoid concentration when volatility rises."
+            )
+        )
+        assert strategy.logic_tree != {}
+
+    def test_weighting_invalid_method_rejected(self):
+        """Weighting method must be one of the allowed values."""
+        from src.agent.models import Strategy
+
+        with pytest.raises(ValidationError, match="weighting.*method"):
+            Strategy(
+                name="Bad Weighting",
+                assets=["SPY", "QQQ", "BIL"],
+                weights={},
+                logic_tree={
+                    "condition": "SPY_price > SPY_200d_MA",
+                    "if_true": {
+                        "weighting": {"method": "volatility", "window": 20},
+                        "assets": ["SPY", "QQQ"],
+                    },
+                    "if_false": {"assets": ["BIL"], "weights": {"BIL": 1.0}},
+                },
+                rebalance_frequency="weekly",
+                rebalancing_rationale=(
+                    "Weekly rebalancing shifts between a trend-following sleeve and a cash proxy, "
+                    "aligning risk exposure with trend signals while preventing overreaction to daily noise."
+                ),
+            )
+
+    def test_weighting_leaf_root_rejected(self):
+        """Root-level weighting leaf is rejected."""
+        from src.agent.models import Strategy
+
+        with pytest.raises(ValidationError, match="weighting leaf is not allowed at root"):
+            Strategy(
+                name="Inverse Vol Root",
+                assets=["SPY", "QQQ"],
+                weights={},
+                logic_tree={
+                    "weighting": {"method": "inverse_vol", "window": 20},
+                    "assets": ["SPY", "QQQ"],
+                },
+                rebalance_frequency="weekly",
+                rebalancing_rationale=(
+                    "Weekly rebalancing maintains inverse-vol weights to equalize risk contributions across "
+                    "equities, ensuring the portfolio does not drift toward the most volatile leg. The "
+                    "rebalance cadence is chosen to keep weights aligned with rolling risk estimates."
+                )
             )
 
 

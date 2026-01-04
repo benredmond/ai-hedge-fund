@@ -52,7 +52,7 @@ VALIDATION IN STAGE 1:
   └─> _validate_semantics() runs 6 checks per candidate:
       Line 1000: _validate_syntax(strategy)
       │          └─> Check: weights sum ~1.0 (±0.01)
-      │          └─> Check: logic_tree has {condition, if_true, if_false} if non-empty
+      │          └─> Check: logic_tree is conditional or filter leaf if non-empty
       │          └─> Check: all assets in logic_tree exist in global list
       │
       Line 1004: _validate_concentration(strategy)
@@ -330,9 +330,10 @@ Entry point:
       │           │  │   )
       │           │  │
       │           │  └─> Inside _build_symphony_json() (lines 305-395):
-      │           │      ├─> Check if logic_tree is conditional (lines 333-339)
+      │           │      ├─> Check if logic_tree is conditional or filter-only
       │           │      │  ├─> has_conditional_logic = (logic_tree AND
       │           │      │  │                            has {condition, if_true, if_false})
+      │           │      │  ├─> has_filter_leaf = (logic_tree AND has {filter, assets})
       │           │      │  │
       │           │      │  └─> IF has_conditional_logic:
       │           │      │      ├─> Call _build_if_structure(logic_tree, rebalance)
@@ -343,13 +344,13 @@ Entry point:
       │           │      │      │      ├─> if_false = logic_tree["if_false"]
       │           │      │      │      │
       │           │      │      │      ├─> condition_fields = _parse_condition(condition)
-      │           │      │      │      │   └─> Extract: indicator name (VIX), operator (>), threshold (25)
+      │           │      │      │      │   └─> Extract: indicator name (VIXY), operator (>), threshold (25)
       │           │      │      │      │
       │           │      │      │      ├─> build_branch_assets(if_true)
       │           │      │      │      │   └─> For each ticker: {id, step, ticker, exchange, weight}
       │           │      │      │      │
       │           │      │      │      ├─> build_weight_node(if_true)
-      │           │      │      │      │   └─> wt-cash-specified or wt-cash-equal node
+      │           │      │      │      │   └─> wt-cash-equal or wt-inverse-vol node
       │           │      │      │      │
       │           │      │      │      ├─> Build true_branch IF node (if_true, is-else=false)
       │           │      │      │      ├─> Build false_branch IF node (if_false, is-else=true)
@@ -478,19 +479,19 @@ class Strategy(BaseModel):
     # Execution fields
     name: str  # Strategy identifier (1-200 chars)
     assets: List[str]  # Tickers (1-50 assets)
-    logic_tree: Dict[str, Any] = {}  # Conditional logic or {}
+    logic_tree: Dict[str, Any] = {}  # Conditional logic, filter leaf, or {}
     weights: Dict[str, float]  # Asset allocation (sums to 1.0)
     rebalance_frequency: RebalanceFrequency  # daily, weekly, monthly, quarterly, none
 
     # VALIDATORS
     @field_validator("logic_tree")
     def logic_tree_valid_structure(cls, v):
-        """Non-empty logic_tree must have {condition, if_true, if_false}"""
+        """Non-empty logic_tree must be conditional or a filter leaf."""
         if not v:
             return v  # Empty dict OK for static strategies
 
         required_keys = {"condition", "if_true", "if_false"}
-        if not required_keys.issubset(v.keys()):
+        if not required_keys.issubset(v.keys()) and "filter" not in v:
             raise ValueError(f"Missing keys: {required_keys - set(v.keys())}")
 
         # Validate branches have assets and weights
@@ -510,7 +511,7 @@ strategy.logic_tree = {}
 
 # CONDITIONAL STRATEGY (dynamic allocation)
 strategy.logic_tree = {
-    "condition": "VIX > 25",  # Trigger condition (string expression)
+    "condition": "VIXY_price > 25",  # Trigger condition (string expression)
     "if_true": {
         "assets": ["QQQ", "TLT"],
         "weights": {"QQQ": 0.7, "TLT": 0.3}
@@ -519,6 +520,12 @@ strategy.logic_tree = {
         "assets": ["SPY", "IWM", "VEA"],
         "weights": {"SPY": 0.6, "IWM": 0.2, "VEA": 0.2}
     }
+}
+
+# FILTER-ONLY STRATEGY (rank/select assets)
+strategy.logic_tree = {
+    "filter": {"sort_by": "cumulative_return", "window": 30, "select": "top", "n": 2},
+    "assets": ["XLK", "XLF", "XLE"]
 }
 ```
 
@@ -743,3 +750,6 @@ Symphony Logic Audit fits optimally at Stage 4 (with optional blocking gate at S
 - Still before deployment (actionable)
 - Doesn't require modifying validated strategy
 - Compatible with checkpoint/resume system
+      │           │      └─> IF has_filter_leaf:
+      │           │          ├─> Build filter node + wrap in wt-cash-equal
+      │           │          └─> symphony_score uses root → wt-cash-equal → filter

@@ -41,7 +41,7 @@ Entry Point: workflow.py line 189
           └─> _validate_semantics() runs 6 checks (lines 977-1165):
               1. Syntax validation (line 1000)
                  └─> weights sum to 1.0
-                 └─> logic_tree structure correct if non-empty
+                 └─> logic_tree structure correct if non-empty (conditional or filter leaf)
                  └─> all assets in logic_tree exist in global list
 
               2. Concentration validation (line 1004)
@@ -59,7 +59,7 @@ Entry Point: workflow.py line 189
 
               5. Thesis-logic_tree value coherence (line 1016)
                  └─> thesis numeric thresholds match logic_tree.condition
-                 └─> VIX > 25 in thesis ≈ VIX > 30 in logic_tree (±20% tolerance)
+                 └─> VIX > 25 in thesis ≈ VIXY proxy threshold in logic_tree (±20% tolerance)
 
               6. Weight derivation coherence (line 1020)
                  └─> weights not arbitrary round numbers
@@ -171,10 +171,12 @@ Entry Point: workflow.py line 326
          │   )
          │
          │   Inside _build_symphony_json() (line 305-395):
-         │   └─> Check if logic_tree is conditional (lines 333-339)
+         │   └─> Check if logic_tree is conditional or filter-only
          │       if has_conditional_logic:
          │           └─> if_node = _build_if_structure(logic_tree, rebalance)
          │               (lines 204-302)
+         │       elif filter-only:
+         │           └─> build filter node wrapped in wt-cash-equal
          │
          4. Line 595: response = await _call_composer_api(symphony_json)
          │   └─> Direct API call to Composer (line 402-440)
@@ -211,14 +213,18 @@ LLM generates Strategy object with:
   - logic_tree: Dict[str, Any]
   - Empty dict {} for static allocation
   - OR full structure for conditional: {
-      "condition": "VIX > 25",
+      "condition": "VIXY_price > 25",
       "if_true": {"assets": [...], "weights": {...}},
       "if_false": {"assets": [...], "weights": {...}}
+    }
+  - OR filter-only: {
+      "filter": {"sort_by": "cumulative_return", "window": 30, "select": "top", "n": 2},
+      "assets": [...]
     }
 
 Validation (Stage 1):
   1. Pydantic model validator (models.py:128-150)
-     └─> If non-empty: must have {condition, if_true, if_false}
+     └─> If non-empty: must be conditional or filter leaf
   2. Semantic validation (candidate_generator.py:977-1165)
      └─> Checks thesis-logic_tree coherence
      └─> Validates numeric thresholds match
@@ -243,8 +249,9 @@ Used for strategic narrative but NOT modified:
 Deployment converts logic_tree → Composer IF structure:
 
 _build_symphony_json():
-  └─> Checks: logic_tree has {condition, if_true, if_false}
-  └─> IF CHECK PASSES: Calls _build_if_structure()
+  └─> Checks: logic_tree is conditional or filter leaf
+  └─> If conditional: Calls _build_if_structure()
+  └─> If filter-only: Builds filter node wrapped in wt-cash-equal
       └─> Extracts condition, if_true, if_false branches
       └─> Calls _parse_condition() to extract field names
       └─> Builds branch_assets() for each branch
@@ -266,7 +273,7 @@ it fails at API call (line 595), not earlier.
 **Current validation** (candidate_generator.py:977-1165):
 ```
 ✓ Syntax: weights sum to 1.0, keys present
-✓ Coherence: thesis mentions "VIX > 25" ≈ logic_tree has "VIX > 25"
+✓ Coherence: thesis mentions "VIX > 25" ≈ logic_tree uses VIXY proxy threshold
 ✗ Execution Logic: Does condition actually select assets correctly?
 ✗ Regime Applicability: Does logic activate in realistic market regimes?
 ✗ Asset Liquidity: Do branch assets support conditional execution?

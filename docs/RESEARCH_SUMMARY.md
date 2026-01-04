@@ -43,11 +43,12 @@ Creation (Stage 1):
   - LLM generates Strategy.logic_tree as dict
   - Empty {} for static allocation
   - OR {condition, if_true, if_false} for conditional
+  - OR {filter, assets} for filter-only strategies
 
 Validation (Stage 1):
   - Pydantic model validator checks structure
   - Semantic validator checks thesis-value coherence
-  - Thesis mentions "VIX > 25" ≈ logic_tree has "VIX > 25" (±20%)
+  - Thesis mentions "VIX > 25" ≈ logic_tree uses VIXY proxy threshold (±20%)
 
 Selection (Stages 2-3):
   - logic_tree unchanged

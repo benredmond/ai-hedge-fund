@@ -113,7 +113,7 @@ class TestValidateArchetypeLogicTree:
             weights={},
             rebalance_frequency=RebalanceFrequency.DAILY,
             logic_tree={
-                "condition": "VIX > 25",
+                "condition": "VIXY_price > 25",
                 "if_true": {
                     "assets": ["VXX", "SVXY"],
                     "weights": {"VXX": 0.8, "SVXY": 0.2}
@@ -155,7 +155,7 @@ class TestValidateThesisLogicTreeCoherence:
     """Test _validate_thesis_logic_tree_coherence validation"""
 
     def test_exact_vix_match_passes(self):
-        """Thesis 'VIX > 25' with logic_tree condition 'VIX > 25' should PASS (exact match)"""
+        """Thesis 'VIX > 25' with logic_tree condition 'VIXY_price > 25' should PASS (exact match)"""
         generator = CandidateGenerator()
         strategy = Strategy(
             name="VIX Strategy",
@@ -163,7 +163,7 @@ class TestValidateThesisLogicTreeCoherence:
             weights={},
             rebalance_frequency=RebalanceFrequency.DAILY,
             logic_tree={
-                "condition": "VIX > 25",
+                "condition": "VIXY_price > 25",
                 "if_true": {
                     "assets": ["SPY", "BIL"],
                     "weights": {"SPY": 0.0, "BIL": 1.0}
@@ -182,7 +182,7 @@ class TestValidateThesisLogicTreeCoherence:
         assert len(errors) == 0
 
     def test_within_tolerance_passes(self):
-        """Thesis 'VIX > 25' with logic_tree condition 'VIX > 22' should PASS (within 20%)"""
+        """Thesis 'VIX > 25' with logic_tree condition 'VIXY_price > 22' should PASS (within 20%)"""
         generator = CandidateGenerator()
         strategy = Strategy(
             name="VIX Strategy",
@@ -190,7 +190,7 @@ class TestValidateThesisLogicTreeCoherence:
             weights={},
             rebalance_frequency=RebalanceFrequency.DAILY,
             logic_tree={
-                "condition": "VIX > 22",
+                "condition": "VIXY_price > 22",
                 "if_true": {
                     "assets": ["SPY", "BIL"],
                     "weights": {"SPY": 0.0, "BIL": 1.0}
@@ -209,7 +209,7 @@ class TestValidateThesisLogicTreeCoherence:
         assert len(errors) == 0
 
     def test_exceeds_tolerance_fails(self):
-        """Thesis 'VIX > 25' with logic_tree condition 'VIX > 35' should FAIL (40% deviation)"""
+        """Thesis 'VIX > 25' with logic_tree condition 'VIXY_price > 35' should FAIL (40% deviation)"""
         generator = CandidateGenerator()
         strategy = Strategy(
             name="VIX Strategy",
@@ -217,7 +217,7 @@ class TestValidateThesisLogicTreeCoherence:
             weights={},
             rebalance_frequency=RebalanceFrequency.DAILY,
             logic_tree={
-                "condition": "VIX > 35",
+                "condition": "VIXY_price > 35",
                 "if_true": {
                     "assets": ["SPY", "BIL"],
                     "weights": {"SPY": 0.0, "BIL": 1.0}
@@ -241,7 +241,7 @@ class TestValidateThesisLogicTreeCoherence:
         assert "40%" in errors[0]
 
     def test_vix_exceeds_within_tolerance_passes(self):
-        """Thesis 'VIX exceeds 20' with logic_tree condition 'VIX > 18' should PASS (within 20%)"""
+        """Thesis 'VIX exceeds 20' with logic_tree condition 'VIXY_price > 18' should PASS (within 20%)"""
         generator = CandidateGenerator()
         strategy = Strategy(
             name="VIX Strategy",
@@ -249,7 +249,7 @@ class TestValidateThesisLogicTreeCoherence:
             weights={},
             rebalance_frequency=RebalanceFrequency.DAILY,
             logic_tree={
-                "condition": "VIX > 18",
+                "condition": "VIXY_price > 18",
                 "if_true": {
                     "assets": ["SPY", "BIL"],
                     "weights": {"SPY": 0.0, "BIL": 1.0}

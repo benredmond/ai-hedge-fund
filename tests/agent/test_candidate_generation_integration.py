@@ -183,8 +183,8 @@ class TestNestedConditionalLogic:
             name="VIX Tactical Allocation with Hysteresis",
             thesis_document=(
                 "This tactical allocation strategy rotates between equities (SPY) and "
-                "bonds (AGG) based on VIX regime with hysteresis to reduce whipsaw. "
-                "When VIX crosses above 25, we rotate to 100% bonds (risk-off). When VIX "
+                "bonds (AGG) based on a VIX proxy (VIXY) with hysteresis to reduce whipsaw. "
+                "When VIXY crosses above 25, we rotate to 100% bonds (risk-off). When VIX "
                 "drops back below 18 (the lower threshold), we rotate back to 100% equities "
                 "(risk-on). This exploits the structural edge that volatility is mean-reverting "
                 "but exhibits momentum at extremes. The hysteresis band (18-25) prevents "
@@ -192,8 +192,8 @@ class TestNestedConditionalLogic:
                 "Expected Sharpe: 1.2-1.6 vs SPY, Max DD: -12% to -18% (better than SPY)."
             ),
             rebalancing_rationale=(
-                "Daily rebalancing checks VIX levels and executes rotations when thresholds "
-                "are breached. The logic is: IF VIX > 25 → 100% AGG (risk-off), ELSE → "
+                "Daily rebalancing checks VIXY levels and executes rotations when thresholds "
+                "are breached. The logic is: IF VIXY > 25 → 100% AGG (risk-off), ELSE → "
                 "100% SPY (risk-on when VIX normalizes below 25). The hysteresis is implicit "
                 "in that we only de-risk when VIX spikes above 25, not at lower levels. "
                 "This dynamic allocation implements the volatility edge by mechanically "
@@ -202,10 +202,10 @@ class TestNestedConditionalLogic:
             ),
             edge_type=EdgeType.STRUCTURAL,
             archetype=StrategyArchetype.VOLATILITY,
-            assets=["SPY", "AGG", "VIX"],  # VIX as indicator, not held
+            assets=["SPY", "AGG"],
             weights={},  # Dynamic strategy, weights determined by logic_tree
             logic_tree={
-                "condition": "VIX > 25",
+                "condition": "VIXY_price > 25",
                 "if_true": {
                     "assets": ["AGG"],
                     "weights": {"AGG": 1.0},
@@ -235,6 +235,73 @@ class TestNestedConditionalLogic:
 
         assert len(coherence_errors) == 0, (
             f"Dynamic strategy with proper logic_tree should pass coherence check: {coherence_errors}"
+        )
+
+
+class TestFilterOnlyLogic:
+    """Test that filter-only strategies pass validation."""
+
+    def test_filter_only_strategy_passes_validation(self, generator, mock_market_context):
+        strategy = Strategy(
+            name="Top-2 Sector Momentum",
+            thesis_document=(
+                "This strategy ranks sectors by recent momentum and holds the top two leaders. "
+                "The edge comes from persistent sector leadership driven by flows and earnings revisions "
+                "that update over monthly horizons. In current regimes with uneven leadership, a filter "
+                "avoids laggards while staying invested in the strongest sectors. Expected drawdown 10-15% "
+                "during sharp rotation events."
+            ),
+            rebalancing_rationale=(
+                "Monthly rebalancing aligns with sector leadership updates and limits turnover. The filter "
+                "leaf ranks sectors by 30d cumulative return and selects the top two for equal-weight exposure, "
+                "maintaining diversification while capturing leadership persistence without timing discretionary switches."
+            ),
+            edge_type=EdgeType.STRUCTURAL,
+            archetype=StrategyArchetype.MOMENTUM,
+            assets=["XLK", "XLF", "XLE", "XLI", "XLY"],
+            weights={},
+            logic_tree={
+                "filter": {"sort_by": "cumulative_return", "window": 30, "select": "top", "n": 2},
+                "assets": ["XLK", "XLF", "XLE", "XLI", "XLY"],
+            },
+            rebalance_frequency=RebalanceFrequency.MONTHLY
+        )
+
+        errors = generator._validate_semantics([strategy], mock_market_context)
+        syntax_errors = [e for e in errors if "Syntax Error" in e or "logic_tree" in e.lower()]
+        assert len(syntax_errors) == 0, (
+            f"Filter-only strategies should pass syntax validation but got: {syntax_errors}"
+        )
+
+    def test_filter_only_bottom_selection_passes_validation(self, generator, mock_market_context):
+        strategy = Strategy(
+            name="Bottom-2 Sector Mean Reversion",
+            thesis_document=(
+                "This strategy identifies the weakest sectors by recent momentum and buys them "
+                "as mean-reversion candidates. The edge comes from reversal tendencies after "
+                "capitulation in sector flows that tend to normalize over monthly horizons. "
+                "Expected drawdown 12-18% during trend continuation phases."
+            ),
+            rebalancing_rationale=(
+                "Monthly rebalancing aligns with sector rotation cycles. The filter leaf ranks "
+                "sectors by 30d cumulative return and selects the bottom two for equal-weight "
+                "exposure, targeting mean-reversion while controlling turnover."
+            ),
+            edge_type=EdgeType.BEHAVIORAL,
+            archetype=StrategyArchetype.MEAN_REVERSION,
+            assets=["XLK", "XLF", "XLE", "XLI", "XLY"],
+            weights={},
+            logic_tree={
+                "filter": {"sort_by": "cumulative_return", "window": 30, "select": "bottom", "n": 2},
+                "assets": ["XLK", "XLF", "XLE", "XLI", "XLY"],
+            },
+            rebalance_frequency=RebalanceFrequency.MONTHLY
+        )
+
+        errors = generator._validate_semantics([strategy], mock_market_context)
+        syntax_errors = [e for e in errors if "Syntax Error" in e or "logic_tree" in e.lower()]
+        assert len(syntax_errors) == 0, (
+            f"Filter-only bottom selection should pass syntax validation but got: {syntax_errors}"
         )
 
 

@@ -32,7 +32,7 @@ Visual representation of validation stages and Symphony Logic Audit insertion po
     │  ├─ thesis_document                                         │
     │  ├─ rebalancing_rationale                                   │
     │  ├─ assets, weights                                         │
-    │  └─ logic_tree (empty {} or conditional)                    │
+    │  └─ logic_tree (empty {}, conditional, or filter leaf)      │
     │                                                              │
     │  ┌─ VALIDATION ──────────────────────────────────┐          │
     │  │ _validate_semantics()                          │          │
@@ -175,7 +175,8 @@ Visual representation of validation stages and Symphony Logic Audit insertion po
     │  └──────────────────────────────────────────────────┘          │
     │                                                              │
     │  Step 2: Build symphony JSON (Python, no LLM)               │
-    │  ├─ If logic_tree: Call _build_if_structure()               │
+    │  ├─ If conditional logic_tree: Call _build_if_structure()   │
+    │  ├─ If filter leaf: Build filter node (wrapped in weights)  │
     │  ├─ Else: Build wt-cash-equal structure                     │
     │  └─ Output: Composer-compatible JSON                        │
     │                                                              │
@@ -246,7 +247,8 @@ STAGE      EFFORT      VALIDATES                BLOCKS?  CONTEXT
        │
        │ Generates Strategy with:
        │ • logic_tree = {} (static) or
-       │ • logic_tree = {condition, if_true, if_false} (dynamic)
+       │ • logic_tree = {condition, if_true, if_false} (dynamic) or
+       │ • logic_tree = {filter, assets} (filter-only)
        │
        ▼
 ┌────────────────────────────────┐
