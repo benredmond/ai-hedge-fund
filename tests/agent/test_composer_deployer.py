@@ -21,6 +21,7 @@ from src.agent.stages.composer_deployer import (
     _build_if_structure,
     _build_symphony_json,
     _get_exchange,
+    _call_composer_api,
 )
 from src.agent.models import (
     Strategy,
@@ -250,6 +251,84 @@ class TestDeployGracefulDegradation:
         assert deployed_at is None
         assert strategy_summary is None
 
+
+class TestComposerPayloadNormalization:
+    """Validate payload normalization before Composer MCP calls."""
+
+    @pytest.mark.asyncio
+    async def test_call_composer_api_converts_allocations_to_weight_map(self, monkeypatch):
+        """Ensure _call_composer_api converts allocation -> WeightMap for MCP schema."""
+        logic_tree = {
+            "condition": "IWM_cumulative_return_90d > SPY_cumulative_return_90d",
+            "if_true": {
+                "assets": ["VTV", "IWM", "QUAL", "MTUM"],
+                "weights": {"VTV": 0.2, "IWM": 0.4, "QUAL": 0.2, "MTUM": 0.2},
+            },
+            "if_false": {
+                "assets": ["VTV", "IWM", "QUAL", "MTUM", "AGG"],
+                "weights": {"VTV": 0.225, "IWM": 0.225, "QUAL": 0.225, "MTUM": 0.225, "AGG": 0.1},
+            },
+        }
+
+        symphony_json = _build_symphony_json(
+            name="Debug Conditional Symphony",
+            description="Conditional test",
+            tickers=["VTV", "IWM", "QUAL", "MTUM", "AGG"],
+            rebalance="monthly",
+            logic_tree=logic_tree,
+        )
+
+        captured = {}
+
+        class FakeServer:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def direct_call_tool(self, name, payload):
+                captured["name"] = name
+                captured["payload"] = payload
+                return {"symphony_id": "test123", "version_id": "v1"}
+
+        import src.agent.stages.composer_deployer as composer_deployer
+
+        monkeypatch.setenv("DEBUG_PROMPTS", "0")
+        monkeypatch.setattr(composer_deployer, "create_composer_server", lambda: FakeServer())
+
+        result = await _call_composer_api(symphony_json)
+
+        assert result["symphony_id"] == "test123"
+        payload = captured["payload"]
+
+        def assert_no_allocation(node):
+            if isinstance(node, dict):
+                assert "allocation" not in node
+                for value in node.values():
+                    if isinstance(value, (dict, list)):
+                        assert_no_allocation(value)
+            elif isinstance(node, list):
+                for item in node:
+                    assert_no_allocation(item)
+
+        def assert_weight_map_for_assets(node):
+            if isinstance(node, dict):
+                if node.get("step") == "asset" and node.get("ticker") in {"VTV", "IWM", "QUAL", "MTUM", "AGG"}:
+                    weight = node.get("weight")
+                    assert isinstance(weight, dict)
+                    assert weight.get("den") == 100
+                    assert "num" in weight
+                for value in node.values():
+                    if isinstance(value, (dict, list)):
+                        assert_weight_map_for_assets(value)
+            elif isinstance(node, list):
+                for item in node:
+                    assert_weight_map_for_assets(item)
+
+        assert_no_allocation(payload)
+        assert_weight_map_for_assets(payload)
+
     @pytest.mark.asyncio
     async def test_deploy_prints_warning_without_credentials(
         self, sample_strategy, sample_charter, sample_market_context, monkeypatch, capsys
@@ -280,16 +359,16 @@ class TestBuildPrompts:
         """System prompt loads from prompts/system/composer_deployment_system.md."""
         system_prompt = self.deployer._build_system_prompt()
 
-        # Verify it loaded content (auto-injected tool docs make it long)
-        assert len(system_prompt) > 1000
+        # Verify it loaded content
+        assert len(system_prompt) > 50
 
         # Verify it contains expected content
-        assert "Composer" in system_prompt or "symphony" in system_prompt.lower()
+        assert "Composer Deployment Confirmation" in system_prompt
 
     def test_build_deployment_prompt_includes_strategy(
         self, sample_strategy, sample_charter, sample_market_context
     ):
-        """Deployment prompt includes full strategy details."""
+        """Deployment prompt includes concise strategy summary."""
         prompt = self.deployer._build_deployment_prompt(
             sample_strategy, sample_charter, sample_market_context
         )
@@ -301,22 +380,19 @@ class TestBuildPrompts:
         for asset in sample_strategy.assets:
             assert asset in prompt
 
-        # Verify thesis_document is included (not truncated)
-        assert sample_strategy.thesis_document in prompt
-
-        # Verify rebalancing_rationale is included
-        assert sample_strategy.rebalancing_rationale in prompt
+        # Verify weights and rebalance are included
+        assert str(sample_strategy.weights) in prompt
+        assert sample_strategy.rebalance_frequency.value in prompt
 
     def test_build_deployment_prompt_includes_charter_context(
         self, sample_strategy, sample_charter, sample_market_context
     ):
-        """Deployment prompt includes charter context."""
+        """Deployment prompt excludes charter context for deterministic confirmation."""
         prompt = self.deployer._build_deployment_prompt(
             sample_strategy, sample_charter, sample_market_context
         )
 
-        # Charter context is truncated to 500 chars each
-        assert sample_charter.market_thesis[:500] in prompt or "market_thesis" in prompt
+        assert sample_charter.market_thesis not in prompt
 
 
 class TestDeployWithMockedAgent:
@@ -610,11 +686,11 @@ class TestParseCondition:
         assert result["rhs-fixed-value?"] is True
 
     def test_gte_comparator(self):
-        """Parse 'VIX_price >= 20'."""
-        result = _parse_condition("VIX_price >= 20")
+        """Parse 'VIXY_price >= 20'."""
+        result = _parse_condition("VIXY_price >= 20")
 
         assert result["comparator"] == "gte"
-        assert result["lhs-val"] == "VIX"
+        assert result["lhs-val"] == "VIXY"
         assert result["rhs-val"] == 20
 
     def test_lte_comparator(self):
@@ -641,6 +717,24 @@ class TestParseCondition:
         assert result["rhs-fixed-value?"] is False
         assert result["rhs-fn"] == "moving-average-price"
         assert result["rhs-fn-params"] == {"window": 200}
+
+    def test_standard_deviation_return(self):
+        """Parse 'SPY_standard_deviation_return_20d > 0.03'."""
+        result = _parse_condition("SPY_standard_deviation_return_20d > 0.03")
+
+        assert result["lhs-val"] == "SPY"
+        assert result["lhs-fn"] == "standard-deviation-return"
+        assert result["lhs-fn-params"] == {"window": 20}
+        assert result["rhs-val"] == 0.03
+
+    def test_standard_deviation_price(self):
+        """Parse 'SPY_standard_deviation_price_30d > 5'."""
+        result = _parse_condition("SPY_standard_deviation_price_30d > 5")
+
+        assert result["lhs-val"] == "SPY"
+        assert result["lhs-fn"] == "standard-deviation-price"
+        assert result["lhs-fn-params"] == {"window": 30}
+        assert result["rhs-val"] == 5
 
     def test_50d_moving_average(self):
         """Parse 'QQQ_price < QQQ_50d_MA'."""
@@ -695,6 +789,26 @@ class TestParseCondition:
 
         assert result["lhs-val"] == "VIXY"
         assert result["rhs-val"] == 35
+
+    def test_numeric_lhs_inverts_comparator(self):
+        """Numeric LHS should invert comparator and swap sides."""
+        result = _parse_condition("20 < VIXY_price")
+
+        assert result["comparator"] == "gt"
+        assert result["lhs-val"] == "VIXY"
+        assert result["rhs-val"] == 20
+
+    def test_lowercase_ticker_normalized(self):
+        """Lowercase tickers should be uppercased in output."""
+        result = _parse_condition("spy_price > 400")
+
+        assert result["lhs-val"] == "SPY"
+        assert result["rhs-val"] == 400
+
+    def test_neq_comparator_raises_error(self):
+        """Raise ValueError for unsupported != comparator."""
+        with pytest.raises(ValueError, match="Comparator '!=' is not supported"):
+            _parse_condition("SPY_price != 400")
 
     def test_no_comparator_raises_error(self):
         """Raise ValueError when no comparator found."""
@@ -796,13 +910,13 @@ class TestBuildIfStructure:
         assert nested_if["step"] == "if"
         assert len(nested_if["children"]) == 2
 
-    def test_multiple_assets_uses_wt_cash_equal(self):
-        """Multiple assets in if-child MUST use wt-cash-equal (wt-cash-specified not supported)."""
+    def test_multiple_assets_uses_wt_cash_specified(self):
+        """Multiple assets in if-child should use wt-cash-specified when weights are provided."""
         logic_tree = {
             "condition": "SPY_price > SPY_200d_MA",
             "if_true": {
                 "assets": ["SPY", "QQQ"],
-                "weights": {"SPY": 0.6, "QQQ": 0.4},  # Weights ignored in if-child
+                "weights": {"SPY": 0.6, "QQQ": 0.4},
             },
             "if_false": {
                 "assets": ["BIL"],
@@ -813,14 +927,73 @@ class TestBuildIfStructure:
         result = _build_if_structure(logic_tree)
         true_branch = result["children"][0]
 
-        # Multiple assets: MUST use wt-cash-equal (Composer doesn't support wt-cash-specified in if-child)
+        # Multiple assets: use wt-cash-specified with allocations
         weight_node = true_branch["children"][0]
-        assert weight_node["step"] == "wt-cash-equal"
+        assert weight_node["step"] == "wt-cash-specified"
         assert len(weight_node["children"]) == 2
 
-        # No allocation field (equal weights)
-        for child in weight_node["children"]:
-            assert "allocation" not in child
+        allocations = {child["ticker"]: child["allocation"] for child in weight_node["children"]}
+        assert allocations["SPY"] == pytest.approx(0.6)
+        assert allocations["QQQ"] == pytest.approx(0.4)
+
+    def test_filter_leaf_builds_filter_node(self):
+        """Filter leaves should build Composer filter nodes inside if-child."""
+        logic_tree = {
+            "condition": "SPY_price > SPY_200d_MA",
+            "if_true": {
+                "filter": {"sort_by": "cumulative_return", "window": 30, "select": "top", "n": 2},
+                "assets": ["XLK", "XLF", "XLE"],
+            },
+            "if_false": {"assets": ["BIL"], "weights": {"BIL": 1.0}},
+        }
+
+        result = _build_if_structure(logic_tree)
+        true_branch = result["children"][0]
+
+        filter_node = true_branch["children"][0]
+        assert filter_node["step"] == "filter"
+        assert filter_node["sort-by-fn"] == "cumulative-return"
+        assert filter_node["select-fn"] == "top"
+        assert filter_node["select-n"] == 2
+        assert len(filter_node["children"]) == 3
+
+    def test_filter_leaf_current_price_omits_params(self):
+        """current_price filters should omit sort-by params."""
+        logic_tree = {
+            "condition": "SPY_price > SPY_200d_MA",
+            "if_true": {
+                "filter": {"sort_by": "current_price", "select": "top", "n": 1},
+                "assets": ["XLK", "XLF"],
+            },
+            "if_false": {"assets": ["BIL"], "weights": {"BIL": 1.0}},
+        }
+
+        result = _build_if_structure(logic_tree)
+        true_branch = result["children"][0]
+
+        filter_node = true_branch["children"][0]
+        assert filter_node["step"] == "filter"
+        assert filter_node["sort-by-fn"] == "current-price"
+        assert "sort-by-fn-params" not in filter_node
+
+    def test_weighting_leaf_builds_inverse_vol_node(self):
+        """Weighting leaves should build wt-inverse-vol nodes inside if-child."""
+        logic_tree = {
+            "condition": "SPY_price > SPY_200d_MA",
+            "if_true": {
+                "weighting": {"method": "inverse_vol", "window": 20},
+                "assets": ["SPY", "QQQ"],
+            },
+            "if_false": {"assets": ["BIL"], "weights": {"BIL": 1.0}},
+        }
+
+        result = _build_if_structure(logic_tree)
+        true_branch = result["children"][0]
+
+        weight_node = true_branch["children"][0]
+        assert weight_node["step"] == "wt-inverse-vol"
+        assert weight_node["window-days"] == 20
+        assert len(weight_node["children"]) == 2
 
     def test_equal_weights_generates_wt_cash_equal(self):
         """wt-cash-equal used when multiple assets with no/invalid weights."""
@@ -966,6 +1139,49 @@ class TestBuildSymphonyJson:
 
         if_node = wrapper_node["children"][0]
         assert if_node["step"] == "if"
+
+    def test_filter_root_uses_filter_node(self):
+        """Filter-only strategy should wrap filter node in wt-cash-equal."""
+        logic_tree = {
+            "filter": {"sort_by": "cumulative_return", "window": 30, "select": "top", "n": 2},
+            "assets": ["XLK", "XLF", "XLE"],
+        }
+
+        result = _build_symphony_json(
+            name="Filter Strategy",
+            description="Top momentum sectors",
+            tickers=["XLK", "XLF", "XLE"],
+            rebalance="monthly",
+            logic_tree=logic_tree,
+        )
+
+        symphony = result["symphony_score"]
+        wrapper_node = symphony["children"][0]
+        assert wrapper_node["step"] == "wt-cash-equal"
+        filter_node = wrapper_node["children"][0]
+        assert filter_node["step"] == "filter"
+
+    def test_filter_root_current_price_omits_params(self):
+        """Root filter with current_price should omit sort-by params."""
+        logic_tree = {
+            "filter": {"sort_by": "current_price", "select": "top", "n": 2},
+            "assets": ["XLK", "XLF", "XLE"],
+        }
+
+        result = _build_symphony_json(
+            name="Filter Strategy",
+            description="Top price leaders",
+            tickers=["XLK", "XLF", "XLE"],
+            rebalance="monthly",
+            logic_tree=logic_tree,
+        )
+
+        symphony = result["symphony_score"]
+        wrapper_node = symphony["children"][0]
+        filter_node = wrapper_node["children"][0]
+        assert filter_node["step"] == "filter"
+        assert filter_node["sort-by-fn"] == "current-price"
+        assert "sort-by-fn-params" not in filter_node
 
     def test_empty_logic_tree_treated_as_static(self):
         """Empty dict logic_tree treated as static strategy."""

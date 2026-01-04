@@ -1,6 +1,7 @@
 """Deploy winning strategy to Composer.trade as a symphony."""
 
 import asyncio
+import copy
 import json
 import logging
 import os
@@ -99,6 +100,18 @@ def _get_exchange(ticker: str) -> str:
     return "XNYS"
 
 
+_FILTER_SORT_BY_MAP = {
+    "cumulative_return": "cumulative-return",
+    "moving_average_return": "moving-average-return",
+    "moving_average_price": "moving-average-price",
+    "relative_strength_index": "relative-strength-index",
+    "standard_deviation_return": "standard-deviation-return",
+    "standard_deviation_price": "standard-deviation-price",
+    "max_drawdown": "max-drawdown",
+    "current_price": "current-price",
+}
+
+
 def _parse_condition(condition_str: str) -> dict:
     """
     Parse a condition string into Composer if-child fields.
@@ -117,6 +130,11 @@ def _parse_condition(condition_str: str) -> dict:
             "Boolean operators (AND/OR) are not supported in logic_tree.condition. "
             "Use a single comparison."
         )
+    if "!=" in condition_str:
+        raise ValueError(
+            "Comparator '!=' is not supported by Composer. "
+            "Use '==' or invert the condition."
+        )
 
     # Comparator mapping
     comparator_map = {
@@ -125,25 +143,26 @@ def _parse_condition(condition_str: str) -> dict:
         "<": "lt",
         "<=": "lte",
         "==": "eq",
-        "!=": "neq",
     }
 
     # Function suffix mapping
     # NOTE: current-price is NOT valid for IF conditionals!
     # Use moving-average-price with window=1 as proxy for current price
     fn_suffix_map = {
-        "_price": ("moving-average-price", 1),  # current-price NOT valid for conditionals
+        "_standard_deviation_return_": ("standard-deviation-return", r"_standard_deviation_return_(\d+)d"),
+        "_standard_deviation_price_": ("standard-deviation-price", r"_standard_deviation_price_(\d+)d"),
         "_cumulative_return_": ("cumulative-return", r"_cumulative_return_(\d+)d"),
         "_RSI_": ("relative-strength-index", r"_RSI_(\d+)d"),
         "_200d_MA": ("moving-average-price", 200),
         "_50d_MA": ("moving-average-price", 50),
         "_EMA_": ("exponential-moving-average-price", r"_EMA_(\d+)d"),
+        "_price": ("moving-average-price", 1),  # current-price NOT valid for conditionals
     }
 
     # Find the comparator
     comparator = None
     comparator_str = None
-    for op in [">=", "<=", "==", "!=", ">", "<"]:  # Order matters: >= before >
+    for op in [">=", "<=", "==", ">", "<"]:  # Order matters: >= before >
         if op in condition_str:
             comparator = comparator_map[op]
             comparator_str = op
@@ -200,7 +219,7 @@ def _parse_condition(condition_str: str) -> dict:
                         if match:
                             params = {"window": int(match.group(1))}
 
-                return (ticker, fn_name, params, False)
+                return (ticker.upper(), fn_name, params, False)
 
         if "_" in operand:
             raise ValueError(
@@ -211,10 +230,35 @@ def _parse_condition(condition_str: str) -> dict:
 
         # Fallback: assume it's a ticker with moving-average-price(1) as proxy for current price
         # NOTE: current-price is NOT valid for IF conditionals!
-        return (operand, "moving-average-price", {"window": 1}, False)
+        return (operand.upper(), "moving-average-price", {"window": 1}, False)
 
     lhs_ticker, lhs_fn, lhs_params, lhs_fixed = parse_operand(lhs_str)
     rhs_ticker, rhs_fn, rhs_params, rhs_fixed = parse_operand(rhs_str)
+
+    if lhs_fixed and rhs_fixed:
+        raise ValueError("Invalid condition: both operands are numeric.")
+
+    if lhs_fixed and not rhs_fixed:
+        inverse_map = {
+            "gt": "lt",
+            "gte": "lte",
+            "lt": "gt",
+            "lte": "gte",
+            "eq": "eq",
+        }
+        comparator = inverse_map.get(comparator)
+        if not comparator:
+            raise ValueError(f"Unsupported comparator reversal for condition: {condition_str}")
+        lhs_ticker, lhs_fn, lhs_params, lhs_fixed, rhs_ticker, rhs_fn, rhs_params, rhs_fixed = (
+            rhs_ticker,
+            rhs_fn,
+            rhs_params,
+            rhs_fixed,
+            lhs_ticker,
+            lhs_fn,
+            lhs_params,
+            lhs_fixed,
+        )
 
     # When rhs is a fixed value, ALWAYS mirror lhs-fn (per working production example)
     # The docs say rhs-fn should be null, but actual working symphonies show it matches lhs-fn
@@ -282,8 +326,100 @@ def _build_if_structure(
 
         return asset_nodes
 
+    def normalize_branch_weights(branch: dict) -> dict | None:
+        weights = branch.get("weights")
+        if not weights:
+            return None
+        if not isinstance(weights, dict):
+            raise ValueError(f"Branch weights must be a dict, got: {weights!r}")
+
+        assets = branch.get("assets", [])
+        if set(weights.keys()) != set(assets):
+            raise ValueError(
+                f"Branch weights keys must match assets. Assets={assets}, Weights={list(weights.keys())}"
+            )
+
+        normalized = {}
+        for ticker, value in weights.items():
+            try:
+                weight = float(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"Branch weight for {ticker} must be numeric, got: {value!r}") from exc
+            if weight < 0:
+                raise ValueError(f"Branch weight for {ticker} must be non-negative, got: {weight}")
+            normalized[ticker] = weight
+
+        total = sum(normalized.values())
+        if not 0.99 <= total <= 1.01:
+            raise ValueError(f"Branch weights sum to {total:.4f}, must be between 0.99 and 1.01")
+
+        if total != 1.0:
+            normalized = {ticker: weight / total for ticker, weight in normalized.items()}
+
+        return normalized
+
     def is_conditional_branch(branch: dict) -> bool:
         return isinstance(branch, dict) and {"condition", "if_true", "if_false"}.issubset(branch.keys())
+
+    def is_filter_leaf(branch: dict) -> bool:
+        return isinstance(branch, dict) and "filter" in branch and "assets" in branch
+
+    def is_weighting_leaf(branch: dict) -> bool:
+        return isinstance(branch, dict) and "weighting" in branch and "assets" in branch
+
+    def build_filter_node(branch: dict) -> dict:
+        filter_spec = branch.get("filter", {})
+        sort_by = filter_spec.get("sort_by")
+        sort_by_fn = _FILTER_SORT_BY_MAP.get(sort_by)
+        if not sort_by_fn:
+            raise ValueError(f"Unsupported filter sort_by: {sort_by!r}")
+
+        window = filter_spec.get("window")
+        select = filter_spec.get("select")
+        n_value = filter_spec.get("n")
+        if sort_by == "current_price":
+            if window is not None:
+                raise ValueError("Filter window must be omitted for current_price.")
+            sort_by_params = None
+        else:
+            if not isinstance(window, int) or window <= 0:
+                raise ValueError(f"Filter window must be positive integer, got: {window!r}")
+            sort_by_params = {"window": window}
+        if select not in {"top", "bottom"}:
+            raise ValueError(f"Filter select must be 'top' or 'bottom', got: {select!r}")
+        if not isinstance(n_value, int) or n_value < 1:
+            raise ValueError(f"Filter n must be integer >= 1, got: {n_value!r}")
+
+        filter_node = {
+            "id": str(uuid.uuid4()),
+            "step": "filter",
+            "weight": None,
+            "sort-by-fn": sort_by_fn,
+            "select-fn": select,
+            "select-n": n_value,
+            "children": build_branch_assets(branch, use_specified_weights=False),
+        }
+        if sort_by_params is not None:
+            filter_node["sort-by-fn-params"] = sort_by_params
+
+        return filter_node
+
+    def build_weighting_node(branch: dict) -> dict:
+        weighting_spec = branch.get("weighting", {})
+        method = weighting_spec.get("method")
+        window = weighting_spec.get("window")
+        if method != "inverse_vol":
+            raise ValueError(f"Unsupported weighting method: {method!r}")
+        if not isinstance(window, int) or window <= 0:
+            raise ValueError(f"Weighting window must be positive integer, got: {window!r}")
+
+        return {
+            "id": str(uuid.uuid4()),
+            "step": "wt-inverse-vol",
+            "weight": None,
+            "window-days": window,
+            "children": build_branch_assets(branch, use_specified_weights=False),
+        }
 
     def build_branch_content(branch: dict) -> list:
         """
@@ -291,20 +427,35 @@ def _build_if_structure(
 
         Based on working Composer symphony examples:
         - Single asset: goes directly under if-child (no wrapper)
-        - Multiple assets: MUST use wt-cash-equal (wt-cash-specified NOT supported in if-child)
-
-        Note: Custom weights (wt-cash-specified) are NOT supported inside conditional branches.
+        - Multiple assets: use wt-cash-specified when weights are provided, otherwise wt-cash-equal
         """
         if is_conditional_branch(branch):
             return [_build_if_structure(branch, rebalance)]
 
+        if is_filter_leaf(branch):
+            return [build_filter_node(branch)]
+
+        if is_weighting_leaf(branch):
+            return [build_weighting_node(branch)]
+
         assets = branch.get("assets", [])
+        normalized_weights = normalize_branch_weights(branch)
 
         # Single asset: place directly (no wrapper needed)
         if len(assets) == 1:
             return build_branch_assets(branch, use_specified_weights=False)
 
-        # Multiple assets: MUST use wt-cash-equal (wt-cash-specified not valid in if-child)
+        if normalized_weights:
+            branch = dict(branch)
+            branch["weights"] = normalized_weights
+            return [{
+                "id": str(uuid.uuid4()),
+                "step": "wt-cash-specified",
+                "weight": None,
+                "children": build_branch_assets(branch, use_specified_weights=True),
+            }]
+
+        # Multiple assets without weights: use wt-cash-equal
         return [{
             "id": str(uuid.uuid4()),
             "step": "wt-cash-equal",
@@ -377,6 +528,21 @@ def _build_symphony_json(
         and "if_true" in logic_tree
         and "if_false" in logic_tree
     )
+    has_filter_root = (
+        logic_tree
+        and isinstance(logic_tree, dict)
+        and "filter" in logic_tree
+        and "assets" in logic_tree
+    )
+    has_weighting_root = (
+        logic_tree
+        and isinstance(logic_tree, dict)
+        and "weighting" in logic_tree
+        and "assets" in logic_tree
+    )
+
+    if has_weighting_root:
+        raise ValueError("Root-level weighting leaves are not supported in symphony generation.")
 
     if has_conditional_logic:
         # Build IF structure for conditional strategies
@@ -401,6 +567,67 @@ def _build_symphony_json(
                 "step": "wt-cash-equal",
                 "weight": None,
                 "children": [if_node],
+            }],
+        }
+    elif has_filter_root:
+        filter_spec = logic_tree.get("filter", {})
+        sort_by = filter_spec.get("sort_by")
+        sort_by_fn = _FILTER_SORT_BY_MAP.get(sort_by)
+        if not sort_by_fn:
+            raise ValueError(f"Unsupported filter sort_by: {sort_by!r}")
+
+        window = filter_spec.get("window")
+        select = filter_spec.get("select")
+        n_value = filter_spec.get("n")
+        if sort_by == "current_price":
+            if window is not None:
+                raise ValueError("Filter window must be omitted for current_price.")
+            sort_by_params = None
+        else:
+            if not isinstance(window, int) or window <= 0:
+                raise ValueError(f"Filter window must be positive integer, got: {window!r}")
+            sort_by_params = {"window": window}
+        if select not in {"top", "bottom"}:
+            raise ValueError(f"Filter select must be 'top' or 'bottom', got: {select!r}")
+        if not isinstance(n_value, int) or n_value < 1:
+            raise ValueError(f"Filter n must be integer >= 1, got: {n_value!r}")
+
+        asset_nodes = []
+        for ticker in logic_tree.get("assets", []):
+            asset_nodes.append({
+                "id": str(uuid.uuid4()),
+                "step": "asset",
+                "ticker": ticker,
+                "exchange": _get_exchange(ticker),
+                "name": ticker,
+                "weight": None,
+            })
+
+        filter_node = {
+            "id": str(uuid.uuid4()),
+            "step": "filter",
+            "weight": None,
+            "sort-by-fn": sort_by_fn,
+            "select-fn": select,
+            "select-n": n_value,
+            "children": asset_nodes,
+        }
+        if sort_by_params is not None:
+            filter_node["sort-by-fn-params"] = sort_by_params
+
+        symphony_score = {
+            "id": str(uuid.uuid4()),
+            "name": name,
+            "step": "root",
+            "weight": None,
+            "rebalance": rebalance,
+            "description": description,
+            "rebalance-corridor-width": None,
+            "children": [{
+                "id": str(uuid.uuid4()),
+                "step": "wt-cash-equal",
+                "weight": None,
+                "children": [filter_node],
             }],
         }
     else:
@@ -459,9 +686,35 @@ async def _call_composer_api(symphony_json: dict) -> dict:
     """
     debug = os.getenv("DEBUG_PROMPTS", "0") == "1"
 
+    def convert_allocations_to_weight_map(payload: dict) -> dict:
+        """Convert allocation fields to WeightMap for MCP schema compatibility."""
+        converted = copy.deepcopy(payload)
+
+        def walk(node) -> None:
+            if isinstance(node, dict):
+                if node.get("step") == "asset" and "allocation" in node:
+                    allocation = node.pop("allocation")
+                    try:
+                        num = round(float(allocation) * 100, 4)
+                    except (TypeError, ValueError):
+                        num = allocation
+                    node["weight"] = {"num": num, "den": 100}
+                for value in node.values():
+                    if isinstance(value, (dict, list)):
+                        walk(value)
+            elif isinstance(node, list):
+                for item in node:
+                    walk(item)
+
+        walk(converted)
+        return converted
+
+    # MCP schema expects WeightMap, not allocation
+    symphony_payload = convert_allocations_to_weight_map(symphony_json)
+
     if debug:
         print(f"\n[DEBUG:_call_composer_api] Symphony JSON:")
-        print(json.dumps(symphony_json, indent=2, default=str))
+        print(json.dumps(symphony_payload, indent=2, default=str))
 
     # Create Composer MCP server (handles auth via mcp_config)
     server = create_composer_server()
@@ -476,7 +729,7 @@ async def _call_composer_api(symphony_json: dict) -> dict:
         # Call save_symphony tool directly (bypasses LLM, no hallucination)
         # Note: save_symphony actually saves and returns symphony_id
         # create_symphony only validates/previews without saving
-        result = await server.direct_call_tool("save_symphony", symphony_json)
+        result = await server.direct_call_tool("save_symphony", symphony_payload)
 
         if debug:
             print(f"[DEBUG:_call_composer_api] Result: {result}")
@@ -616,8 +869,18 @@ class ComposerDeployer:
         confirmation = await self._get_llm_confirmation(
             strategy=strategy,
             charter=charter,
+            market_context=market_context,
             model=model,
         )
+
+        if not isinstance(confirmation, SymphonyConfirmation):
+            symphony_id, description = self._extract_symphony_data(confirmation)
+            if symphony_id:
+                deployed_at = datetime.now(timezone.utc).isoformat()
+                print(f"✅ Symphony deployed: {symphony_id}")
+                return symphony_id, deployed_at, description
+            print("❌ Failed to parse LLM deployment response")
+            return None, None, None
 
         if not confirmation.ready_to_deploy:
             print("⚠️  LLM declined to deploy strategy")
@@ -657,20 +920,12 @@ class ComposerDeployer:
         self,
         strategy: Strategy,
         charter: Charter,
+        market_context: dict | None,
         model: str,
     ) -> SymphonyConfirmation:
         """Get LLM confirmation for deployment (no tool calling)."""
-        system_prompt = load_prompt("system/composer_deployment_system.md", include_tools=False)
-
-        user_prompt = f"""Strategy to deploy:
-
-Name: {strategy.name}
-Assets: {', '.join(strategy.assets)}
-Rebalance: {strategy.rebalance_frequency.value}
-
-Market Thesis: {charter.market_thesis[:500] if charter.market_thesis else 'N/A'}
-
-Confirm deployment and provide symphony name and description."""
+        system_prompt = self._build_system_prompt()
+        user_prompt = self._build_deployment_prompt(strategy, charter, market_context)
 
         model_settings = get_model_settings(model, stage="composer_deployment")
 
@@ -689,6 +944,69 @@ Confirm deployment and provide symphony name and description."""
         async with agent_ctx as agent:
             result = await agent.run(user_prompt)
             return result.output
+
+    def _build_system_prompt(self) -> str:
+        """Load the Composer deployment system prompt."""
+        return load_prompt("system/composer_deployment_system.md", include_tools=False)
+
+    def _build_deployment_prompt(
+        self,
+        strategy: Strategy,
+        charter: Charter,
+        market_context: dict | None = None,
+    ) -> str:
+        """Build deployment prompt with a concise strategy summary."""
+        logic_tree_summary = json.dumps(strategy.logic_tree, indent=2) if strategy.logic_tree else "{}"
+
+        return (
+            "Provide a symphony name and 1-2 sentence description only. "
+            "Do NOT re-evaluate, critique, or decline; assume approval is final.\n\n"
+            "Strategy summary (for naming/description only):\n"
+            f"- Candidate name: {strategy.name}\n"
+            f"- Assets: {', '.join(strategy.assets)}\n"
+            f"- Weights: {strategy.weights}\n"
+            f"- Rebalance: {strategy.rebalance_frequency.value}\n"
+            f"- Logic Tree: {logic_tree_summary}\n\n"
+            "Return the structured SymphonyConfirmation output."
+        )
+
+    def _extract_symphony_data(self, result) -> tuple[Optional[str], Optional[str]]:
+        """Extract symphony_id and description from agent output or raw response."""
+        raw = None
+        if hasattr(result, "output"):
+            raw = result.output
+        elif hasattr(result, "data"):
+            raw = result.data
+        else:
+            raw = result
+
+        if isinstance(raw, dict):
+            symphony_id = raw.get("symphony_id")
+            description = raw.get("description") or raw.get("symphony_description")
+            if symphony_id:
+                return symphony_id, description
+            raw_str = json.dumps(raw)
+        else:
+            raw_str = str(raw) if raw is not None else ""
+
+        if not raw_str:
+            return None, None
+
+        patterns = [
+            r'"symphony_id"\s*:\s*"([^"]+)"',
+            r"'symphony_id'\s*:\s*'([^']+)'",
+            r"symphony_id\s*[:=]\s*([A-Za-z0-9_-]+)",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, raw_str)
+            if match:
+                return match.group(1), None
+
+        generic_match = re.search(r"\bid\s*=\s*([A-Za-z0-9_-]{10,})", raw_str)
+        if generic_match:
+            return generic_match.group(1), None
+
+        return None, None
 
     def _extract_symphony_id(self, response: dict) -> Optional[str]:
         """Extract symphony_id from MCP response."""
