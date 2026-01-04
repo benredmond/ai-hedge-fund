@@ -76,7 +76,7 @@
 - **Impact:** Low strategic sophistication - passive sector beta, not alpha generation
 - **Root Cause Analysis:**
   1. Prompts don't require stock-level analysis for mean reversion/value strategies
-  2. VIX worked example uses broad ETFs (SPY, QQQ, TLT), setting precedent
+  2. Worked examples were ETF-heavy, setting precedent for broad ETF usage (stock-selection example now added to counterbalance)
   3. Edge Scorecard accepts "sector rotation" as edge without requiring security selection justification
   4. Tool usage for stock fundamentals is optional, not mandatory for certain archetypes
 - **Status:** CRITICAL NEW ISSUE - not identified in original analysis or architecture plan
@@ -153,7 +153,7 @@ Target (High Sophistication):
 ### The Problem (From Analysis Document)
 **Top Root Causes (85%+ probability):**
 1. **RC-1**: Validation happens AFTER all 5 strategies generated → too late, agent rationalizes
-2. **RC-2B**: Only VIX example shows conditional logic → only VIX strategies implement it (100% correlation)
+2. **RC-2B**: Only one concrete example (VIX at the time) showed conditional logic → only that archetype implemented it (100% correlation)
 3. **RC-5B**: No planning checkpoint → agent jumps to implementation without structured thinking
 4. **NEW**: Unvalidated quantitative claims (60%, 70%, 85% without evidence)
 
@@ -170,7 +170,7 @@ Target (High Sophistication):
 | **#1** | Constitutional validation layer | Move validation rules to top of system prompt | `system.md` | 30 min |
 | **#2** | Post-validation retry with RSIP | Add reflection checkpoints + surgical retry | `candidate_generator.py` | 90 min |
 | **#3** | Alpha vs Beta framework | Security selection requirements by archetype | `system.md` + examples | 120 min |
-| **#4** | 4 VIX-quality examples | Show conditional logic + stock selection | After `recipe:429` | 180 min |
+| **#4** | 3 worked examples (stock, factor, macro) | Show conditional logic + stock selection | After `recipe:429` | 135 min |
 | **#5** | Mandatory planning matrix | Force structured thinking before generation | Before `recipe:149` | 25 min |
 | **Phase 2: Validation & Polish** |
 | **#6** | Backtesting validation | Require evidence OR hypothesis language for % claims | `system:638` | 20 min |
@@ -244,7 +244,7 @@ Return validated strategies
   - Logic tree validation matrix (system:578-598)
   - Weight derivation requirements (system:600-638)
   - Rebalancing coherence AUTO-REJECT matrix (system:723-797)
-  - VIX worked example with conditional logic (recipe:327-431)
+  - Worked examples now include stock selection, factor regime, and macro cross-asset (recipe: Worked Examples section)
   - Current quality: 6.1/10 (up from 3.2/10 baseline)
   - Remaining gap: Still only 20% conditional logic implementation (1/5 strategies)
 
@@ -252,7 +252,7 @@ Return validated strategies
   - Recipe: candidate_generation.md (684 lines)
   - System: candidate_generation_system.md (841 lines)
   - Validation matrices: 8 matrices present, declared as AUTO-REJECT
-  - Worked examples: 1 concrete (VIX), 5 abstract templates
+  - Worked examples: 3 concrete (stock selection, factor, macro), 5 abstract templates
 
 - **Code enforcement**:
   - Pydantic validators: 7 validators exist
@@ -265,14 +265,14 @@ Return validated strategies
   - Result: Partial improvement, quality 3.2→6.1/10
 
 - **Commit 45cfdde**: Added VIX worked example (Nov 1)
-  - Result: Proves model capability - VIX strategies score 8.5/10
+  - Result: Proved model capability; example later replaced with stock/factor/macro set to reduce ETF anchoring
 
 - **Test runs**: 2 runs with Kimi K2, 10 total strategies evaluated
   - Finding: 1/5 implement conditional logic despite 4/5 describing it
-  - Proof of capability: VIX example works perfectly (8.5/10)
+  - Proof of capability: worked examples drive conditional logic (prior VIX example scored 8.5/10; now replaced)
 
 - **Root cause confirmed**: "Won't problem, not can't problem" (analysis doc line 243)
-  - Evidence: Model CAN do it (VIX proves), defaults to simple otherwise
+  - Evidence: Model CAN do it with concrete worked examples, defaults to simple otherwise
 
 ### Dependencies
 
@@ -300,9 +300,9 @@ Validation exists but doesn't enforce - prompts declare AUTO-REJECT but code doe
    - Evidence: Doc lines 256-276: "generates all 5→reads rules→too late→rationalizes"
    - Probability: 85%
 
-2. **Only 1 example** shows conditional logic (RC-2B/5A)
+2. **Only 1 example** showed conditional logic (RC-2B/5A)
    - Impact: VIX archetype = 100% conditional, others = 0%
-   - Evidence: Doc lines 308-322: ONE detailed VIX example → ONLY VIX uses conditional logic
+   - Evidence: Doc lines 308-322: ONE detailed example (VIX at the time) → ONLY that archetype uses conditional logic
    - Probability: 80%
 
 3. **No planning checkpoint** before generation (RC-5B)
@@ -384,12 +384,12 @@ Validation exists but doesn't enforce - prompts declare AUTO-REJECT but code doe
 - **Probability:** 100% (all 5 candidates used broad ETFs)
 - **Root Cause Analysis:**
   - **RC-SECTOR-1A:** Prompts don't explicitly require stock-level analysis for mean reversion/value
-  - **RC-SECTOR-1B:** VIX example uses broad ETFs (SPY, QQQ, TLT), creates precedent
+  - **RC-SECTOR-1B:** ETF-heavy worked examples (prior VIX example used broad ETFs) created precedent
   - **RC-SECTOR-1C:** Edge Scorecard accepts "sector rotation" without security selection scrutiny
   - **RC-SECTOR-1D:** Tool usage for fundamentals optional, not mandatory
 - **Fix Required:**
   1. Add stock selection requirement to mean reversion/value archetypes (prompts)
-  2. Add worked example showing individual stock selection with fundamental justification
+  2. Add worked example showing individual stock selection with fundamental justification (implemented in candidate_generation.md)
   3. Update Edge Scorecard to require security selection for certain archetypes
   4. Make fundamental analysis tools mandatory for value/mean-reversion strategies
 
@@ -602,17 +602,16 @@ Validation exists but doesn't enforce - prompts declare AUTO-REJECT but code doe
    - Add: Security selection workflow (universe → screening → fundamental analysis → ranking)
    - File: `candidate_generation.md` (worked examples)
    - Add: Dual-sophistication example - Mean reversion WITH stock selection (~150 lines)
-   - Revise: VIX example to include parallel stock selection commentary
+   - Update: Worked examples now include stock selection; VIX-specific commentary removed
    - Time: 120 minutes
 
-6. **4 Archetype Examples** (Original Fix #2 + Stock Selection)
+6. **3 Archetype Examples** (Original Fix #2 + Stock Selection)
    - File: `candidate_generation.md` after line 429
-   - Add: Momentum example with conditional logic (~60 lines)
-   - Add: Mean Reversion example with INDIVIDUAL STOCKS (~75 lines) - merged from Fix #10
-   - Add: Carry example with regime-based triggers (~60 lines)
-   - Add: Multi-Factor example with market-dependent allocation (~60 lines)
+   - Add: Stock selection example with conditional logic (~60 lines)
+   - Add: Factor regime example with ETF rotation (~60 lines)
+   - Add: Macro cross-asset example with regime-based triggers (~60 lines)
    - Each includes: Context → Edge → Planning → Strategy object → Coherence validation
-   - Time: 180 minutes (45 min each for 4 examples)
+   - Time: 135 minutes (45 min each for 3 examples)
 
 7. **Mandatory Planning Matrix with RSIP** (Enhanced Fix #3)
    - File: `candidate_generation.md` after line 148
@@ -690,7 +689,7 @@ Validation exists but doesn't enforce - prompts declare AUTO-REJECT but code doe
 
 2. **Matches document's recommendations**:
    - Doc Fix #1 (validation timing): Implemented via retry loop
-   - Doc Fix #2 (examples): 4 detailed examples added
+   - Doc Fix #2 (examples): 3 detailed examples added
    - Doc Fix #3 (planning): Mandatory matrix
    - Doc Fix #5 (backtesting): Validation requirement added
    - Doc RC-7 (bug): Fixed
@@ -707,7 +706,7 @@ Validation exists but doesn't enforce - prompts declare AUTO-REJECT but code doe
    - Expected quality: 8.0+/10 (doc target)
 
 5. **Proven effectiveness**:
-   - VIX example proves model CAN comply when shown how
+   - Worked examples prove model CAN comply when shown how
    - Doc estimates 70-90% cumulative improvement from all fixes
    - Industry practice: 40-60% conditional is acceptable (not 80%+)
 
@@ -726,7 +725,7 @@ Validation exists but doesn't enforce - prompts declare AUTO-REJECT but code doe
 
 ### Decision
 
-**Implement Solution C: Batch Generation + Planning Matrix + 4 Concrete Examples + Post-Validation Retry Loop**
+**Implement Solution C: Batch Generation + Planning Matrix + 3 Concrete Examples + Post-Validation Retry Loop**
 
 ### Files to Modify
 
@@ -1184,7 +1183,7 @@ Validation exists but doesn't enforce - prompts declare AUTO-REJECT but code doe
 **Validated Root Causes:**
 - ✅ RC-1 (Validation Timing): Confirmed - retry caught failures
 - ✅ RC-2B (One Example): Partially confirmed - narrative strong, implementation weak
-- ✅ RC-4B (VIX-Only Example): Confirmed - no other examples led to sector ETF default
+- ✅ RC-4B (ETF-Heavy Examples): Confirmed - ETF-heavy examples anchored outputs; stock-selection example added to counterbalance
 
 **New Root Causes Discovered:**
 - 🆕 RC-RETRY-1: Asset drift in retry (not in original analysis)

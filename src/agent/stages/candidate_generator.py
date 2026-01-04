@@ -32,31 +32,31 @@ PROMPT_VARIATIONS: List[PromptVariation] = [
         "name": "macro_regime",
         "emphasis": "macroeconomic regime shifts and rate cycle positioning",
         "persona": "You are a macro strategist who sees markets through the lens of Fed policy, yield curves, and economic cycles.",
-        "constraint": "Your strategy must explicitly position for macro uncertainty or regime transitions."
+        "constraint": "Your strategy must explicitly position for macro uncertainty or regime transitions; prefer cross-asset exposures (rates, commodities, broad equity beta) over sector ETFs."
     },
     {
         "name": "factor_quant",
         "emphasis": "systematic factor premiums (value, momentum, quality, size)",
         "persona": "You are a quantitative researcher who believes in harvesting persistent factor premiums.",
-        "constraint": "Use systematic factor exposure as the primary driver, not discretionary picks."
+        "constraint": "Use systematic factor exposure as the primary driver, not discretionary picks; favor factor ETFs or rules-based baskets and avoid sector ETFs."
     },
     {
         "name": "tail_risk",
         "emphasis": "downside protection and asymmetric payoffs",
         "persona": "You are a risk manager who prioritizes capital preservation over upside capture.",
-        "constraint": "Maximum drawdown management must be the primary design consideration."
+        "constraint": "Maximum drawdown management must be the primary design consideration; emphasize defensive/hedge exposures (duration, gold, low-vol) over sector ETFs."
     },
     {
         "name": "sector_rotation",
         "emphasis": "sector leadership shifts and relative strength",
         "persona": "You are a sector analyst who exploits rotation patterns and leadership changes.",
-        "constraint": "Sector allocation must be the primary active decision, not individual stocks."
+        "constraint": "Sector allocation must be the primary active decision, not individual stocks; sector ETFs are allowed and should be central."
     },
     {
         "name": "trend_follower",
         "emphasis": "price momentum across asset classes and timeframes",
         "persona": "You are a trend follower who believes price is the ultimate arbiter of value.",
-        "constraint": "All position decisions must be derived from price action, not fundamentals."
+        "constraint": "All position decisions must be derived from price action, not fundamentals; when intra-sector divergence is high, prefer stock baskets expanded via tools, otherwise use cross-asset ETFs."
     },
 ]
 from src.agent.token_tracker import TokenTracker

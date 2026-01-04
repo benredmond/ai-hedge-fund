@@ -30,10 +30,21 @@ The context pack provides ALL macro/market data you need. Extract:
 5. **Sector Leadership:** Top/bottom 3 sectors
 6. **Factor Regime:** Value vs Growth, Momentum, Quality premiums
 
-**Use tools ONLY for:**
+**Use tools primarily for:**
 - Individual stock data (not in context pack)
+- Expanding intra_sector_divergence seed lists with additional candidates
 - Factor ETFs (VTV, MTUM, QUAL)
 - Extended time series (>12 months)
+
+**Context pack signals are starting points, not limits.** Do not reuse tickers verbatim across candidates. Use sector_leadership and intra_sector_divergence as seed lists, then expand with tools to find additional names and validate fit.
+
+### Asset Type Guidance by Persona (Soft Guidance)
+
+- **Macro regime:** Cross-asset exposures (rates, commodities, broad equity beta), not sector ETFs.
+- **Factor quant:** Factor ETFs or rules-based baskets; avoid sector ETFs.
+- **Tail risk:** Defensive/hedge exposures (duration, gold, low-vol), not sector ETFs.
+- **Sector rotation:** Sector ETFs are allowed and should be central.
+- **Trend follower:** Cross-asset ETFs or stock baskets when intra_sector_divergence is high.
 
 ---
 
@@ -58,7 +69,7 @@ Before generating, plan your strategy through the lens of your emphasis:
 
 ### Sector ETF Tradeoff
 
-Sector ETFs (XLK, XLF, XLE) are commoditized. **Acceptable:** Timing-based edges (volatility rotation, compound filters). **Weak:** Mean reversion/value with sector ETFs. Check `intra_sector_divergence` - high spread (>10%) = use individual stocks.
+Sector ETFs (XLK, XLF, XLE) are commoditized. **Acceptable:** Timing-based edges (volatility rotation, compound filters) or the sector_rotation persona. **Weak:** Mean reversion/value with sector ETFs for non-sector personas. Check `intra_sector_divergence` - high spread (>10%) = prioritize individual stocks and expand the list via tools.
 
 ### Step 2.2: Generate the Strategy
 
@@ -149,62 +160,160 @@ Use these as syntax references; derive your trigger from your thesis.
 
 ---
 
-## Worked Example: Trend Regime Rotation (SPY vs 200d MA)
+## Worked Examples (Illustrative Only - Do Not Anchor on Tickers)
+
+Use these for structure and reasoning style. Replace tickers using current context data plus tool expansion.
+
+### Example 1: Intra-Sector Divergence Stock Basket (Stock Selection)
 
 **Context Pack Data:**
-- Trend: Strong bull (SPY +12.8% above 200d MA)
-- Breadth: 75% sectors above 50d MA
-- Volatility: Normal (stable risk regime)
+- intra_sector_divergence: Semiconductors dispersion >10% (leaders vs laggards)
+- Sector leadership: Technology leads, volatility normal
 
 **Planning:**
-1. Conditional? YES (trend regime detection)
-2. Triggers: SPY above 200d MA → risk-on, SPY below 200d MA → defensive
-3. Weight Method: Mode-based (static within each mode)
-4. Frequency: Weekly (trend breaks can accelerate quickly)
+1. Conditional? YES (sector momentum gate)
+2. Triggers: SOXX momentum vs SPY
+3. Weight Method: Equal-weight stocks; defensive sleeve otherwise
+4. Frequency: Weekly
 
 **Complete Strategy:**
 ```python
 Strategy(
-  name="Trend Regime Rotation",
+  name="Intra-Sector Divergence Basket",
 
   thesis_document="""
-  Market Analysis: SPY trades above its 200d MA with strong breadth (75% sectors above 50d MA), confirming a durable bull trend. Institutional allocators raise equity exposure in confirmed uptrends and de-risk when long-term trend breaks.
+  Market Analysis: intra_sector_divergence flags large dispersion in semiconductors. Use the divergence list as a seed, then expand with tool lookups to add adjacent names; tickers below are illustrative only.
 
-  Edge Explanation: Trend breaks trigger systematic de-risking (risk parity, vol targeting) before discretionary committees react, creating a 1-3 week window where defensive assets outperform. The edge exists due to governance delays and risk-budget rules.
+  Edge Explanation: Dispersion creates momentum persistence in leaders as capital concentrates. Laggards underperform until dispersion mean-reverts.
 
-  Regime Fit: Current trend is positive (SPY above 200d MA), so risk-on allocation is appropriate while the trend holds. The strategy flips defensive on a confirmed trend break.
+  Regime Fit: Hold the stock basket only when semis lead the market (SOXX 30d return > SPY 30d return).
 
-  Risk Factors: Whipsaw around the 200d MA can cause false signals. Bond/equity correlation spikes can reduce defensive protection. Expected max drawdown 10-15% during rapid trend reversals.
+  Risk Factors: Sector-specific drawdowns and crowding risk. Expected drawdown 15-20% during sharp tech reversals.
   """,
 
   rebalancing_rationale="""
-  Weekly rebalancing implements the trend regime edge by checking SPY vs its 200d MA on a steady cadence that balances responsiveness with noise reduction. WHEN SPY > 200d MA: allocate to risk-on assets (SPY 0.50, QQQ 0.30, AGG 0.20). WHEN SPY < 200d MA: rotate defensive (TLT 0.50, GLD 0.30, BIL 0.20). Weights are mode-based: equal-conviction defensive allocation and growth-tilted risk-on exposure.
+  Weekly rebalancing refreshes the basket as dispersion evolves. If semis lose relative momentum, rotate to defensive assets (AGG/BIL) to limit drawdown.
   """,
 
-  assets=["SPY", "QQQ", "AGG", "TLT", "GLD", "BIL"],
+  assets=["NVDA", "AVGO", "AMD", "MU", "AGG", "BIL"],
   weights={},  # Dynamic
   rebalance_frequency="weekly",
 
   logic_tree={
-    "condition": "SPY_price > SPY_200d_MA",
+    "condition": "SOXX_cumulative_return_30d > SPY_cumulative_return_30d",
     "if_true": {
-      "assets": ["SPY", "QQQ", "AGG"],
-      "weights": {"SPY": 0.50, "QQQ": 0.30, "AGG": 0.20}
+      "assets": ["NVDA", "AVGO", "AMD", "MU"],
+      "weights": {"NVDA": 0.25, "AVGO": 0.25, "AMD": 0.25, "MU": 0.25}
     },
     "if_false": {
-      "assets": ["TLT", "GLD", "BIL"],
-      "weights": {"TLT": 0.50, "GLD": 0.30, "BIL": 0.20}
+      "assets": ["AGG", "BIL"],
+      "weights": {"AGG": 0.60, "BIL": 0.40}
     }
   }
 )
 ```
 
-**Coherence Validation:**
-✅ Logic Tree: Thesis mentions SPY vs 200d MA → logic_tree uses SPY_price > SPY_200d_MA
-✅ Threshold Hygiene: No magic numbers - uses relative MA comparison
-✅ Frequency: Trend regime → weekly rebalancing (PASS)
-✅ Weights: Derivation explained (mode-based allocation)
-✅ Consistency: Thesis says "weekly" → rebalance_frequency = "weekly"
+### Example 2: Factor Regime Switch (Value vs Momentum)
+
+**Context Pack Data:**
+- Factor regime: Value premium positive, momentum fading
+
+**Planning:**
+1. Conditional? YES (factor leadership check)
+2. Triggers: VTV vs VUG relative momentum
+3. Weight Method: Mode-based factor ETFs
+4. Frequency: Monthly
+
+**Complete Strategy:**
+```python
+Strategy(
+  name="Factor Regime Switch",
+
+  thesis_document="""
+  Market Analysis: Factor regime shows value outperformance and softer momentum. Use factor ETFs to express the regime without relying on sector exposures.
+
+  Edge Explanation: Factor leadership shifts persist as systematic flows rebalance (value vs growth) on monthly windows.
+
+  Regime Fit: Tilt to value + quality when value leads; otherwise tilt to momentum + growth.
+
+  Risk Factors: Regime churn can cause whipsaw. Expected drawdown 8-12% during rapid factor reversals.
+  """,
+
+  rebalancing_rationale="""
+  Monthly rebalancing aligns with factor cycle updates and reduces turnover. AGG provides ballast in both regimes.
+  """,
+
+  assets=["VTV", "VUG", "MTUM", "QUAL", "AGG"],
+  weights={},  # Dynamic
+  rebalance_frequency="monthly",
+
+  logic_tree={
+    "condition": "VTV_cumulative_return_90d > VUG_cumulative_return_90d",
+    "if_true": {
+      "assets": ["VTV", "QUAL", "AGG"],
+      "weights": {"VTV": 0.45, "QUAL": 0.35, "AGG": 0.20}
+    },
+    "if_false": {
+      "assets": ["MTUM", "VUG", "AGG"],
+      "weights": {"MTUM": 0.40, "VUG": 0.40, "AGG": 0.20}
+    }
+  }
+)
+```
+
+### Example 3: Macro Cross-Asset Rotation (Growth vs Slowdown)
+
+**Context Pack Data:**
+- Macro regime: Growth slowing, rates easing, volatility normal
+
+**Planning:**
+1. Conditional? YES (macro trend confirmation)
+2. Triggers: Duration vs equities relative strength
+3. Weight Method: Cross-asset sleeves
+4. Frequency: Monthly
+
+**Complete Strategy:**
+```python
+Strategy(
+  name="Macro Cross-Asset Rotation",
+
+  thesis_document="""
+  Market Analysis: Macro regime points to slowing growth with easing rates. Cross-asset positioning captures shifts between growth and slowdown phases.
+
+  Edge Explanation: Rate-sensitive assets (duration, gold) react earlier to regime shifts than equities, creating a tactical window.
+
+  Regime Fit: If duration leads equities, emphasize defensive macro hedges; otherwise stay pro-growth.
+
+  Risk Factors: Correlation shifts can reduce diversification. Expected drawdown 10-14% during inflation re-acceleration.
+  """,
+
+  rebalancing_rationale="""
+  Monthly checks capture macro inflection points without over-trading. Commodity exposure provides inflation hedge in pro-growth mode.
+  """,
+
+  assets=["SPY", "TLT", "GLD", "DBC", "BIL"],
+  weights={},  # Dynamic
+  rebalance_frequency="monthly",
+
+  logic_tree={
+    "condition": "TLT_cumulative_return_30d > SPY_cumulative_return_30d",
+    "if_true": {
+      "assets": ["TLT", "GLD", "BIL"],
+      "weights": {"TLT": 0.50, "GLD": 0.30, "BIL": 0.20}
+    },
+    "if_false": {
+      "assets": ["SPY", "DBC", "GLD"],
+      "weights": {"SPY": 0.55, "DBC": 0.25, "GLD": 0.20}
+    }
+  }
+)
+```
+
+**Coherence Validation (Apply to Every Strategy):**
+✅ Logic Tree matches thesis trigger
+✅ Threshold hygiene: relative comparisons only
+✅ Frequency matches edge timescale
+✅ Weights sum to 1 with clear rationale
 
 ---
 
