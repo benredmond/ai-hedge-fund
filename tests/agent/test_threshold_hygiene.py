@@ -213,8 +213,7 @@ class TestThresholdHygiene:
         assert len(errors) == 1
 
     # ==================== NESTED LOGIC TREE TESTS ====================
-    # Note: Complex nested Strategy construction is blocked by model validation.
-    # Recursive condition extraction is tested in TestExtractAllConditions below.
+    # Nested logic_tree structures are supported; extraction is tested below.
     # We test here that validation is called on extracted conditions.
 
     def test_condition_extraction_integration(self, generator):

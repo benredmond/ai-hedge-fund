@@ -109,6 +109,15 @@ def _parse_condition(condition_str: str) -> dict:
 
     Returns dict with Composer if-child fields.
     """
+    condition_str = condition_str.strip()
+
+    # Composer IF nodes only support a single comparison (no AND/OR)
+    if re.search(r'\b(and|or)\b', condition_str, re.IGNORECASE):
+        raise ValueError(
+            "Boolean operators (AND/OR) are not supported in logic_tree.condition. "
+            "Use a single comparison."
+        )
+
     # Comparator mapping
     comparator_map = {
         ">": "gt",
@@ -153,6 +162,8 @@ def _parse_condition(condition_str: str) -> dict:
 
     def parse_operand(operand: str) -> tuple:
         """Parse an operand like 'VIXY_price' or '35' into (ticker, fn, params, is_fixed)."""
+        operand = operand.strip()
+
         # Check if it's a number
         try:
             value = float(operand)
@@ -163,13 +174,21 @@ def _parse_condition(condition_str: str) -> dict:
             pass
 
         # Parse ticker_function format
+        operand_lower = operand.lower()
         for suffix, (fn_name, window_spec) in fn_suffix_map.items():
-            if suffix in operand:
+            suffix_lower = suffix.lower()
+            if suffix_lower in operand_lower:
                 # Extract ticker (everything before the suffix)
-                ticker = operand.split(suffix)[0]
+                suffix_index = operand_lower.find(suffix_lower)
+                ticker = operand[:suffix_index]
                 if not ticker:
                     # Handle case like "_price" at start
                     ticker = operand.replace(suffix, "").strip("_")
+                if not ticker or "_" in ticker:
+                    raise ValueError(
+                        f"Unsupported operand format: '{operand}'. "
+                        "Operand must start with a valid ticker symbol."
+                    )
 
                 params = None  # Default to None for paramless functions
                 if window_spec is not None:
@@ -177,11 +196,18 @@ def _parse_condition(condition_str: str) -> dict:
                         params = {"window": window_spec}
                     elif isinstance(window_spec, str):
                         # Regex pattern to extract window
-                        match = re.search(window_spec, operand)
+                        match = re.search(window_spec, operand, re.IGNORECASE)
                         if match:
                             params = {"window": int(match.group(1))}
 
                 return (ticker, fn_name, params, False)
+
+        if "_" in operand:
+            raise ValueError(
+                f"Unsupported operand format: '{operand}'. "
+                "Use TICKER or TICKER_price / TICKER_200d_MA / "
+                "TICKER_cumulative_return_Nd / TICKER_RSI_Nd / TICKER_EMA_Nd."
+            )
 
         # Fallback: assume it's a ticker with moving-average-price(1) as proxy for current price
         # NOTE: current-price is NOT valid for IF conditionals!
@@ -256,6 +282,9 @@ def _build_if_structure(
 
         return asset_nodes
 
+    def is_conditional_branch(branch: dict) -> bool:
+        return isinstance(branch, dict) and {"condition", "if_true", "if_false"}.issubset(branch.keys())
+
     def build_branch_content(branch: dict) -> list:
         """
         Build content for an if-child branch.
@@ -266,6 +295,9 @@ def _build_if_structure(
 
         Note: Custom weights (wt-cash-specified) are NOT supported inside conditional branches.
         """
+        if is_conditional_branch(branch):
+            return [_build_if_structure(branch, rebalance)]
+
         assets = branch.get("assets", [])
 
         # Single asset: place directly (no wrapper needed)

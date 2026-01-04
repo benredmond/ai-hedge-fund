@@ -131,6 +131,8 @@ Sector ETFs (XLK, XLF, XLE) are commoditized. **Acceptable:** Timing-based edges
 }
 ```
 
+**Multiple Conditions:** Composer does not support AND/OR inside a single condition. Use nested logic_tree branches.
+
 ---
 
 ## Rebalancing Mechanics

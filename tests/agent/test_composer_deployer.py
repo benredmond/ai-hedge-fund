@@ -706,6 +706,16 @@ class TestParseCondition:
         with pytest.raises(ValueError, match="Invalid condition format"):
             _parse_condition("A > B > C")
 
+    def test_boolean_operator_raises_error(self):
+        """Raise ValueError for AND/OR boolean operators (unsupported)."""
+        with pytest.raises(ValueError, match="Boolean operators"):
+            _parse_condition("VIXY_price > 35 AND SPY_price > SPY_200d_MA")
+
+    def test_unknown_operand_format_raises_error(self):
+        """Raise ValueError when operand has unsupported underscore format."""
+        with pytest.raises(ValueError, match="Unsupported operand format"):
+            _parse_condition("sectors_above_50d_ma_pct > 50")
+
 
 class TestBuildIfStructure:
     """Test _build_if_structure() building Composer IF node trees."""
@@ -766,6 +776,25 @@ class TestBuildIfStructure:
         assert false_branch["step"] == "if-child"
         assert false_branch["is-else-condition?"] is True
         assert false_branch["weight"] is None
+
+    def test_nested_condition_builds_nested_if(self):
+        """Nested logic_tree should build an if node inside the branch."""
+        logic_tree = {
+            "condition": "SPY_price > SPY_200d_MA",
+            "if_true": {"assets": ["SPY"], "weights": {"SPY": 1.0}},
+            "if_false": {
+                "condition": "VIXY_price > VIXY_50d_MA",
+                "if_true": {"assets": ["BIL"], "weights": {"BIL": 1.0}},
+                "if_false": {"assets": ["TLT"], "weights": {"TLT": 1.0}},
+            },
+        }
+
+        result = _build_if_structure(logic_tree)
+        false_branch = result["children"][1]
+
+        nested_if = false_branch["children"][0]
+        assert nested_if["step"] == "if"
+        assert len(nested_if["children"]) == 2
 
     def test_multiple_assets_uses_wt_cash_equal(self):
         """Multiple assets in if-child MUST use wt-cash-equal (wt-cash-specified not supported)."""

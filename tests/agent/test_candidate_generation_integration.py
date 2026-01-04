@@ -366,6 +366,42 @@ class TestRetryOnlySyntaxErrors:
         assert "Strategy A" in syntax_errors[0]
         assert "Strategy C" in syntax_errors[1]
 
+    def test_boolean_condition_requires_nested_logic_tree(self, generator, mock_market_context):
+        """
+        Regression Test: AND/OR conditions should be rejected in favor of nested logic_tree.
+        """
+        strategy = Strategy(
+            name="Boolean Condition Strategy",
+            thesis_document=(
+                "This strategy uses a trend filter plus a volatility gate to control risk. "
+                "When trend breaks and volatility is elevated, rotate to defensive assets. "
+                "This avoids drawdowns during regime shifts while staying invested in uptrends."
+            ),
+            rebalancing_rationale=(
+                "Weekly rebalancing checks the primary trend signal and then applies a "
+                "secondary volatility gate to avoid false positives. This nested decision "
+                "structure reduces whipsaw by requiring confirmation before switching risk "
+                "posture, preserving the strategy edge through disciplined conditional logic."
+            ),
+            edge_type=EdgeType.STRUCTURAL,
+            archetype=StrategyArchetype.DIRECTIONAL,
+            assets=["SPY", "TLT", "BIL", "VIXY"],
+            weights={},
+            logic_tree={
+                "condition": "SPY_price > SPY_200d_MA and VIXY_price > VIXY_50d_MA",
+                "if_true": {"assets": ["BIL"], "weights": {"BIL": 1.0}},
+                "if_false": {"assets": ["SPY", "TLT"], "weights": {"SPY": 0.6, "TLT": 0.4}},
+            },
+            rebalance_frequency=RebalanceFrequency.WEEKLY,
+        )
+
+        errors = generator._validate_semantics([strategy], mock_market_context)
+        syntax_errors = [e for e in errors if "Syntax Error" in e]
+
+        assert any("nested logic_tree" in e for e in syntax_errors), (
+            f"Expected nested logic_tree guidance for AND/OR conditions: {syntax_errors}"
+        )
+
     def test_thesis_logic_coherence_triggers_retry(self, generator, mock_market_context):
         """
         Test that thesis-logic coherence violations (conditional language + empty logic_tree)

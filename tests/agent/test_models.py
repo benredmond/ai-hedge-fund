@@ -281,6 +281,36 @@ class TestLogicTreeValidation:
         assert "if_true" in strategy.logic_tree
         assert "if_false" in strategy.logic_tree
 
+    def test_valid_nested_logic_tree_accepted(self):
+        """Nested conditional logic_tree is accepted"""
+        from src.agent.models import Strategy
+
+        strategy = Strategy(
+            name="Nested Regime Gate",
+            assets=["SPY", "TLT", "BIL", "VIXY"],
+            weights={},
+            logic_tree={
+                "condition": "SPY_price > SPY_200d_MA",
+                "if_true": {"assets": ["SPY"], "weights": {"SPY": 1.0}},
+                "if_false": {
+                    "condition": "VIXY_price > VIXY_50d_MA",
+                    "if_true": {"assets": ["BIL"], "weights": {"BIL": 1.0}},
+                    "if_false": {"assets": ["TLT"], "weights": {"TLT": 1.0}},
+                },
+            },
+            rebalance_frequency="daily",
+            rebalancing_rationale=(
+                "Daily checks gate risk exposure: when SPY is above its 200-day average, "
+                "stay risk-on. If SPY breaks trend, apply a secondary volatility filter via "
+                "VIXY vs its 50-day average to decide between cash-like defense (BIL) and "
+                "duration ballast (TLT). This structure reduces whipsaw while still reacting "
+                "to volatility regime shifts and trend breaks."
+            ),
+        )
+        assert "condition" in strategy.logic_tree
+        assert "if_true" in strategy.logic_tree
+        assert "if_false" in strategy.logic_tree
+
     def test_flat_parameter_dict_rejected(self):
         """Flat parameter dict without {condition, if_true, if_false} is rejected"""
         from src.agent.models import Strategy
@@ -794,4 +824,3 @@ class TestCandidateListModel:
         for i, strategy in enumerate(candidate_list.strategies):
             assert strategy.name == f"Strategy {i}"
             assert len(strategy.assets) == 2
-

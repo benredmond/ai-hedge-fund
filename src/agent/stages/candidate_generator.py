@@ -1624,14 +1624,14 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
                     f"Must have: condition, if_true, if_false. Current keys: {tree_keys}"
                 )
 
-            # Check condition has comparison operator
-            condition = strategy.logic_tree.get("condition", "")
-            if condition:
-                comparison_ops = [">", "<", ">=", "<=", "==", "!=", " and ", " or "]
-                if not any(op in str(condition) for op in comparison_ops):
+            # Check condition has comparison operator (single comparison only)
+            conditions = self._extract_all_conditions(strategy.logic_tree)
+            comparison_ops = [">", "<", ">=", "<=", "==", "!="]
+            for condition in conditions:
+                if condition and not any(op in str(condition) for op in comparison_ops):
                     errors.append(
                         f"Syntax Error: {strategy.name} - logic_tree condition '{condition}' lacks "
-                        f"comparison operator. Must include >, <, >=, <=, ==, !=, and, or"
+                        f"comparison operator. Must include >, <, >=, <=, ==, !="
                     )
 
         # Check 4: All assets in logic_tree must be in global assets list
@@ -1650,6 +1650,39 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
         # Note: idx=0 since _validate_syntax is called per-strategy, not batch
         threshold_errors = self._validate_threshold_hygiene(strategy, 0)
         errors.extend(threshold_errors)
+
+        # Check 6: Composer condition compatibility (no AND/OR, only supported operands)
+        errors.extend(self._validate_composer_condition_compatibility(strategy))
+
+        return errors
+
+    def _validate_composer_condition_compatibility(self, strategy: Strategy) -> List[str]:
+        """
+        Validate that logic_tree conditions are compatible with Composer IF predicates.
+
+        Composer only supports single comparisons with supported operand formats.
+        Multiple conditions must be expressed as nested logic_tree branches.
+        """
+        if not strategy.logic_tree:
+            return []
+
+        try:
+            from src.agent.stages.composer_deployer import _parse_condition
+        except Exception as exc:
+            return [
+                f"Syntax Error: {strategy.name} - failed to load Composer condition parser: {exc}"
+            ]
+
+        errors: List[str] = []
+        conditions = self._extract_all_conditions(strategy.logic_tree)
+        for condition in conditions:
+            try:
+                _parse_condition(condition)
+            except ValueError as exc:
+                errors.append(
+                    f"Syntax Error: {strategy.name} - logic_tree condition '{condition}' "
+                    f"is not Composer-compatible: {exc}. Use nested logic_tree for multiple conditions."
+                )
 
         return errors
 

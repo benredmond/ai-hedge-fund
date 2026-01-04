@@ -141,29 +141,45 @@ class Strategy(BaseModel):
                 f"If strategy has no conditional logic, use logic_tree={{}}."
             )
 
-        # Validate branches have assets and weights
-        for branch in ["if_true", "if_false"]:
-            branch_data = v[branch]
+        def validate_branch(branch_data: Any, path: str) -> None:
             if not isinstance(branch_data, dict):
-                raise ValueError(f"logic_tree['{branch}'] must be a dict")
-            if "assets" not in branch_data or "weights" not in branch_data:
-                raise ValueError(f"logic_tree['{branch}'] must have 'assets' and 'weights'")
+                raise ValueError(f"logic_tree['{path}'] must be a dict")
 
-            # Validate assets is non-empty list
+            is_conditional = required_keys.issubset(branch_data.keys())
+            has_assets = "assets" in branch_data
+            has_weights = "weights" in branch_data
+
+            if is_conditional:
+                if has_assets or has_weights:
+                    raise ValueError(
+                        f"logic_tree['{path}'] mixes conditional logic with assets/weights. "
+                        "Use either condition/if_true/if_false OR assets/weights."
+                    )
+                if not isinstance(branch_data.get("condition"), str) or not branch_data["condition"].strip():
+                    raise ValueError(f"logic_tree['{path}']['condition'] must be a non-empty string")
+                validate_branch(branch_data["if_true"], f"{path}.if_true")
+                validate_branch(branch_data["if_false"], f"{path}.if_false")
+                return
+
+            if not (has_assets and has_weights):
+                raise ValueError(f"logic_tree['{path}'] must have 'assets' and 'weights'")
+
             assets = branch_data.get("assets")
             if not isinstance(assets, list) or not assets:
                 raise ValueError(
-                    f"logic_tree['{branch}']['assets'] must be a non-empty list. "
+                    f"logic_tree['{path}']['assets'] must be a non-empty list. "
                     f"Got: {assets!r}"
                 )
 
-            # Validate weights is non-empty dict
             weights = branch_data.get("weights")
             if not isinstance(weights, dict) or not weights:
                 raise ValueError(
-                    f"logic_tree['{branch}']['weights'] must be a non-empty dict. "
+                    f"logic_tree['{path}']['weights'] must be a non-empty dict. "
                     f"Got: {weights!r}"
                 )
+
+        for branch in ["if_true", "if_false"]:
+            validate_branch(v[branch], branch)
         return v
 
     @field_validator("weights", mode="before")
