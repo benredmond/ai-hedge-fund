@@ -4,7 +4,7 @@ This document explains token optimization strategies used in the AI trading work
 
 ## Overview
 
-The 4-stage workflow (candidate generation, edge scoring, winner selection, charter generation) can generate 52-57k tokens with proper management, or exceed 200k+ tokens without optimization. Two key strategies manage token usage:
+The 5-stage workflow (candidate generation, edge scoring, backtesting, winner selection, charter generation) can generate ~52-57k tokens with proper management, or exceed 200k+ tokens without optimization. Two key strategies manage token usage:
 
 1. **Adaptive History Limiting** - Controls conversation length
 2. **Tool Result Compression** - Reduces large API responses (FRED, yfinance)
@@ -42,13 +42,14 @@ def adaptive_history_processor(ctx: RunContext, messages: list) -> list:
     return result
 ```
 
-### Current Settings Per Stage
+### Recommended Settings Per Stage
 
 | Stage | Max Messages | Reasoning |
 |-------|-------------|-----------|
 | Candidate Generation | 20 | May make multiple tool calls during generation |
-| Edge Scoring | 20 | Single evaluation per candidate (5 parallel) |
-| Winner Selection | 20 | Composite ranking + reasoning generation |
+| Edge Scoring | 10 | Single evaluation per candidate (5 parallel) |
+| Backtesting | 5 | Single tool call per candidate |
+| Winner Selection | 10 | Composite ranking + reasoning generation |
 | Charter Generation | 20 | Uses full context pack; tools only for gaps |
 
 ### Why 20 Messages?
@@ -57,6 +58,8 @@ Increased from 10 → 20 because:
 - Tool result compression reduces each result by ~97% (1578 → 50 tokens)
 - Agent was looping due to forgetting previous search attempts
 - With compression, 20 messages ≈ same tokens as 10 uncompressed messages
+
+This higher limit is only necessary for the **candidate generation** and **charter generation** stages, where tool usage and iterative synthesis occur.
 
 ### Configuration
 
@@ -174,9 +177,10 @@ agent_ctx = await create_agent(...)
 |-------|--------|---------|
 | 1. Candidate Generation | 12-15k | Context pack provided; tools optional |
 | 2. Edge Scoring (×5) | 15k | 3k per candidate × 5 (parallel) |
-| 3. Winner Selection | 5k | Composite ranking + reasoning |
-| 4. Charter Generation | 10-12k | Full context synthesis |
-| **Total** | **42-47k** | **~40% reduction from removing backtest stage** |
+| 3. Backtesting (×5) | 10k | 2k per candidate × 5 (single tool call) |
+| 4. Winner Selection | 5k | Composite ranking + reasoning |
+| 5. Charter Generation | 10-12k | Full context synthesis |
+| **Total** | **52-57k** | **With per-stage history limits and context pack** |
 
 **Previous architecture (2-phase candidate generation):**
 - Total: ~70-80k tokens

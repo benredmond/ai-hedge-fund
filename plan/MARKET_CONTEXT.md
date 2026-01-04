@@ -1,5 +1,7 @@
  Design Philosophy
 
+  Reference schema: `docs/market_context_schema.md` (current implementation).
+
   Goal: Provide enough context for informed forward-looking decisions, but not so much that the AI drowns in noise or cherry-picks narratives.
 
   Key principle: Strictly date-anchored to cohort launch date - ZERO future knowledge leakage.

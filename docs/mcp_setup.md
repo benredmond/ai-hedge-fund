@@ -109,11 +109,12 @@ pytest tests/agent/test_yfinance_mcp.py -v -s
 ### Credentials (in `.env`)
 
 ```bash
-COMPOSER_API_KEY=beedcad7-d886-44e3-867d-8aa853a6ee46
-COMPOSER_API_SECRET=3839d952-536f-4540-be9a-85c78a10debc
+COMPOSER_API_KEY=your_key_here
+COMPOSER_API_SECRET=your_secret_here
 ```
 
-**Get credentials from**: [Composer Dashboard](https://composer.trade/dashboard) → Accounts & Funding → API Keys
+**Get credentials from**: [Composer Dashboard](https://composer.trade/dashboard) → Accounts & Funding → API Keys  
+**Tip**: Keep placeholders in `.env.example`, set real values in `.env`.
 
 ### Test Endpoint Reachability
 

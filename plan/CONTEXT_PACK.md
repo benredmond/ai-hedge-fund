@@ -97,42 +97,7 @@
 
   Layer 4: Investing Strategy Guidelines (Domain Wisdom)
 
-  STRATEGIC PRINCIPLES:
-  1. **Edge clarity:** What structural inefficiency are you exploiting?
-     - Momentum persistence? Volatility overpricing? Sector rotation?
-     - Generic "buy winners" is not an edge.
-
-  2. **Regime awareness:** How does strategy perform in:
-     - Bull/bear/sideways markets
-     - High/low volatility
-     - Risk-on/risk-off sentiment shifts
-
-  3. **Risk management:**
-     - Define max drawdown tolerance (absolute & vs benchmarks)
-     - Concentration limits (avoid >30% in single asset unless justified)
-     - Correlation awareness (avoid false diversification)
-
-  4. **Rebalancing logic:**
-     - Frequent rebalancing → higher costs, noise sensitivity
-     - Infrequent rebalancing → drift risk, missed signals
-     - Justify your frequency choice
-
-  5. **Failure mode identification:**
-     - What market conditions break this strategy?
-     - What would you see BEFORE catastrophic loss?
-     - How would you detect strategy degradation?
-
-  BACKTESTING GUIDANCE (not restrictions):
-  - Use full historical access to validate edge
-  - Validation period is sanity check, not main filter
-  - Red flags: Sharpe >5, perfect event timing, trivial rebalancing
-  - Focus on out-of-sample robustness, not in-sample perfection
-
-  BENCHMARK AWARENESS:
-  Your strategy will be compared to:
-  - SPY (US large cap), QQQ (Nasdaq tech), AGG (bonds)
-  - 60/40 portfolio, Risk Parity, Random strategy
-  Percentile rank vs these 6 determines quantitative score.
+  See `plan/INVESTING_STRATEGY_GUIDELINES.md` for the full guidance. Keep this layer as a pointer to the canonical guidelines rather than duplicating them here.
 
   Layer 5: Output Schema (Deterministic Contract)
 
