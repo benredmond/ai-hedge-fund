@@ -44,10 +44,12 @@ pip install -r requirements.txt
 # Configure environment variables
 # Create .env file with:
 #   FRED_API_KEY=your_key_here
+#   GOOGLE_API_KEY=your_key_here  # Gemini (Google Generative Language API)
 #   DEEPSEEK_API_KEY=sk-...  # Recommended: 90% cheaper than GPT-4o
-#   DEFAULT_MODEL=openai:deepseek-chat  # Optional: LLM model (default: openai:gpt-4o)
+#   DEFAULT_MODEL=openai:gpt-5.2  # Optional: LLM model (default: openai:gpt-4o)
 # Get FRED key at: https://fred.stlouisfed.org/docs/api/api_key.html
 # Get DeepSeek key at: https://platform.deepseek.com
+# Get Gemini key at: https://aistudio.google.com
 ```
 
 ### Environment Variables
@@ -58,15 +60,19 @@ pip install -r requirements.txt
 **LLM Provider (choose one or more):**
 - **OPENAI_API_KEY**: OpenAI GPT-4o (default, ~$2.50-10/M tokens)
 - **ANTHROPIC_API_KEY**: Anthropic Claude
+- **GOOGLE_API_KEY**: Google Gemini (requires `pydantic-ai-slim[google]`)
 - **DEEPSEEK_API_KEY**: DeepSeek ($0.56/$1.68 per M tokens, 90% cheaper, excellent quality) - Get key at https://platform.deepseek.com
 - **KIMI_API_KEY**: Kimi/Moonshot (~$0.50-1/$1.50-3 per M tokens, 85% cheaper) - Get key at https://platform.moonshot.ai
 
 **Optional:**
 - **DEFAULT_MODEL**: LLM model identifier for strategy creation workflow. Default: `openai:gpt-4o`
-  - Format: `<provider>:<model>` (e.g., `openai:gpt-4o`, `anthropic:claude-3-opus-20240229`)
-  - DeepSeek: `openai:deepseek-chat` (recommended for cost savings)
-  - Kimi: `openai:moonshot-v1-128k` or `openai:kimi-k2-0905-preview` (excellent for long context)
-  - **Kimi Reasoning**: `openai:kimi-k2-thinking` (reasoning model, requires temperature=1.0, max_tokens≥16k)
+  - Format: `<provider>:<model>` (e.g., `openai:gpt-5.2`, `anthropic:claude-opus-4-5`, `google-gla:gemini-3-pro-preview`)
+  - OpenAI: `openai:gpt-5.2` (Thinking), `openai:gpt-5.2-chat-latest` (Instant), `openai:gpt-5.2-pro` (Pro)
+  - Anthropic: `anthropic:claude-opus-4-5`
+  - Gemini: `google-gla:gemini-3-pro-preview`
+  - DeepSeek: `openai:deepseek-chat` (V3.2), `openai:deepseek-reasoner` (V3.2 Thinking)
+  - Kimi: `openai:kimi-k2-thinking` or `openai:kimi-k2-thinking-turbo` (reasoning models)
+  - Reasoning defaults to ON unless model matches the non-reasoning allowlist (gpt-4o, gpt-4.1, gpt-4-turbo, gpt-4, gpt-3.5, claude-3/2, deepseek-chat, moonshot-*, kimi-* non-thinking).
   - Used by `create_strategy_workflow()` when model parameter not specified
 - **COMPOSER_API_KEY**, **COMPOSER_API_SECRET**: Required for Composer backtesting and deployment
 

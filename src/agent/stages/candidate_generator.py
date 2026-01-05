@@ -219,7 +219,7 @@ class CandidateGenerator:
     - fred_get_series: Macro data verification
     """
 
-    def _detect_provider(self, model: str) -> Literal["kimi", "openai", "anthropic", "deepseek", "other"]:
+    def _detect_provider(self, model: str) -> Literal["kimi", "openai", "anthropic", "deepseek", "gemini", "other"]:
         """
         Detect LLM provider from model string.
 
@@ -242,6 +242,10 @@ class CandidateGenerator:
         # Anthropic models
         if "claude" in model_lower or "anthropic" in model_lower:
             return "anthropic"
+
+        # Gemini / Google models
+        if "gemini" in model_lower or model_lower.startswith("google-"):
+            return "gemini"
 
         # OpenAI models (default for openai: prefix)
         if "gpt" in model_lower or model_lower.startswith("openai:"):
@@ -296,6 +300,12 @@ Count before submitting: 1, 2, 3, 4, 5 = ✓
             count_emphasis += """
 **DeepSeek Specific:** Ensure your reasoning produces exactly 5 diverse strategies.
 Use different archetypes for each: Momentum, Mean Reversion, Carry, Volatility, Multi-factor.
+
+"""
+        elif provider == "gemini":
+            count_emphasis += """
+**Gemini Specific:** Return only the Python list with exactly 5 Strategy objects.
+Avoid extra prose before or after the list.
 
 """
 
@@ -740,6 +750,11 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
                     provider_guidance = (
                         "\n\nDeepSeek Reminder: Ensure your final output is List[Strategy] containing exactly 5 items. "
                         "Use diverse archetypes across all 5 candidates."
+                    )
+                elif provider == "gemini":
+                    provider_guidance = (
+                        "\n\nGemini Reminder: Output only a Python list with exactly 5 Strategy objects, "
+                        "with no extra prose or markdown wrappers."
                     )
 
                 count_error = (

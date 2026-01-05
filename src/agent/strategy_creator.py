@@ -43,8 +43,24 @@ def is_reasoning_model(model: str) -> bool:
     Returns:
         True if model is a reasoning model, False otherwise
     """
-    model_name = model.split(":")[-1].lower()
-    return "thinking" in model_name or "reasoning" in model_name
+    model_name = model.split(":", 1)[-1].lower()
+    if "thinking" in model_name or "reasoning" in model_name:
+        return True
+
+    # Reasoning-by-default: explicit allowlist for known non-reasoning families.
+    non_reasoning_prefixes = (
+        "gpt-4o",
+        "gpt-4.1",
+        "gpt-4-turbo",
+        "gpt-4",
+        "gpt-3.5",
+        "claude-3",
+        "claude-2",
+        "deepseek-chat",
+        "moonshot",
+        "kimi-",
+    )
+    return not model_name.startswith(non_reasoning_prefixes)
 
 
 def get_model_settings(
@@ -156,9 +172,15 @@ class AgentContext:
     The MCP servers will be automatically closed when exiting the context.
     """
 
-    def __init__(self, agent: Agent, stack: AsyncExitStack):
+    def __init__(
+        self,
+        agent: Agent,
+        stack: AsyncExitStack,
+        restore_env: Optional[dict[str, Optional[str]]] = None,
+    ):
         self._agent = agent
         self._stack = stack
+        self._restore_env = restore_env
 
     async def __aenter__(self):
         """Enter the async context, returning the agent"""
@@ -167,6 +189,12 @@ class AgentContext:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Exit the async context, closing MCP servers"""
         await self._stack.aclose()
+        if self._restore_env:
+            for key, value in self._restore_env.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
 
     def __getattr__(self, name):
         """Delegate attribute access to the underlying agent"""
@@ -362,7 +390,10 @@ async def create_agent(
     # Configure provider-specific settings for cheaper alternatives
     provider, model_name = model.split(":", 1)
 
+    restore_env: Optional[dict[str, Optional[str]]] = None
     if provider == "openai":
+        original_openai_key = os.getenv("OPENAI_API_KEY")
+        original_base_url = os.getenv("OPENAI_BASE_URL")
         # DeepSeek uses OpenAI-compatible API
         if model_name.startswith("deepseek"):
             deepseek_key = os.getenv("DEEPSEEK_API_KEY")
@@ -372,6 +403,10 @@ async def create_agent(
                 )
             os.environ["OPENAI_API_KEY"] = deepseek_key
             os.environ["OPENAI_BASE_URL"] = DEEPSEEK_BASE_URL
+            restore_env = {
+                "OPENAI_API_KEY": original_openai_key,
+                "OPENAI_BASE_URL": original_base_url,
+            }
         # Kimi/Moonshot uses OpenAI-compatible API
         elif model_name.startswith("moonshot") or model_name.startswith("kimi"):
             kimi_key = os.getenv("KIMI_API_KEY")
@@ -381,49 +416,70 @@ async def create_agent(
                 )
             os.environ["OPENAI_API_KEY"] = kimi_key
             os.environ["OPENAI_BASE_URL"] = KIMI_BASE_URL
+            restore_env = {
+                "OPENAI_API_KEY": original_openai_key,
+                "OPENAI_BASE_URL": original_base_url,
+            }
+        else:
+            # Reset base URL if it was set for OpenAI-compatible providers.
+            base_url = os.getenv("OPENAI_BASE_URL")
+            if base_url in {DEEPSEEK_BASE_URL, KIMI_BASE_URL}:
+                os.environ.pop("OPENAI_BASE_URL", None)
 
-    # Load system prompt if not provided
-    if system_prompt is None:
-        system_prompt = load_prompt("system_prompt.md")
+    stack: Optional[AsyncExitStack] = None
+    try:
+        # Load system prompt if not provided
+        if system_prompt is None:
+            system_prompt = load_prompt("system_prompt.md")
 
-    # Create AsyncExitStack to manage MCP server lifecycle
-    stack = AsyncExitStack()
+        # Create AsyncExitStack to manage MCP server lifecycle
+        stack = AsyncExitStack()
 
-    # Enter MCP servers context and keep it alive
-    servers = await stack.enter_async_context(get_mcp_servers())
+        # Enter MCP servers context and keep it alive
+        servers = await stack.enter_async_context(get_mcp_servers())
 
-    # Create toolsets list from available servers
-    toolsets = []
+        # Create toolsets list from available servers
+        toolsets = []
 
-    if "fred" in servers and include_fred:
-        toolsets.append(servers["fred"])
+        if "fred" in servers and include_fred:
+            toolsets.append(servers["fred"])
 
-    if "yfinance" in servers and include_yfinance:
-        toolsets.append(servers["yfinance"])
+        if "yfinance" in servers and include_yfinance:
+            toolsets.append(servers["yfinance"])
 
-    if "composer" in servers and include_composer:
-        toolsets.append(servers["composer"])
+        if "composer" in servers and include_composer:
+            toolsets.append(servers["composer"])
 
-    # Allow agents with no tools (e.g., deployment stage that outputs JSON directly)
-    if not toolsets:
-        toolsets = None
+        # Allow agents with no tools (e.g., deployment stage that outputs JSON directly)
+        if not toolsets:
+            toolsets = None
 
-    # Determine if we need to patch tools (specifically for Composer)
-    prepare_tools = None
-    if include_composer:
-        from src.agent.schema_fixes import fix_composer_schema
-        prepare_tools = fix_composer_schema
+        # Determine if we need to patch tools (specifically for Composer)
+        prepare_tools = None
+        if include_composer:
+            from src.agent.schema_fixes import fix_composer_schema
+            prepare_tools = fix_composer_schema
 
-    # Create agent with Pydantic AI using configurable history processor
-    agent = Agent(
-        model=model,
-        output_type=output_type,
-        system_prompt=system_prompt,
-        toolsets=toolsets,
-        history_processors=[create_history_processor(max_messages=history_limit)],
-        model_settings=model_settings,
-        prepare_tools=prepare_tools,
-    )
+        # Create agent with Pydantic AI using configurable history processor
+        agent = Agent(
+            model=model,
+            output_type=output_type,
+            system_prompt=system_prompt,
+            toolsets=toolsets,
+            history_processors=[create_history_processor(max_messages=history_limit)],
+            model_settings=model_settings,
+            prepare_tools=prepare_tools,
+        )
 
-    # Return wrapped agent with lifecycle management
-    return AgentContext(agent, stack)
+        # Return wrapped agent with lifecycle management
+        return AgentContext(agent, stack, restore_env=restore_env)
+    except Exception:
+        if stack is not None:
+            await stack.aclose()
+        if restore_env:
+            for key, value in restore_env.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+        raise
