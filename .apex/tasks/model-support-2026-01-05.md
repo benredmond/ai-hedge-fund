@@ -3,9 +3,9 @@ id: HhzUU-szjGijHrwnEtkIe
 identifier: model-support-2026-01-05
 title: Model support research for upcoming workflow run
 created: 2026-01-05T19:14:57Z
-updated: 2026-01-05T20:09:57Z
-phase: implement
-status: active
+updated: 2026-01-05T20:58:13Z
+phase: complete
+status: complete
 ---
 
 # Model support research for upcoming workflow run
@@ -370,5 +370,61 @@ Run `/apex:ship model-support-2026-01-05` to review and finalize.
 </implementation>
 
 <ship>
-<!-- Populated by /apex:ship -->
+<metadata>
+  <timestamp>2026-01-05T20:58:13Z</timestamp>
+  <outcome>success</outcome>
+  <commit-sha>cd6e287e9601e4da6bc2a91df60c3d0023a9a8c7</commit-sha>
+</metadata>
+
+<review-summary>
+  <phase1-findings count="2">
+    <by-severity critical="0" high="0" medium="1" low="1"/>
+    <by-agent security="0" performance="1" architecture="0" testing="1" quality="0"/>
+  </phase1-findings>
+  <phase2-challenges>
+    <upheld>0</upheld>
+    <downgraded>1</downgraded>
+    <dismissed>1</dismissed>
+  </phase2-challenges>
+  <false-positive-rate>50%</false-positive-rate>
+</review-summary>
+
+<action-items>
+  <fix-now>
+  </fix-now>
+  <should-fix>
+  </should-fix>
+  <accepted>
+    <item id="PERF-1" severity="medium" confidence="0.34" location="src/agent/strategy_creator.py:is_reasoning_model">
+      Reasoning-by-default may treat non-reasoning chat variants (e.g., gpt-5.2-chat-latest) as reasoning; add allowlist entries if those models are used to avoid extra token/cost settings.
+    </item>
+  </accepted>
+  <dismissed>
+    <item id="TEST-1" severity="low" confidence="0.20" location="src/agent/strategy_creator.py:is_reasoning_model">
+      No unit tests added for reasoning allowlist; dismissed per plan scope (tests deferred).
+    </item>
+  </dismissed>
+</action-items>
+
+<commit>
+  <sha>cd6e287e9601e4da6bc2a91df60c3d0023a9a8c7</sha>
+  <message>model-support-2026-01-05: update model routing defaults</message>
+  <files>src/agent/strategy_creator.py, src/agent/stages/candidate_generator.py, CLAUDE.md, .apex/tasks/model-support-2026-01-05.md</files>
+</commit>
+
+<reflection>
+  <patterns-reported>
+    <pattern id="src/agent/strategy_creator.py:is_reasoning_model" outcome="worked-perfectly"/>
+    <pattern id="src/agent/stages/candidate_generator.py:_detect_provider" outcome="worked-perfectly"/>
+  </patterns-reported>
+  <key-learning>Restore provider-specific env overrides on agent exit (and on failure) to avoid cross-provider leakage while keeping reasoning defaults explicit in docs.</key-learning>
+  <apex-reflect-status>submitted</apex-reflect-status>
+</reflection>
+
+<final-summary>
+  <what-was-built>Reasoning-by-default detection, Gemini provider guidance, and safe OpenAI env restoration; docs updated for new model IDs.</what-was-built>
+  <patterns-applied count="2">src/agent/strategy_creator.py:is_reasoning_model, src/agent/stages/candidate_generator.py:_detect_provider</patterns-applied>
+  <test-status passed="0" failed="0"/>
+  <documentation-updated>CLAUDE.md</documentation-updated>
+</final-summary>
 </ship>
