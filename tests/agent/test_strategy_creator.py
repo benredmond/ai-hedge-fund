@@ -211,6 +211,103 @@ class TestHistoryProcessor:
         assert len(result) == 5, f"Expected 5 messages, got {len(result)}"
 
 
+class TestReasoningDetection:
+    """Test reasoning-model detection rules."""
+
+    def test_is_reasoning_model_default_allowlist(self):
+        """Reasoning defaults to True unless model is in the non-reasoning allowlist."""
+        from src.agent.strategy_creator import is_reasoning_model
+
+        # Explicit non-reasoning families
+        assert is_reasoning_model("openai:gpt-4o") is False
+        assert is_reasoning_model("openai:gpt-4.1") is False
+        assert is_reasoning_model("openai:deepseek-chat") is False
+        assert is_reasoning_model("openai:moonshot-v1-32k") is False
+        assert is_reasoning_model("openai:kimi-k2-0905-preview") is False
+        assert is_reasoning_model("anthropic:claude-3-5-sonnet-20241022") is False
+
+        # Reasoning-by-default or explicit reasoning
+        assert is_reasoning_model("openai:gpt-5.2") is True
+        assert is_reasoning_model("openai:deepseek-reasoner") is True
+        assert is_reasoning_model("openai:kimi-k2-thinking") is True
+        assert is_reasoning_model("google-gla:gemini-3-pro-preview") is True
+
+
+class TestProviderEnvRestore:
+    """Test that provider env overrides are restored after agent lifecycle."""
+
+    @pytest.mark.asyncio
+    async def test_create_agent_restores_env_after_deepseek(self, monkeypatch):
+        import os
+        import src.agent.strategy_creator as strategy_creator
+        from src.agent.models import Strategy
+
+        class DummyAgent:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        class DummyServers:
+            async def __aenter__(self):
+                return {}
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+        monkeypatch.setattr(strategy_creator, "Agent", DummyAgent)
+        monkeypatch.setattr(strategy_creator, "get_mcp_servers", lambda: DummyServers())
+
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "deepseek-key")
+        monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
+        monkeypatch.setenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+
+        agent_ctx = await strategy_creator.create_agent(
+            model="openai:deepseek-chat",
+            output_type=Strategy,
+            system_prompt="test",
+            include_composer=False,
+            include_fred=False,
+            include_yfinance=False,
+        )
+
+        async with agent_ctx as _agent:
+            assert os.environ["OPENAI_API_KEY"] == "deepseek-key"
+            assert os.environ["OPENAI_BASE_URL"] == strategy_creator.DEEPSEEK_BASE_URL
+
+        assert os.environ["OPENAI_API_KEY"] == "openai-key"
+        assert os.environ["OPENAI_BASE_URL"] == "https://api.openai.com/v1"
+
+    @pytest.mark.asyncio
+    async def test_create_agent_restores_env_on_failure(self, monkeypatch):
+        import os
+        import src.agent.strategy_creator as strategy_creator
+        from src.agent.models import Strategy
+
+        class FailingServers:
+            async def __aenter__(self):
+                raise RuntimeError("boom")
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+        monkeypatch.setattr(strategy_creator, "get_mcp_servers", lambda: FailingServers())
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "deepseek-key")
+        monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
+        monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+
+        with pytest.raises(RuntimeError, match="boom"):
+            await strategy_creator.create_agent(
+                model="openai:deepseek-chat",
+                output_type=Strategy,
+                system_prompt="test",
+                include_composer=False,
+                include_fred=False,
+                include_yfinance=False,
+            )
+
+        assert os.environ["OPENAI_API_KEY"] == "openai-key"
+        assert "OPENAI_BASE_URL" not in os.environ
+
+
 class TestPromptLoading:
     """Test prompt template loading"""
 
