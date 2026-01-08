@@ -4,9 +4,11 @@ from typing import List, Dict, Literal, TypedDict
 import asyncio
 import json
 import os
+import random
 import re
 from dataclasses import dataclass
 from pydantic_ai import ModelSettings
+from pydantic_ai.exceptions import ModelHTTPError
 from src.agent.strategy_creator import (
     create_agent,
     load_prompt,
@@ -23,6 +25,22 @@ class PromptVariation(TypedDict):
     emphasis: str
     persona: str
     constraint: str
+
+
+class QuotaExhaustedError(RuntimeError):
+    """Raised when candidate generation fails due to model quota exhaustion."""
+
+    def __init__(
+        self,
+        model: str,
+        failures: List[tuple[PromptVariation, Exception]],
+    ) -> None:
+        self.model = model
+        self.failures = failures
+        variations = ", ".join(v["name"] for v, _ in failures) if failures else "unknown"
+        super().__init__(
+            f"Model quota exhausted for {model}. Failed variations: {variations}."
+        )
 
 
 # 5 distinct prompt variations to seed different reasoning paths
@@ -108,6 +126,76 @@ _VALID_RELATIVE_PATTERNS = [
     # RSI with standard thresholds: RSI_14d > 70
     re.compile(r'_RSI_\d+d\s*[><]=?\s*(20|25|30|35|65|70|75|80)', re.IGNORECASE),
 ]
+
+
+def _is_insufficient_quota_error(err: Exception) -> bool:
+    """Return True if error indicates hard quota exhaustion (not just rate limiting)."""
+    if isinstance(err, ModelHTTPError):
+        if getattr(err, "status_code", None) != 429:
+            return False
+        body = getattr(err, "body", None)
+        if isinstance(body, dict):
+            code = body.get("code") or body.get("type")
+            if code == "insufficient_quota":
+                return True
+        message = str(err).lower()
+        return (
+            "insufficient_quota" in message
+            or "exceeded your current quota" in message
+            or "billing" in message
+        )
+
+    message = str(err).lower()
+    return (
+        "insufficient_quota" in message
+        or "exceeded your current quota" in message
+    )
+
+
+def _is_rate_limit_error(err: Exception) -> bool:
+    """Return True if error indicates rate limiting (not quota exhaustion)."""
+    if _is_insufficient_quota_error(err):
+        return False
+
+    if isinstance(err, ModelHTTPError):
+        if getattr(err, "status_code", None) != 429:
+            return False
+        body = getattr(err, "body", None)
+        if isinstance(body, dict):
+            error = body.get("error")
+            if isinstance(error, dict):
+                if error.get("type") in {"rate_limit_error", "rate_limit"}:
+                    return True
+            code = body.get("code") or body.get("type")
+            if code in {"rate_limit_error", "rate_limit"}:
+                return True
+        # Default: 429 without quota wording = rate limit
+        return True
+
+    message = str(err).lower()
+    return (
+        "rate limit" in message
+        or "rate_limit" in message
+        or "too many requests" in message
+        or "429" in message
+    )
+
+
+def _rate_limit_backoff(
+    attempt: int,
+    provider: str,
+    base_delay: float | None = None,
+    max_delay: float | None = None,
+) -> float:
+    """Compute exponential backoff with jitter for rate limiting."""
+    if base_delay is None:
+        base_delay = 15.0 if provider == "anthropic" else 5.0
+    if max_delay is None:
+        max_delay = 120.0 if provider == "anthropic" else 60.0
+
+    delay = min(max_delay, base_delay * (2 ** attempt))
+    jitter = random.uniform(0.0, min(3.0, delay * 0.1))
+    return delay + jitter
 
 
 def extract_and_log_reasoning(result, stage_name: str) -> bool:
@@ -253,6 +341,13 @@ class CandidateGenerator:
 
         return "other"
 
+    def _max_parallel_candidates(self, model: str) -> int:
+        """Return max parallel candidate requests to avoid provider rate limits."""
+        provider = self._detect_provider(model)
+        if provider == "anthropic":
+            return 1
+        return len(PROMPT_VARIATIONS)
+
     def _enhance_count_instruction(self, prompt: str, provider: str) -> str:
         """
         Add provider-specific count enforcement to generation prompt.
@@ -307,6 +402,9 @@ Use different archetypes for each: Momentum, Mean Reversion, Carry, Volatility, 
 **Gemini Specific:** Return only the Python list with exactly 5 Strategy objects.
 Avoid extra prose before or after the list.
 
+**Gemini Schema Note:** Use a list of {asset, weight} pairs for weights:
+weights=[{"asset": "SPY", "weight": 0.6}, {"asset": "AGG", "weight": 0.4}]
+
 """
 
         # Insert after the opening OUTPUT REQUIREMENT section (after first ---)
@@ -325,7 +423,7 @@ Avoid extra prose before or after the list.
         model: str = DEFAULT_MODEL
     ) -> List[Strategy]:
         """
-        Generate 4-5 distinct candidate strategies via parallel prompts.
+        Generate 5 distinct candidate strategies via parallel prompts.
 
         Uses 5 parallel prompts with different emphases/personas to seed
         diverse reasoning paths. Minimum 4 candidates required.
@@ -340,10 +438,10 @@ Avoid extra prose before or after the list.
             model: LLM model identifier
 
         Returns:
-            List of 4-5 Strategy objects
+            List of 5 Strategy objects
 
         Raises:
-            ValueError: If <4 candidates or duplicates detected
+            ValueError: If <5 candidates or duplicates detected
         """
         # Load prompts for parallel single-candidate generation
         # System prompt for single-candidate generation (parallel mode)
@@ -354,7 +452,7 @@ Avoid extra prose before or after the list.
         # Generate candidates via parallel prompts
         print("Generating candidate strategies (parallel mode)...")
         print(f"  Launching {len(PROMPT_VARIATIONS)} parallel generation tasks...")
-        candidates = await self._generate_candidates_parallel(
+        candidates, failures = await self._generate_candidates_parallel(
             market_context, system_prompt, recipe_prompt, model
         )
         print(f"✓ Generated {len(candidates)} candidates")
@@ -370,6 +468,8 @@ Avoid extra prose before or after the list.
         # Validate minimum count
         MIN_CANDIDATES = 5
         if len(candidates) < MIN_CANDIDATES:
+            if failures and all(_is_insufficient_quota_error(err) for _, err in failures):
+                raise QuotaExhaustedError(model=model, failures=failures)
             raise ValueError(
                 f"Expected at least {MIN_CANDIDATES} candidates, got {len(candidates)}. "
                 f"Too many generation failures."
@@ -397,13 +497,13 @@ Avoid extra prose before or after the list.
         system_prompt: str,
         recipe_prompt: str,
         model: str,
-    ) -> List[Strategy]:
+    ) -> tuple[List[Strategy], List[tuple[PromptVariation, Exception]]]:
         """
         Generate candidates via 5 parallel prompts with distinct emphases.
 
         Each variation (macro, factor, tail_risk, sector, trend) generates
         one candidate independently. Failed variations are retried up to 2x.
-        Minimum 4 successful candidates required.
+        Exactly 5 candidates are required.
 
         Args:
             market_context: Comprehensive market context pack
@@ -412,22 +512,52 @@ Avoid extra prose before or after the list.
             model: LLM model identifier
 
         Returns:
-            List of 4-5 Strategy objects
+            Tuple of (validated candidates, final failures)
         """
-        # Create generation tasks for all 5 variations
-        tasks = [
-            self._generate_single_candidate(
-                market_context=market_context,
-                system_prompt=system_prompt,
-                recipe_prompt=recipe_prompt,
-                variation=variation,
-                model=model,
+        provider = self._detect_provider(model)
+        max_parallel = self._max_parallel_candidates(model)
+        if max_parallel < len(PROMPT_VARIATIONS):
+            print(
+                f"  Provider '{provider}' detected - limiting parallelism to {max_parallel} "
+                "to reduce rate limit risk."
             )
-            for variation in PROMPT_VARIATIONS
-        ]
 
-        # Execute all 5 in parallel
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Execute candidates (parallel by default, sequential for rate-limited providers)
+        if max_parallel <= 1:
+            results = []
+            rate_limit_hits = 0
+            for variation in PROMPT_VARIATIONS:
+                try:
+                    result = await self._generate_single_candidate(
+                        market_context=market_context,
+                        system_prompt=system_prompt,
+                        recipe_prompt=recipe_prompt,
+                        variation=variation,
+                        model=model,
+                    )
+                    results.append(result)
+                except Exception as err:
+                    results.append(err)
+                    if _is_rate_limit_error(err):
+                        wait_time = _rate_limit_backoff(rate_limit_hits, provider)
+                        rate_limit_hits += 1
+                        print(
+                            f"  [{variation['name']}] ⚠️ Rate limit hit. "
+                            f"Cooling down {wait_time:.1f}s before continuing..."
+                        )
+                        await asyncio.sleep(wait_time)
+        else:
+            tasks = [
+                self._generate_single_candidate(
+                    market_context=market_context,
+                    system_prompt=system_prompt,
+                    recipe_prompt=recipe_prompt,
+                    variation=variation,
+                    model=model,
+                )
+                for variation in PROMPT_VARIATIONS
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Collect successful candidates and track failures
         candidates: List[Strategy] = []
@@ -443,13 +573,30 @@ Avoid extra prose before or after the list.
         print(f"\n  Initial results: {len(candidates)} succeeded, {len(failures)} failed")
 
         # Retry failed variations (up to 2x each)
+        final_failures: List[tuple[PromptVariation, Exception]] = []
         if failures:
             print(f"\n  Retrying {len(failures)} failed variation(s)...")
             for variation, original_error in failures:
                 success = False
-                for attempt in range(2):
+                last_error = original_error
+                rate_limit_attempt = 0
+                is_rate_limit = _is_rate_limit_error(original_error)
+                max_attempts = 4 if is_rate_limit else 2
+
+                if is_rate_limit:
+                    wait_time = _rate_limit_backoff(rate_limit_attempt, provider)
+                    rate_limit_attempt += 1
+                    print(
+                        f"    [{variation['name']}] ⚠️ Rate limit hit. "
+                        f"Cooling down {wait_time:.1f}s before retrying..."
+                    )
+                    await asyncio.sleep(wait_time)
+
+                for attempt in range(max_attempts):
                     try:
-                        print(f"    [{variation['name']}] Retry attempt {attempt + 1}/2...")
+                        print(
+                            f"    [{variation['name']}] Retry attempt {attempt + 1}/{max_attempts}..."
+                        )
                         candidate = await self._generate_single_candidate(
                             market_context=market_context,
                             system_prompt=system_prompt,
@@ -462,10 +609,22 @@ Avoid extra prose before or after the list.
                         print(f"    [{variation['name']}] ✓ Retry succeeded")
                         break
                     except Exception as retry_error:
+                        last_error = retry_error
+                        if _is_rate_limit_error(retry_error) and attempt < max_attempts - 1:
+                            wait_time = _rate_limit_backoff(rate_limit_attempt, provider)
+                            rate_limit_attempt += 1
+                            print(
+                                f"    [{variation['name']}] ⚠️ Rate limit hit. "
+                                f"Retrying in {wait_time:.1f}s..."
+                            )
+                            await asyncio.sleep(wait_time)
                         print(f"    [{variation['name']}] Retry {attempt + 1} failed: {retry_error}")
 
                 if not success:
+                    final_failures.append((variation, last_error))
                     print(f"    [{variation['name']}] ✗ All retries exhausted")
+        else:
+            final_failures = []
 
         # Run semantic validation on each candidate
         print(f"\n  Validating {len(candidates)} candidates...")
@@ -484,7 +643,7 @@ Avoid extra prose before or after the list.
             # Accept all candidates regardless of validation (quality warnings are informational)
             validated_candidates.append(candidate)
 
-        return validated_candidates
+        return validated_candidates, final_failures
 
     async def _generate_candidates(
         self,

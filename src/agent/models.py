@@ -5,8 +5,9 @@ Strategy: Represents a trading strategy with assets, weights, and rebalancing lo
 Charter: Represents the strategic reasoning document for a strategy.
 """
 
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Annotated
 from pydantic import BaseModel, Field, field_validator
+from pydantic.json_schema import WithJsonSchema
 from pydantic.fields import FieldInfo
 from enum import Enum
 
@@ -125,8 +126,33 @@ class Strategy(BaseModel):
     # ========== EXECUTION FIELDS ==========
     name: str = Field(..., min_length=1, max_length=200)
     assets: List[str] = Field(..., min_length=1, max_length=50)
-    logic_tree: Dict[str, Any] = Field(default_factory=dict)
-    weights: Dict[str, float]
+    logic_tree: Annotated[
+        Dict[str, Any],
+        WithJsonSchema(
+            {
+                "type": "object",
+                "description": "Conditional logic for dynamic allocation (use {} for static allocation).",
+            }
+        ),
+    ] = Field(default_factory=dict)
+    weights: Annotated[
+        Dict[str, float],
+        WithJsonSchema(
+            {
+                "type": "array",
+                "description": "List of {asset, weight} pairs. Dicts also accepted at runtime.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "asset": {"type": "string"},
+                        "weight": {"type": "number"},
+                    },
+                    "required": ["asset", "weight"],
+                },
+                "minItems": 1,
+            }
+        ),
+    ]
     rebalance_frequency: RebalanceFrequency
 
     @field_validator("assets")
@@ -340,6 +366,42 @@ class Strategy(BaseModel):
 
         # If it's a list, convert to dict using assets order
         if isinstance(v, list):
+            if not v:
+                return WeightsDict({})
+
+            # Accept list of {asset, weight} pairs (Gemini-friendly schema)
+            if all(isinstance(item, dict) for item in v):
+                weights_map: Dict[str, float] = {}
+                for item in v:
+                    asset = item.get("asset") or item.get("ticker")
+                    if not isinstance(asset, str) or not asset.strip():
+                        raise ValueError(
+                            "Weights list items must include a non-empty 'asset' field"
+                        )
+                    if asset in weights_map:
+                        raise ValueError(
+                            f"Duplicate asset '{asset}' in weights list"
+                        )
+                    weight_value = item.get("weight")
+                    weights_map[asset] = _coerce_numeric(weight_value, asset)
+                return WeightsDict(weights_map)
+
+            # Accept list of [asset, weight] tuples for robustness
+            if all(isinstance(item, (list, tuple)) and len(item) == 2 for item in v):
+                weights_map = {}
+                for asset, weight_value in v:
+                    if not isinstance(asset, str) or not asset.strip():
+                        raise ValueError(
+                            "Weights list items must include a non-empty asset string"
+                        )
+                    if asset in weights_map:
+                        raise ValueError(
+                            f"Duplicate asset '{asset}' in weights list"
+                        )
+                    weights_map[asset] = _coerce_numeric(weight_value, asset)
+                return WeightsDict(weights_map)
+
+            # Fallback: list of weights aligned to assets order
             if len(v) != len(assets):
                 raise ValueError(
                     f"Weights list length ({len(v)}) must match assets length ({len(assets)})"
@@ -614,6 +676,25 @@ class EdgeScorecard(BaseModel):
 
     # No validator for minimum threshold - filtering happens in winner_selector.py
     # Dimensions can score 1-5; candidates with total_score <3.0 are filtered during selection
+
+
+class EdgeScoreDetail(BaseModel):
+    """Detailed evaluation for a single scorecard dimension."""
+
+    score: int = Field(ge=1, le=5)
+    reasoning: str = Field(min_length=20, max_length=2000)
+    key_strengths: List[str] = Field(default_factory=list)
+    key_weaknesses: List[str] = Field(default_factory=list)
+
+
+class EdgeScorecardDetailed(BaseModel):
+    """Structured Edge Scorecard with per-dimension details."""
+
+    thesis_quality: EdgeScoreDetail
+    edge_economics: EdgeScoreDetail
+    risk_framework: EdgeScoreDetail
+    regime_awareness: EdgeScoreDetail
+    strategic_coherence: EdgeScoreDetail
 
 
 class SelectionReasoning(BaseModel):

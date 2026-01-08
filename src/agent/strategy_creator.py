@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Optional, Type, TypeVar
 
 from pydantic import BaseModel
-from pydantic_ai import Agent, ModelSettings
+from pydantic_ai import Agent, ModelSettings, PromptedOutput
 from pydantic_ai import messages as _messages
 from pydantic_ai.tools import RunContext
 
@@ -28,6 +28,41 @@ DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "openai:gpt-4o")
 # Provider-specific base URLs for cheaper alternatives
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 KIMI_BASE_URL = "https://api.moonshot.ai/v1"
+ANTHROPIC_THINKING_BUDGET_TOKENS = 32000
+_ANTHROPIC_THINKING_MODEL_MARKERS = ("claude-opus-4-5",)
+_ANTHROPIC_THINKING_OUTPUT_TOKENS = {
+    "candidate_generation": 8192,
+    "edge_scoring": 2048,
+    "winner_selection": 2048,
+    "charter_generation": 8192,
+    "composer_deployment": 4096,
+}
+_DEEPSEEK_THINKING_CONFIG = {"thinking": {"type": "enabled"}}
+
+
+def _split_model(model: str) -> tuple[str, str]:
+    """Return provider and model name from a '<provider>:<model>' string."""
+    if ":" in model:
+        return model.split(":", 1)
+    return "", model
+
+
+def _is_deepseek_model(provider: str, model_name: str) -> bool:
+    """Return True for DeepSeek models using either openai: or deepseek: providers."""
+    if provider.lower() not in {"openai", "deepseek"}:
+        return False
+    return model_name.lower().startswith("deepseek")
+
+
+def _get_deepseek_base_url() -> str:
+    """Return DeepSeek base URL, allowing override via DEEPSEEK_BASE_URL."""
+    return os.getenv("DEEPSEEK_BASE_URL", DEEPSEEK_BASE_URL)
+
+
+def _deepseek_thinking_enabled() -> bool:
+    """Return True when DeepSeek thinking is enabled (default on)."""
+    value = os.getenv("DEEPSEEK_THINKING", "1").strip().lower()
+    return value not in {"0", "false", "no", "off"}
 
 
 def is_reasoning_model(model: str) -> bool:
@@ -44,7 +79,9 @@ def is_reasoning_model(model: str) -> bool:
         True if model is a reasoning model, False otherwise
     """
     model_name = model.split(":", 1)[-1].lower()
-    if "thinking" in model_name or "reasoning" in model_name:
+    if model_name.startswith("deepseek-chat"):
+        return _deepseek_thinking_enabled()
+    if "thinking" in model_name or "reasoning" in model_name or "reasoner" in model_name:
         return True
 
     # Reasoning-by-default: explicit allowlist for known non-reasoning families.
@@ -56,11 +93,115 @@ def is_reasoning_model(model: str) -> bool:
         "gpt-3.5",
         "claude-3",
         "claude-2",
-        "deepseek-chat",
         "moonshot",
         "kimi-",
     )
     return not model_name.startswith(non_reasoning_prefixes)
+
+
+def _openai_reasoning_effort(model: str) -> str | None:
+    """Return OpenAI reasoning effort for models that should force thinking."""
+    provider, model_name = _split_model(model)
+    if provider != "openai":
+        return None
+    model_name = model_name.lower()
+    if model_name.startswith("gpt-5.2"):
+        return "high"
+    return None
+
+
+def _deepseek_thinking_config(model: str) -> dict | None:
+    """Return DeepSeek request overrides to enable thinking mode by default."""
+    provider, model_name = _split_model(model)
+    if not _is_deepseek_model(provider, model_name):
+        return None
+    if not _deepseek_thinking_enabled():
+        return None
+    model_lower = model_name.lower()
+    if any(marker in model_lower for marker in ("reasoner", "reasoning", "thinking")):
+        return None
+    # DeepSeek accepts extra request fields via OpenAI-compatible extra_body.
+    return dict(_DEEPSEEK_THINKING_CONFIG)
+
+
+def is_anthropic_thinking_model(model: str) -> bool:
+    """Return True for Anthropic models that should run with thinking enabled."""
+    provider, model_name = _split_model(model)
+    if provider != "anthropic":
+        return False
+    model_name = model_name.lower()
+    return any(marker in model_name for marker in _ANTHROPIC_THINKING_MODEL_MARKERS)
+
+
+def _anthropic_thinking_config(model: str) -> dict | None:
+    """Build Anthropic thinking config for supported models."""
+    if not is_anthropic_thinking_model(model):
+        return None
+    return {"type": "enabled", "budget_tokens": ANTHROPIC_THINKING_BUDGET_TOKENS}
+
+
+def _apply_anthropic_thinking(
+    model: str, stage: str, settings: dict
+) -> dict:
+    """Inject Anthropic thinking settings and ensure max_tokens is sufficient."""
+    thinking = _anthropic_thinking_config(model)
+    if not thinking:
+        return settings
+    settings["anthropic_thinking"] = thinking
+    output_buffer = _ANTHROPIC_THINKING_OUTPUT_TOKENS.get(stage, 4096)
+    min_tokens = ANTHROPIC_THINKING_BUDGET_TOKENS + output_buffer
+    current_max = settings.get("max_tokens")
+    if current_max is None or current_max < min_tokens:
+        settings["max_tokens"] = min_tokens
+    return settings
+
+
+def _apply_deepseek_thinking(model: str, stage: str, settings: dict) -> dict:
+    """Inject DeepSeek thinking overrides when enabled."""
+    config = _deepseek_thinking_config(model)
+    if not config:
+        return settings
+
+    extra_body = settings.get("extra_body")
+    if isinstance(extra_body, dict):
+        merged = dict(extra_body)
+        for key, value in config.items():
+            if isinstance(value, dict) and isinstance(merged.get(key), dict):
+                nested = dict(merged[key])
+                nested.update(value)
+                merged[key] = nested
+            else:
+                merged[key] = value
+        settings["extra_body"] = merged
+    else:
+        settings["extra_body"] = config
+
+    # Thinking mode benefits from a larger output budget across stages.
+    stage_min_tokens = {
+        "candidate_generation": 32768,
+        "edge_scoring": 16384,
+        "winner_selection": 16384,
+        "charter_generation": 32768,
+        "composer_deployment": 32768,
+    }
+    min_tokens = stage_min_tokens.get(stage, 0)
+    if min_tokens:
+        current_max = settings.get("max_tokens")
+        if current_max is None or current_max < min_tokens:
+            settings["max_tokens"] = min_tokens
+
+    return settings
+
+
+def _maybe_prompted_output(model: str, output_type: Type[T]):
+    """Force text-mode structured output when Anthropic thinking is enabled."""
+    if not is_anthropic_thinking_model(model):
+        return output_type
+    if output_type is str:
+        return output_type
+    if isinstance(output_type, PromptedOutput):
+        return output_type
+    return PromptedOutput(output_type)
 
 
 def get_model_settings(
@@ -70,7 +211,9 @@ def get_model_settings(
     Get stage-specific ModelSettings for given model.
 
     Configuration rationale:
-    - temperature=0.7: Balanced creativity/consistency for reasoning models (Kimi/Moonshot)
+    - temperature=1.0: Balanced creativity/consistency for reasoning models (Kimi/Moonshot)
+    - OpenAI GPT-5.2: set openai_reasoning_effort="high" and avoid temperature/top_p
+    - Anthropic Claude Opus 4.5: enable thinking with a fixed 32k budget
     - max_tokens=16384: Minimum for reasoning trace + final answer
     - parallel_tool_calls=False: Workaround for Pydantic AI bug #1429 + reasoning models don't support parallel
 
@@ -99,64 +242,74 @@ def get_model_settings(
         return custom_settings
 
     is_reasoning = is_reasoning_model(model)
+    openai_reasoning_effort = _openai_reasoning_effort(model)
+    allow_sampling_params = openai_reasoning_effort is None
 
     # Default timeout for all API calls (15 minutes for slow providers like Kimi reasoning models)
     DEFAULT_TIMEOUT = 900.0
 
     # Stage-specific settings
     if stage == "candidate_generation":
+        settings: dict = {
+            "parallel_tool_calls": False,  # Fix for Pydantic AI bug #1429
+            "timeout": DEFAULT_TIMEOUT,
+        }
         if is_reasoning:
-            return ModelSettings(
-                temperature=1.0,  # Balanced creativity/consistency for reasoning models
-                max_tokens=32768,  # Increased from 16384 to prevent thesis truncation
-                parallel_tool_calls=False,  # Fix for Pydantic AI bug #1429
-                timeout=DEFAULT_TIMEOUT,
-            )
-        else:
-            return ModelSettings(
-                parallel_tool_calls=False,  # Fix for Pydantic AI bug #1429
-                timeout=DEFAULT_TIMEOUT,
-            )
+            settings["max_tokens"] = 32768  # Increased from 16384 to prevent thesis truncation
+            if allow_sampling_params:
+                settings["temperature"] = 1.0  # Balanced creativity/consistency for reasoning models
+        if openai_reasoning_effort:
+            settings["openai_reasoning_effort"] = openai_reasoning_effort
+        settings = _apply_anthropic_thinking(model, stage, settings)
+        settings = _apply_deepseek_thinking(model, stage, settings)
+        return ModelSettings(**settings)
 
     elif stage in ["edge_scoring", "winner_selection"]:
+        settings: dict = {"timeout": DEFAULT_TIMEOUT}
         if is_reasoning:
-            return ModelSettings(
-                temperature=1.0,
-                max_tokens=16384,
-                timeout=DEFAULT_TIMEOUT,
-            )
-        return ModelSettings(timeout=DEFAULT_TIMEOUT)
+            settings["max_tokens"] = 16384
+            if allow_sampling_params:
+                settings["temperature"] = 1.0
+        if openai_reasoning_effort:
+            settings["openai_reasoning_effort"] = openai_reasoning_effort
+        settings = _apply_anthropic_thinking(model, stage, settings)
+        settings = _apply_deepseek_thinking(model, stage, settings)
+        return ModelSettings(**settings)
 
     elif stage == "charter_generation":
-        if is_reasoning:
-            return ModelSettings(
-                temperature=1.0,
-                max_tokens=32768,  # Increased from 16384 to handle large charter output
-                timeout=DEFAULT_TIMEOUT,
-            )
-        else:
-            return ModelSettings(
-                max_tokens=32768,  # Increased from 20000 to handle large charter output
-                timeout=DEFAULT_TIMEOUT,
-            )
+        settings: dict = {
+            "max_tokens": 32768,  # Increased from 20000 to handle large charter output
+            "timeout": DEFAULT_TIMEOUT,
+        }
+        if is_reasoning and allow_sampling_params:
+            settings["temperature"] = 1.0
+        if openai_reasoning_effort:
+            settings["openai_reasoning_effort"] = openai_reasoning_effort
+        settings = _apply_anthropic_thinking(model, stage, settings)
+        settings = _apply_deepseek_thinking(model, stage, settings)
+        return ModelSettings(**settings)
 
     elif stage == "composer_deployment":
         # Deployment needs tools, similar to candidate generation
+        settings: dict = {
+            "parallel_tool_calls": False,
+            "timeout": DEFAULT_TIMEOUT,
+        }
         if is_reasoning:
-            return ModelSettings(
-                temperature=1.0,
-                top_p=1.0,
-                max_tokens=32768,  # Increased for reasoning trace + JSON output
-                parallel_tool_calls=False,
-                timeout=DEFAULT_TIMEOUT,
-            )
-        else:
-            return ModelSettings(
-                parallel_tool_calls=False,
-                timeout=DEFAULT_TIMEOUT,
-            )
+            settings["max_tokens"] = 32768  # Increased for reasoning trace + JSON output
+            if allow_sampling_params:
+                settings["temperature"] = 1.0
+                settings["top_p"] = 1.0
+        if openai_reasoning_effort:
+            settings["openai_reasoning_effort"] = openai_reasoning_effort
+        settings = _apply_anthropic_thinking(model, stage, settings)
+        settings = _apply_deepseek_thinking(model, stage, settings)
+        return ModelSettings(**settings)
 
-    return ModelSettings(timeout=DEFAULT_TIMEOUT)
+    settings = {"timeout": DEFAULT_TIMEOUT}
+    settings = _apply_anthropic_thinking(model, stage, settings)
+    settings = _apply_deepseek_thinking(model, stage, settings)
+    return ModelSettings(**settings)
 
 
 class AgentContext:
@@ -389,20 +542,35 @@ async def create_agent(
 
     # Configure provider-specific settings for cheaper alternatives
     provider, model_name = model.split(":", 1)
+    provider = provider.lower()
+    model_name = model_name.strip()
+    model = f"{provider}:{model_name}"
+
+    # Alias "gemini:" to the official Google provider prefix for pydantic-ai
+    if provider == "gemini":
+        provider = "google-gla"
+        model = f"{provider}:{model_name}"
+
+    model_name_lower = model_name.lower()
+    if provider == "deepseek":
+        model_name = model_name_lower
+        model = f"{provider}:{model_name}"
 
     restore_env: Optional[dict[str, Optional[str]]] = None
     if provider == "openai":
         original_openai_key = os.getenv("OPENAI_API_KEY")
         original_base_url = os.getenv("OPENAI_BASE_URL")
         # DeepSeek uses OpenAI-compatible API
-        if model_name.startswith("deepseek"):
+        if model_name_lower.startswith("deepseek"):
+            model_name = model_name_lower
+            model = f"{provider}:{model_name}"
             deepseek_key = os.getenv("DEEPSEEK_API_KEY")
             if not deepseek_key:
                 raise ValueError(
                     "DEEPSEEK_API_KEY environment variable required for DeepSeek models"
                 )
             os.environ["OPENAI_API_KEY"] = deepseek_key
-            os.environ["OPENAI_BASE_URL"] = DEEPSEEK_BASE_URL
+            os.environ["OPENAI_BASE_URL"] = _get_deepseek_base_url()
             restore_env = {
                 "OPENAI_API_KEY": original_openai_key,
                 "OPENAI_BASE_URL": original_base_url,
@@ -432,7 +600,7 @@ async def create_agent(
         if system_prompt is None:
             system_prompt = load_prompt("system_prompt.md")
 
-        # Create AsyncExitStack to manage MCP server lifecycle
+        # Create AsyncExitStack to manage MCP server lifecycle (and any provider clients)
         stack = AsyncExitStack()
 
         # Enter MCP servers context and keep it alive
@@ -460,10 +628,27 @@ async def create_agent(
             from src.agent.schema_fixes import fix_composer_schema
             prepare_tools = fix_composer_schema
 
+        # Use a dedicated http client for Google to avoid shared client closure across agents.
+        model_for_agent = model
+        if provider in {"google-gla", "google-vertex"}:
+            import httpx
+            from pydantic_ai.providers.google import GoogleProvider
+            from pydantic_ai.models.google import GoogleModel
+
+            http_client = await stack.enter_async_context(httpx.AsyncClient())
+            google_provider = GoogleProvider(
+                vertexai=provider == "google-vertex",
+                http_client=http_client,
+            )
+            model_for_agent = GoogleModel(model_name=model_name, provider=google_provider)
+
+        # Force text-mode structured output when Anthropic thinking is enabled.
+        output_spec = _maybe_prompted_output(model, output_type)
+
         # Create agent with Pydantic AI using configurable history processor
         agent = Agent(
-            model=model,
-            output_type=output_type,
+            model=model_for_agent,
+            output_type=output_spec,
             system_prompt=system_prompt,
             toolsets=toolsets,
             history_processors=[create_history_processor(max_messages=history_limit)],

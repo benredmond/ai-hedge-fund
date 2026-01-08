@@ -11,6 +11,7 @@ Supports checkpoint/resume for fault tolerance:
 """
 
 import asyncio
+import os
 from datetime import datetime, timezone
 from typing import List
 from src.agent.strategy_creator import create_agent, DEFAULT_MODEL
@@ -22,6 +23,7 @@ from src.agent.models import (
 )
 from src.agent.stages import (
     CandidateGenerator,
+    QuotaExhaustedError,
     EdgeScorer,
     WinnerSelector,
     CharterGenerator,
@@ -33,6 +35,54 @@ from src.agent.persistence import (
     clear_checkpoint,
 )
 from src.agent.mcp_config import set_summarization_model
+
+
+def _parse_model_list(raw: str | None) -> List[str]:
+    if not raw:
+        return []
+    return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def _canonical_model(model: str) -> str:
+    if model.startswith("gemini:"):
+        return f"google-gla:{model.split(':', 1)[1]}"
+    return model
+
+
+def _dedupe_models(models: List[str]) -> List[str]:
+    seen: set[str] = set()
+    deduped: List[str] = []
+    for model in models:
+        key = _canonical_model(model)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(model)
+    return deduped
+
+
+def _auto_fallback_models() -> List[str]:
+    models: List[str] = []
+    if os.getenv("GOOGLE_API_KEY"):
+        models.append("google-gla:gemini-3-pro-preview")
+    if os.getenv("DEEPSEEK_API_KEY"):
+        models.append("openai:deepseek-chat")
+    if os.getenv("KIMI_API_KEY"):
+        models.append("openai:kimi-k2-thinking")
+    if os.getenv("ANTHROPIC_API_KEY"):
+        models.append("anthropic:claude-3-5-sonnet-20241022")
+    return models
+
+
+def _resolve_fallback_models(user_fallbacks: List[str] | None) -> List[str]:
+    if user_fallbacks is not None:
+        return _dedupe_models([m.strip() for m in user_fallbacks if m.strip()])
+
+    env_fallbacks = _parse_model_list(os.getenv("MODEL_FALLBACKS"))
+    if env_fallbacks:
+        return _dedupe_models(env_fallbacks)
+
+    return _dedupe_models(_auto_fallback_models())
 
 
 def _create_checkpoint(
@@ -76,6 +126,7 @@ async def create_strategy_workflow(
     model: str = DEFAULT_MODEL,
     cohort_id: str | None = None,
     resume_checkpoint: WorkflowCheckpoint | None = None,
+    fallback_models: List[str] | None = None,
 ) -> WorkflowResult:
     """
     Execute complete strategy creation workflow.
@@ -97,6 +148,9 @@ async def create_strategy_workflow(
             and enables checkpoint/resume functionality.
         resume_checkpoint: Optional checkpoint to resume from. If provided, skips
             completed stages and uses cached results from checkpoint.
+        fallback_models: Optional list of fallback models to try if the primary model
+            fails due to hard quota exhaustion. If None, uses MODEL_FALLBACKS env var
+            (comma-separated), otherwise auto-detects available non-OpenAI providers.
 
     Returns:
         WorkflowResult with strategy, charter, and all intermediate results
@@ -130,7 +184,7 @@ async def create_strategy_workflow(
         ... )
     """
 
-    # Set summarization model to match workflow model
+    # Set summarization model to match workflow model (may change if fallback is used)
     set_summarization_model(model)
 
     # Determine resume stage (None = fresh start)
@@ -152,6 +206,11 @@ async def create_strategy_workflow(
                 deployed_at=resume_checkpoint.deployed_at,
                 strategy_summary=resume_checkpoint.strategy_summary,
             )
+
+    resolved_fallbacks = _resolve_fallback_models(fallback_models)
+    if resume_checkpoint and resolved_fallbacks:
+        print("⚠️  Fallback models ignored when resuming to preserve model consistency.")
+        resolved_fallbacks = []
 
     # Instantiate stage classes
     candidate_gen = CandidateGenerator()
@@ -186,7 +245,34 @@ async def create_strategy_workflow(
     # Stage 1: Generate 5 candidates (single-phase with optional tool usage)
     if should_run_stage(WorkflowStage.CANDIDATES):
         print("Stage 1/5: Generating candidates...")
-        candidates = await candidate_gen.generate(market_context, model)
+        candidate_models = _dedupe_models([model] + resolved_fallbacks)
+        candidates = None
+        last_quota_error: Exception | None = None
+
+        for idx, candidate_model in enumerate(candidate_models):
+            set_summarization_model(candidate_model)
+            try:
+                candidates = await candidate_gen.generate(market_context, candidate_model)
+                if candidate_model != model:
+                    print(f"⚠️  Using fallback model for remainder of workflow: {candidate_model}")
+                    model = candidate_model
+                break
+            except QuotaExhaustedError as err:
+                last_quota_error = err
+                print(f"⚠️  {err}")
+                if idx < len(candidate_models) - 1:
+                    print(f"⚠️  Trying fallback model: {candidate_models[idx + 1]}")
+                continue
+
+        if candidates is None:
+            if last_quota_error is not None:
+                hint = ""
+                if not resolved_fallbacks:
+                    hint = " Configure MODEL_FALLBACKS or pass --fallback-models to use a different provider."
+                raise RuntimeError(
+                    f"Candidate generation failed due to quota exhaustion for {model}.{hint}"
+                ) from last_quota_error
+            raise RuntimeError("Candidate generation failed for all models.")
         print(f"✓ Generated {len(candidates)} candidates")
 
         # Save checkpoint after Stage 1

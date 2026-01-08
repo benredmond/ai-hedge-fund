@@ -10,7 +10,7 @@ from src.agent.strategy_creator import (
     is_reasoning_model,
     get_model_settings,
 )
-from src.agent.models import Strategy, EdgeScorecard
+from src.agent.models import Strategy, EdgeScorecard, EdgeScorecardDetailed
 from src.agent.config.leverage import detect_leverage
 
 
@@ -59,11 +59,11 @@ class EdgeScorer:
         # Get model-specific settings (reasoning models require temperature=1.0, max_tokens=16384)
         model_settings = get_model_settings(model, stage="edge_scoring")
 
-        # Create agent with dict output to handle rich scoring format
+        # Create agent with typed output to avoid dict schemas for Gemini
         # Use 10 message history limit (single evaluation, no tool usage)
         agent_ctx = await create_agent(
             model=model,
-            output_type=dict,
+            output_type=EdgeScorecardDetailed,
             system_prompt=system_prompt,
             include_composer=False,  # Edge scoring doesn't deploy - no Composer tools needed
             history_limit=10,
@@ -185,60 +185,17 @@ Each dimension: {{"score": 1-5, "reasoning": "...", "key_strengths": [...], "key
         print(f"\n[DEBUG:EdgeScorer] Full LLM response:")
         print(f"{raw_output}")
 
-        # Unwrap nested response if model wraps in single-key dict (e.g., Kimi K2 uses "evaluation")
-        # Dynamic detection: unwrap if inner dict contains the expected scorecard dimensions
-        if isinstance(raw_output, dict) and len(raw_output) == 1:
-            wrapper_key = list(raw_output.keys())[0]
-            inner = raw_output[wrapper_key]
-            expected_keys = {"thesis_quality", "edge_economics", "risk_framework", "regime_awareness", "strategic_coherence"}
-            if isinstance(inner, dict) and expected_keys.issubset(inner.keys()):
-                print(f"[DEBUG:EdgeScorer] Unwrapping '{wrapper_key}' wrapper (detected expected scorecard keys)")
-                raw_output = inner
-                print(f"[DEBUG:EdgeScorer] After unwrap - keys: {list(raw_output.keys())}")
-
-        # Parse the rich output format from the new prompt
-        # The prompt returns: {dimension: {score: X, reasoning: ..., evidence_cited: ..., ...}}
-        # We need to extract just the scores to create EdgeScorecard
-
-        # Expected scorecard dimension keys
-        expected_keys = {"thesis_quality", "edge_economics", "risk_framework", "regime_awareness", "strategic_coherence"}
-
-        # Handle both old simple format and new rich format
-        if isinstance(raw_output, dict):
-            # Validate response contains expected scorecard keys
-            if not expected_keys.issubset(raw_output.keys()):
-                missing = expected_keys - raw_output.keys()
-                unexpected = set(raw_output.keys()) - expected_keys
-                raise ValueError(
-                    f"Edge scoring returned invalid structure - LLM did not follow instructions.\n"
-                    f"Missing required keys: {missing}\n"
-                    f"Unexpected keys: {list(unexpected)[:5]}{'...' if len(unexpected) > 5 else ''}\n"
-                    f"This usually means the model returned raw context data instead of scores."
-                )
-            # Check if it's the new rich format (has nested dicts with 'score' key)
-            if any(isinstance(v, dict) and 'score' in v for v in raw_output.values()):
-                # New rich format - extract scores
-                scorecard = EdgeScorecard(
-                    thesis_quality=raw_output.get('thesis_quality', {}).get('score', 3),
-                    edge_economics=raw_output.get('edge_economics', {}).get('score', 3),
-                    risk_framework=raw_output.get('risk_framework', {}).get('score', 3),
-                    regime_awareness=raw_output.get('regime_awareness', {}).get('score', 3),
-                    strategic_coherence=raw_output.get('strategic_coherence', {}).get('score', 3)
-                )
-            else:
-                # Old simple format - direct scores
-                try:
-                    scorecard = EdgeScorecard(**raw_output)
-                except Exception as e:
-                    raise ValueError(
-                        f"Edge scoring returned invalid format: {e}\n"
-                        f"Expected dict with 'score' keys or flat score dict\n"
-                        f"Got: {raw_output}"
-                    ) from e
-        else:
+        if not isinstance(raw_output, EdgeScorecardDetailed):
             raise ValueError(
-                f"Edge scoring failed - LLM returned non-dict output: {type(raw_output)}\n"
-                f"Output: {raw_output}"
+                f"Edge scoring failed - LLM returned invalid output type: {type(raw_output)}"
             )
+
+        scorecard = EdgeScorecard(
+            thesis_quality=raw_output.thesis_quality.score,
+            edge_economics=raw_output.edge_economics.score,
+            risk_framework=raw_output.risk_framework.score,
+            regime_awareness=raw_output.regime_awareness.score,
+            strategic_coherence=raw_output.strategic_coherence.score,
+        )
 
         return scorecard

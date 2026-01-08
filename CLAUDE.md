@@ -70,9 +70,11 @@ pip install -r requirements.txt
   - OpenAI: `openai:gpt-5.2` (Thinking), `openai:gpt-5.2-chat-latest` (Instant), `openai:gpt-5.2-pro` (Pro)
   - Anthropic: `anthropic:claude-opus-4-5`
   - Gemini: `google-gla:gemini-3-pro-preview`
+  - Gemini (alias): `gemini:gemini-3-pro-preview` (maps to `google-gla:` internally)
   - DeepSeek: `openai:deepseek-chat` (V3.2), `openai:deepseek-reasoner` (V3.2 Thinking)
+  - DeepSeek thinking is ON by default (set `DEEPSEEK_THINKING=0` to disable).
   - Kimi: `openai:kimi-k2-thinking` or `openai:kimi-k2-thinking-turbo` (reasoning models)
-  - Reasoning defaults to ON unless model matches the non-reasoning allowlist (gpt-4o, gpt-4.1, gpt-4-turbo, gpt-4, gpt-3.5, claude-3/2, deepseek-chat, moonshot-*, kimi-* non-thinking).
+  - Reasoning defaults to ON unless model matches the non-reasoning allowlist (gpt-4o, gpt-4.1, gpt-4-turbo, gpt-4, gpt-3.5, claude-3/2, moonshot-*, kimi-* non-thinking).
   - Used by `create_strategy_workflow()` when model parameter not specified
 - **COMPOSER_API_KEY**, **COMPOSER_API_SECRET**: Required for Composer backtesting and deployment
 

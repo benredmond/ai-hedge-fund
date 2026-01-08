@@ -11,6 +11,9 @@ Examples:
     # Run with specific model and cohort ID
     python -m src.agent.cli run --model openai:gpt-4o --cohort-id 2025-Q1
 
+    # Run with fallback models (comma-separated)
+    python -m src.agent.cli run --model openai:gpt-5.2 --fallback-models google-gla:gemini-3-pro-preview,openai:deepseek-chat
+
     # Run with custom context pack
     python -m src.agent.cli run --context-pack data/context_packs/2025-12-20.json
 
@@ -77,7 +80,6 @@ def load_env_vars():
         print("  COMPOSER_API_KEY=your_composer_key")
         print("  COMPOSER_API_SECRET=your_composer_secret")
         sys.exit(1)
-
 
 async def run_workflow_async(args):
     """Execute the strategy workflow asynchronously.
@@ -156,12 +158,17 @@ async def run_workflow_async(args):
         print("=" * 80)
         print()
 
+    fallback_models = None
+    if getattr(args, "fallback_models", None):
+        fallback_models = [m.strip() for m in args.fallback_models.split(",") if m.strip()]
+
     # Execute workflow
     result = await create_strategy_workflow(
         market_context=market_context,
         model=model,
         cohort_id=args.cohort_id,
         resume_checkpoint=resume_checkpoint,
+        fallback_models=fallback_models,
     )
 
     return result
@@ -362,6 +369,13 @@ Required environment variables:
         '--model',
         default=None,
         help=f'LLM model identifier (default: {DEFAULT_MODEL})',
+        type=str,
+    )
+    run_parser.add_argument(
+        '--fallback-models',
+        default=None,
+        help='Comma-separated fallback models if primary hits quota '
+             '(or set MODEL_FALLBACKS env var)',
         type=str,
     )
     run_parser.add_argument(
