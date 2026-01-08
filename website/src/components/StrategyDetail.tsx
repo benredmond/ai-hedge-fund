@@ -26,11 +26,17 @@ function Markdown({ children }: { children: string }) {
 
 interface LogicTreeNode {
   condition?: string;
-  if_true?: { assets: string[]; weights: Record<string, number> };
-  if_false?: { assets: string[]; weights: Record<string, number> };
+  if_true?: LogicTreeNode;
+  if_false?: LogicTreeNode;
+  assets?: string[];
+  weights?: Record<string, number>;
+  filter?: Record<string, unknown>;
+  weighting?: Record<string, unknown>;
 }
 
-function renderWeights(weights: Record<string, number>): React.ReactNode {
+function renderWeights(weights?: Record<string, number>): React.ReactNode {
+  if (!weights || Object.keys(weights).length === 0) return null;
+
   return (
     <div className="font-mono text-sm space-y-1 ml-4">
       {Object.entries(weights).map(([asset, weight]) => (
@@ -44,7 +50,41 @@ function renderWeights(weights: Record<string, number>): React.ReactNode {
   );
 }
 
-function renderLogicTree(tree: Record<string, unknown>): React.ReactNode {
+function renderAssetsList(assets: string[]): React.ReactNode {
+  if (assets.length === 0) return null;
+
+  return (
+    <div className="font-mono text-sm space-y-1 ml-4">
+      {assets.map((asset) => (
+        <div key={asset} className="text-foreground">
+          {asset}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function isConditionalNode(node?: LogicTreeNode): node is LogicTreeNode {
+  return Boolean(node?.condition && node?.if_true && node?.if_false);
+}
+
+function renderLeaf(node: LogicTreeNode): React.ReactNode {
+  const weightsView = renderWeights(node.weights);
+  if (weightsView) return weightsView;
+
+  if (Array.isArray(node.assets)) {
+    const assetsView = renderAssetsList(node.assets);
+    if (assetsView) return assetsView;
+  }
+
+  return (
+    <pre className="font-mono text-sm text-foreground bg-stone-100 p-4 rounded overflow-x-auto">
+      {JSON.stringify(node, null, 2)}
+    </pre>
+  );
+}
+
+function renderLogicTree(tree: Record<string, unknown> | LogicTreeNode): React.ReactNode {
   if (!tree || typeof tree !== 'object') return null;
 
   const node = tree as LogicTreeNode;
@@ -56,20 +96,24 @@ function renderLogicTree(tree: Record<string, unknown>): React.ReactNode {
           <span className="text-vermillion">if</span>{' '}
           <span className="text-foreground">{node.condition}</span>
         </div>
-        {renderWeights(node.if_true.weights)}
+        {isConditionalNode(node.if_true) ? (
+          <div className="ml-4">{renderLogicTree(node.if_true)}</div>
+        ) : (
+          renderLeaf(node.if_true)
+        )}
         <div>
           <span className="text-vermillion">else</span>
         </div>
-        {renderWeights(node.if_false.weights)}
+        {isConditionalNode(node.if_false) ? (
+          <div className="ml-4">{renderLogicTree(node.if_false)}</div>
+        ) : (
+          renderLeaf(node.if_false)
+        )}
       </div>
     );
   }
 
-  return (
-    <pre className="font-mono text-sm text-foreground bg-stone-100 p-4 rounded overflow-x-auto">
-      {JSON.stringify(tree, null, 2)}
-    </pre>
-  );
+  return renderLeaf(node);
 }
 
 export function StrategyDetail({ result }: StrategyDetailProps) {

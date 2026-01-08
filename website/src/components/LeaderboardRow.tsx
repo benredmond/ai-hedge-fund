@@ -48,6 +48,30 @@ function ChevronRight({ className }: { className?: string }) {
   );
 }
 
+function ChevronUp({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 7.5L6 4.5L9 7.5" />
+    </svg>
+  );
+}
+
+function ArrowRight({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2.5 6H9.5M6.5 3L9.5 6L6.5 9" />
+    </svg>
+  );
+}
+
+function ArrowUpRight({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3.5 8.5L8.5 3.5M8.5 3.5H4.5M8.5 3.5V7.5" />
+    </svg>
+  );
+}
+
 function extractSummary(text: string, maxSentences = 2): string {
   // Fallback: extract first N sentences from thesis_document
   const sentences = text.split(/(?<=[.!?])\s+/);
@@ -107,27 +131,59 @@ function getProviderLogo(model: string): string | null {
 
 interface LogicTreeNode {
   condition?: string;
-  if_true?: { assets: string[]; weights: Record<string, number> };
-  if_false?: { assets: string[]; weights: Record<string, number> };
+  if_true?: LogicTreeNode;
+  if_false?: LogicTreeNode;
+  assets?: string[];
+  weights?: Record<string, number>;
+  filter?: Record<string, unknown>;
+  weighting?: Record<string, unknown>;
+}
+
+function collectAssets(node?: LogicTreeNode): string[] {
+  if (!node || typeof node !== 'object') return [];
+
+  const assets: string[] = [];
+
+  if (Array.isArray(node.assets)) {
+    assets.push(...node.assets);
+  }
+
+  if (node.weights && typeof node.weights === 'object') {
+    assets.push(...Object.keys(node.weights));
+  }
+
+  if (node.if_true) {
+    assets.push(...collectAssets(node.if_true));
+  }
+
+  if (node.if_false) {
+    assets.push(...collectAssets(node.if_false));
+  }
+
+  return Array.from(new Set(assets));
 }
 
 function formatLogicTreeCompact(tree: Record<string, unknown>): React.ReactNode {
+  if (!tree || typeof tree !== 'object') return null;
+
   const node = tree as LogicTreeNode;
 
   if (node.condition && node.if_true && node.if_false) {
-    const trueAssets = node.if_true.assets.join('/');
-    const falseAssets = node.if_false.assets.join('/');
+    const trueAssets = collectAssets(node.if_true);
+    const falseAssets = collectAssets(node.if_false);
+    const trueLabel = trueAssets.length > 0 ? trueAssets.join('/') : '—';
+    const falseLabel = falseAssets.length > 0 ? falseAssets.join('/') : '—';
 
     return (
-      <div className="font-mono text-sm text-muted">
+      <div className="font-mono text-sm text-muted flex items-center flex-wrap">
         <span className="text-vermillion">if</span>{' '}
         <span className="text-foreground">{node.condition}</span>
-        <span className="text-muted mx-2">→</span>
-        <span className="text-foreground">{trueAssets}</span>
+        <ArrowRight className="text-muted mx-2 inline-block" />
+        <span className="text-foreground">{trueLabel}</span>
         <span className="text-muted mx-2">|</span>
         <span className="text-vermillion">else</span>
-        <span className="text-muted mx-2">→</span>
-        <span className="text-foreground">{falseAssets}</span>
+        <ArrowRight className="text-muted mx-2 inline-block" />
+        <span className="text-foreground">{falseLabel}</span>
       </div>
     );
   }
@@ -178,24 +234,6 @@ export function LeaderboardRow({
   // Shared Level 1 Summary content
   const Level1Content = () => (
     <div className="max-w-2xl">
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <ChevronDown className="text-muted" />
-        <span className="inline-flex items-center gap-1.5">
-          {providerLogo && (
-            <Image
-              src={providerLogo}
-              alt=""
-              width={14}
-              height={14}
-              className="opacity-60"
-            />
-          )}
-          <span className="font-mono text-sm text-foreground">{modelName}</span>
-        </span>
-        <span className="text-muted">—</span>
-        <span className="font-sans text-sm text-foreground">&ldquo;{result.strategy.name}&rdquo;</span>
-      </div>
-
       <p className="font-serif text-lg leading-relaxed text-foreground mb-4">
         {summary}
       </p>
@@ -214,9 +252,13 @@ export function LeaderboardRow({
             e.stopPropagation();
             onToggleDetail();
           }}
-          className="font-sans text-sm text-vermillion hover:underline py-2 sm:py-0 text-left"
+          className="font-sans text-sm text-vermillion hover:underline py-2 sm:py-0 text-left inline-flex items-center gap-1"
         >
-          {showDetail ? 'Hide full thesis ↑' : 'View full thesis →'}
+          {showDetail ? (
+            <>Hide full thesis <ChevronUp className="inline-block" /></>
+          ) : (
+            <>Show full thesis <ChevronDown className="inline-block" /></>
+          )}
         </button>
 
         {result.symphony_id && (
@@ -225,9 +267,9 @@ export function LeaderboardRow({
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="font-sans text-sm text-vermillion hover:underline py-2 sm:py-0"
+            className="font-sans text-sm text-vermillion hover:underline py-2 sm:py-0 inline-flex items-center gap-1"
           >
-            View on Composer ↗
+            View on Composer <ArrowUpRight className="inline-block" />
           </a>
         )}
       </div>
