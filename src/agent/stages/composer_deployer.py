@@ -192,6 +192,18 @@ def _parse_condition(condition_str: str) -> dict:
         except ValueError:
             pass
 
+        # Generic moving average format: TICKER_<N>d_MA (e.g., VIXY_20d_MA)
+        ma_match = re.match(r"^([^_]+)_(\d+)d_MA$", operand, re.IGNORECASE)
+        if ma_match:
+            ticker = ma_match.group(1)
+            window = int(ma_match.group(2))
+            if not ticker:
+                raise ValueError(
+                    f"Unsupported operand format: '{operand}'. "
+                    "Operand must start with a valid ticker symbol."
+                )
+            return (ticker.upper(), "moving-average-price", {"window": window}, False)
+
         # Parse ticker_function format
         operand_lower = operand.lower()
         for suffix, (fn_name, window_spec) in fn_suffix_map.items():
@@ -224,7 +236,7 @@ def _parse_condition(condition_str: str) -> dict:
         if "_" in operand:
             raise ValueError(
                 f"Unsupported operand format: '{operand}'. "
-                "Use TICKER or TICKER_price / TICKER_200d_MA / "
+                "Use TICKER or TICKER_price / TICKER_<N>d_MA / TICKER_200d_MA / "
                 "TICKER_cumulative_return_Nd / TICKER_RSI_Nd / TICKER_EMA_Nd."
             )
 

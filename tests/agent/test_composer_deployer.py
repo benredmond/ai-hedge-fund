@@ -743,6 +743,13 @@ class TestParseCondition:
         assert result["rhs-fn"] == "moving-average-price"
         assert result["rhs-fn-params"] == {"window": 50}
 
+    def test_20d_moving_average(self):
+        """Parse 'VIXY_price > VIXY_20d_MA'."""
+        result = _parse_condition("VIXY_price > VIXY_20d_MA")
+
+        assert result["rhs-fn"] == "moving-average-price"
+        assert result["rhs-fn-params"] == {"window": 20}
+
     def test_cumulative_return(self):
         """Parse 'SPY_cumulative_return_30d > 0.05'."""
         result = _parse_condition("SPY_cumulative_return_30d > 0.05")
