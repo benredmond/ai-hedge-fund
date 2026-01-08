@@ -2,7 +2,7 @@ import pytest
 from datetime import datetime
 from freezegun import freeze_time
 from unittest.mock import Mock, patch
-from src.market_context.fetchers import fetch_regime_snapshot, fetch_macro_indicators, fetch_recent_events, fetch_benchmark_performance, fetch_intra_sector_divergence, SECTOR_TOP_HOLDINGS
+from src.market_context.fetchers import fetch_regime_snapshot, fetch_macro_indicators, fetch_recent_events, fetch_benchmark_performance, fetch_intra_sector_divergence, SECTOR_TOP_HOLDINGS, _calculate_yoy_growth_time_series
 
 
 class TestFetchRegimeSnapshot:
@@ -197,6 +197,22 @@ class TestFetchMacroIndicators:
         
         assert "current" in inflation["cpi_yoy"]
         assert "current" in inflation["core_cpi_yoy"]
+
+    def test_yoy_growth_uses_actual_data_date(self):
+        """YoY growth aligns to the actual data date when releases lag."""
+        import pandas as pd
+
+        dates = pd.date_range(start="2024-11-01", periods=13, freq="MS")
+        values = list(range(100, 113))
+        series = pd.Series(values, index=dates)
+
+        mock_fred = Mock()
+        mock_fred.get_series.return_value = series
+
+        anchor_date = datetime(2026, 1, 5)
+        result = _calculate_yoy_growth_time_series(mock_fred, "CPIAUCSL", anchor_date)
+
+        assert result["current"] == pytest.approx(12.0, abs=0.01)
 
     @patch('src.market_context.fetchers.Fred')
     def test_employment_indicators(self, mock_fred_class):

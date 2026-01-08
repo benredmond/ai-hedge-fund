@@ -102,23 +102,27 @@ def _calculate_yoy_growth_time_series(fred: Fred, series_id: str,
         # Calculate YoY growth at each offset
         result = {}
         for key, target_date in offsets.items():
-            # Find nearest date (120 days tolerance for monthly data)
+            # Find nearest available data point to target_date (handles release lag)
             idx = series_data.index.get_indexer([target_date], method='nearest', tolerance=pd.Timedelta(days=120))
             if idx[0] == -1:
                 result[key] = None
                 continue
-            
-            # Find date 12 months prior
-            target_date_12m_ago = target_date - relativedelta(months=12)
-            idx_12m = series_data.index.get_indexer([target_date_12m_ago], method='nearest', tolerance=pd.Timedelta(days=120))
-            
-            if idx_12m[0] != -1:
-                current_val = series_data.iloc[idx[0]]
-                prior_val = series_data.iloc[idx_12m[0]]
-                yoy_growth = ((current_val / prior_val) - 1) * 100
-                result[key] = round(float(yoy_growth), 2)
-            else:
+
+            current_idx = idx[0]
+            current_date = series_data.index[current_idx].to_pydatetime()
+            current_val = series_data.iloc[current_idx]
+
+            # Compute YoY using the actual data date (not anchor_date) to avoid skew
+            prior_date = current_date - relativedelta(months=12)
+            idx_12m = series_data.index.get_indexer([prior_date], method='nearest', tolerance=pd.Timedelta(days=120))
+
+            if idx_12m[0] == -1:
                 result[key] = None
+                continue
+
+            prior_val = series_data.iloc[idx_12m[0]]
+            yoy_growth = ((current_val / prior_val) - 1) * 100
+            result[key] = round(float(yoy_growth), 2)
         
         return result
     except Exception as e:
