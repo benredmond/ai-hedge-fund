@@ -35,6 +35,7 @@ from src.agent.persistence import (
     clear_checkpoint,
 )
 from src.agent.mcp_config import set_summarization_model
+from src.agent.rate_limit import detect_provider
 
 
 def _parse_model_list(raw: str | None) -> List[str]:
@@ -307,14 +308,21 @@ async def create_strategy_workflow(
         print(f"   Logic Tree: {'Yes' if candidate.logic_tree else 'Static allocation'}")
     print("="*80 + "\n")
 
-    # Stage 2: Evaluate Edge Scorecard (parallel scoring)
+    # Stage 2: Evaluate Edge Scorecard (provider-aware scoring)
     if should_run_stage(WorkflowStage.SCORING):
         print("Stage 2/5: Evaluating Edge Scorecard...")
-        scoring_tasks = [
-            edge_scorer.score(candidate, market_context, model)
-            for candidate in candidates
-        ]
-        scorecards = await asyncio.gather(*scoring_tasks)
+        if detect_provider(model) == "anthropic":
+            print("  Anthropic model detected - scoring sequentially to reduce rate limit risk.")
+            scorecards = []
+            for i, candidate in enumerate(candidates, 1):
+                print(f"  Scoring candidate {i}/{len(candidates)}...")
+                scorecards.append(await edge_scorer.score(candidate, market_context, model))
+        else:
+            scoring_tasks = [
+                edge_scorer.score(candidate, market_context, model)
+                for candidate in candidates
+            ]
+            scorecards = await asyncio.gather(*scoring_tasks)
 
         # Filter candidates by Edge Scorecard threshold (≥3.0)
         # Log failures but allow partial success (winner_selector will handle filtering)

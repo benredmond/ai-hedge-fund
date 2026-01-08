@@ -1,8 +1,10 @@
 """Select best strategy from candidates using composite ranking."""
 
 from typing import List, Tuple
+import asyncio
 import os
 from pydantic_ai import ModelSettings
+from pydantic_ai.exceptions import ModelHTTPError
 from src.agent.strategy_creator import (
     create_agent,
     load_prompt,
@@ -15,6 +17,7 @@ from src.agent.models import (
     EdgeScorecard,
     SelectionReasoning
 )
+from src.agent.rate_limit import detect_provider, is_rate_limit_error, rate_limit_backoff
 
 
 class WinnerSelector:
@@ -231,7 +234,29 @@ Return structured SelectionReasoning output.
                 print(f"[DEBUG:WinnerSelector] ======================================")
                 print(f"{'='*80}\n")
 
-            result = await agent.run(prompt)
+            provider = detect_provider(model)
+            max_attempts = 4
+            last_error: Exception | None = None
+            result = None
+
+            for attempt in range(max_attempts):
+                try:
+                    result = await agent.run(prompt)
+                    break
+                except ModelHTTPError as err:
+                    last_error = err
+                    if is_rate_limit_error(err) and attempt < max_attempts - 1:
+                        wait_time = rate_limit_backoff(attempt, provider)
+                        print(
+                            f"⚠️  Winner selection hit model rate limit (attempt {attempt + 1}/{max_attempts}). "
+                            f"Retrying in {wait_time:.1f}s..."
+                        )
+                        await asyncio.sleep(wait_time)
+                        continue
+                    raise
+
+            if result is None and last_error is not None:
+                raise last_error
 
             # Extract and log full reasoning content (Kimi K2, DeepSeek R1, etc.)
             from src.agent.stages.candidate_generator import extract_and_log_reasoning

@@ -4,7 +4,6 @@ from typing import List, Dict, Literal, TypedDict
 import asyncio
 import json
 import os
-import random
 import re
 from dataclasses import dataclass
 from pydantic_ai import ModelSettings
@@ -92,6 +91,7 @@ from src.agent.config.proxies import (
     ALLOWED_ABSOLUTE_PRICE_TICKERS,
 )
 from src.agent.validators import BenchmarkValidator, CostValidator
+from src.agent.rate_limit import detect_provider, is_rate_limit_error, rate_limit_backoff
 
 
 # Pre-compiled regex patterns for validation (performance optimization)
@@ -156,46 +156,7 @@ def _is_rate_limit_error(err: Exception) -> bool:
     """Return True if error indicates rate limiting (not quota exhaustion)."""
     if _is_insufficient_quota_error(err):
         return False
-
-    if isinstance(err, ModelHTTPError):
-        if getattr(err, "status_code", None) != 429:
-            return False
-        body = getattr(err, "body", None)
-        if isinstance(body, dict):
-            error = body.get("error")
-            if isinstance(error, dict):
-                if error.get("type") in {"rate_limit_error", "rate_limit"}:
-                    return True
-            code = body.get("code") or body.get("type")
-            if code in {"rate_limit_error", "rate_limit"}:
-                return True
-        # Default: 429 without quota wording = rate limit
-        return True
-
-    message = str(err).lower()
-    return (
-        "rate limit" in message
-        or "rate_limit" in message
-        or "too many requests" in message
-        or "429" in message
-    )
-
-
-def _rate_limit_backoff(
-    attempt: int,
-    provider: str,
-    base_delay: float | None = None,
-    max_delay: float | None = None,
-) -> float:
-    """Compute exponential backoff with jitter for rate limiting."""
-    if base_delay is None:
-        base_delay = 15.0 if provider == "anthropic" else 5.0
-    if max_delay is None:
-        max_delay = 120.0 if provider == "anthropic" else 60.0
-
-    delay = min(max_delay, base_delay * (2 ** attempt))
-    jitter = random.uniform(0.0, min(3.0, delay * 0.1))
-    return delay + jitter
+    return is_rate_limit_error(err)
 
 
 def extract_and_log_reasoning(result, stage_name: str) -> bool:
@@ -307,43 +268,9 @@ class CandidateGenerator:
     - fred_get_series: Macro data verification
     """
 
-    def _detect_provider(self, model: str) -> Literal["kimi", "openai", "anthropic", "deepseek", "gemini", "other"]:
-        """
-        Detect LLM provider from model string.
-
-        Args:
-            model: Model identifier (e.g., "openai:gpt-4o", "openai:kimi-k2-0905-preview")
-
-        Returns:
-            Provider identifier for provider-specific handling
-        """
-        model_lower = model.lower()
-
-        # Kimi/Moonshot models
-        if "kimi" in model_lower or "moonshot" in model_lower:
-            return "kimi"
-
-        # DeepSeek models
-        if "deepseek" in model_lower:
-            return "deepseek"
-
-        # Anthropic models
-        if "claude" in model_lower or "anthropic" in model_lower:
-            return "anthropic"
-
-        # Gemini / Google models
-        if "gemini" in model_lower or model_lower.startswith("google-"):
-            return "gemini"
-
-        # OpenAI models (default for openai: prefix)
-        if "gpt" in model_lower or model_lower.startswith("openai:"):
-            return "openai"
-
-        return "other"
-
     def _max_parallel_candidates(self, model: str) -> int:
         """Return max parallel candidate requests to avoid provider rate limits."""
-        provider = self._detect_provider(model)
+        provider = detect_provider(model)
         if provider == "anthropic":
             return 1
         return len(PROMPT_VARIATIONS)
@@ -357,7 +284,7 @@ class CandidateGenerator:
 
         Args:
             prompt: Original generation prompt
-            provider: Provider identifier from _detect_provider()
+            provider: Provider identifier from detect_provider()
 
         Returns:
             Enhanced prompt with provider-specific count enforcement
@@ -514,7 +441,7 @@ weights=[{"asset": "SPY", "weight": 0.6}, {"asset": "AGG", "weight": 0.4}]
         Returns:
             Tuple of (validated candidates, final failures)
         """
-        provider = self._detect_provider(model)
+        provider = detect_provider(model)
         max_parallel = self._max_parallel_candidates(model)
         if max_parallel < len(PROMPT_VARIATIONS):
             print(
@@ -539,7 +466,7 @@ weights=[{"asset": "SPY", "weight": 0.6}, {"asset": "AGG", "weight": 0.4}]
                 except Exception as err:
                     results.append(err)
                     if _is_rate_limit_error(err):
-                        wait_time = _rate_limit_backoff(rate_limit_hits, provider)
+                        wait_time = rate_limit_backoff(rate_limit_hits, provider)
                         rate_limit_hits += 1
                         print(
                             f"  [{variation['name']}] ⚠️ Rate limit hit. "
@@ -584,7 +511,7 @@ weights=[{"asset": "SPY", "weight": 0.6}, {"asset": "AGG", "weight": 0.4}]
                 max_attempts = 4 if is_rate_limit else 2
 
                 if is_rate_limit:
-                    wait_time = _rate_limit_backoff(rate_limit_attempt, provider)
+                    wait_time = rate_limit_backoff(rate_limit_attempt, provider)
                     rate_limit_attempt += 1
                     print(
                         f"    [{variation['name']}] ⚠️ Rate limit hit. "
@@ -611,7 +538,7 @@ weights=[{"asset": "SPY", "weight": 0.6}, {"asset": "AGG", "weight": 0.4}]
                     except Exception as retry_error:
                         last_error = retry_error
                         if _is_rate_limit_error(retry_error) and attempt < max_attempts - 1:
-                            wait_time = _rate_limit_backoff(rate_limit_attempt, provider)
+                            wait_time = rate_limit_backoff(rate_limit_attempt, provider)
                             rate_limit_attempt += 1
                             print(
                                 f"    [{variation['name']}] ⚠️ Rate limit hit. "
@@ -854,7 +781,7 @@ Return all 5 candidates together in a single List[Strategy] containing exactly 5
 """
 
             # Enhance prompt with provider-specific count enforcement
-            provider = self._detect_provider(model)
+            provider = detect_provider(model)
             generate_prompt = self._enhance_count_instruction(generate_prompt, provider)
 
             # Track token usage before API call

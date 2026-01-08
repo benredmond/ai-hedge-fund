@@ -21,6 +21,7 @@ from src.agent.models import (
     EdgeScorecard
 )
 from pydantic_ai.exceptions import ModelHTTPError
+from src.agent.rate_limit import detect_provider, is_rate_limit_error, rate_limit_backoff
 
 
 class CharterGenerator:
@@ -180,6 +181,7 @@ Begin by reviewing the market_context and selection context, then write the 5-se
     ) -> Charter:
         last_error: Exception | None = None
         length_warning_given = False
+        provider = detect_provider(model)
 
         for attempt in range(1, max_attempts + 1):
             try:
@@ -313,8 +315,8 @@ Remember the CRITICAL LENGTH CONSTRAINTS:
                     continue
                 raise
             except ModelHTTPError as err:
-                if getattr(err, "status_code", None) == 429 and attempt < max_attempts:
-                    wait_time = base_delay * (2 ** (attempt - 1))
+                if is_rate_limit_error(err) and attempt < max_attempts:
+                    wait_time = rate_limit_backoff(attempt - 1, provider, base_delay)
                     print(
                         f"⚠️  Charter generation hit model rate limit (attempt {attempt}/{max_attempts}). "
                         f"Retrying in {wait_time:.1f}s..."
@@ -325,7 +327,7 @@ Remember the CRITICAL LENGTH CONSTRAINTS:
                 raise
             except openai.RateLimitError as err:
                 if attempt < max_attempts:
-                    wait_time = base_delay * (2 ** (attempt - 1))
+                    wait_time = rate_limit_backoff(attempt - 1, provider, base_delay)
                     print(
                         f"⚠️  Charter generation hit OpenAI rate limit (attempt {attempt}/{max_attempts}). "
                         f"Retrying in {wait_time:.1f}s..."
