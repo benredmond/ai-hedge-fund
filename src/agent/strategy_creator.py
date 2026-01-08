@@ -54,6 +54,14 @@ def _is_deepseek_model(provider: str, model_name: str) -> bool:
     return model_name.lower().startswith("deepseek")
 
 
+def _is_anthropic_model(model: str) -> bool:
+    """Return True for Anthropic Claude models, with or without provider prefix."""
+    provider, model_name = _split_model(model)
+    if provider:
+        return provider.lower() == "anthropic"
+    return model_name.lower().startswith("claude")
+
+
 def _get_deepseek_base_url() -> str:
     """Return DeepSeek base URL, allowing override via DEEPSEEK_BASE_URL."""
     return os.getenv("DEEPSEEK_BASE_URL", DEEPSEEK_BASE_URL)
@@ -299,7 +307,8 @@ def get_model_settings(
             settings["max_tokens"] = 32768  # Increased for reasoning trace + JSON output
             if allow_sampling_params:
                 settings["temperature"] = 1.0
-                settings["top_p"] = 1.0
+                if not _is_anthropic_model(model):
+                    settings["top_p"] = 1.0
         if openai_reasoning_effort:
             settings["openai_reasoning_effort"] = openai_reasoning_effort
         settings = _apply_anthropic_thinking(model, stage, settings)
