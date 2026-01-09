@@ -16,7 +16,9 @@ from typing import Optional, Type, TypeVar
 from pydantic import BaseModel
 from pydantic_ai import Agent, ModelSettings, PromptedOutput
 from pydantic_ai import messages as _messages
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.tools import RunContext
+from typing_extensions import assert_never
 
 from src.agent.mcp_config import get_mcp_servers
 
@@ -71,6 +73,67 @@ def _deepseek_thinking_enabled() -> bool:
     """Return True when DeepSeek thinking is enabled (default on)."""
     value = os.getenv("DEEPSEEK_THINKING", "1").strip().lower()
     return value not in {"0", "false", "no", "off"}
+
+
+class _DeepSeekChatModel(OpenAIChatModel):
+    """OpenAI-compatible DeepSeek model with reasoning_content support for tool calls."""
+
+    def _should_include_reasoning(self) -> bool:
+        model_name = self.model_name.lower()
+        if model_name.startswith("deepseek-reasoner"):
+            return True
+        if model_name.startswith("deepseek-chat"):
+            return _deepseek_thinking_enabled()
+        return False
+
+    async def _map_messages(self, messages: list) -> list:
+        from openai.types import chat
+
+        openai_messages: list[chat.ChatCompletionMessageParam] = []
+        for message in messages:
+            if isinstance(message, _messages.ModelRequest):
+                async for item in self._map_user_message(message):
+                    openai_messages.append(item)
+            elif isinstance(message, _messages.ModelResponse):
+                texts: list[str] = []
+                tool_calls: list[chat.ChatCompletionMessageFunctionToolCallParam] = []
+                reasoning_chunks: list[str] = []
+                for item in message.parts:
+                    if isinstance(item, _messages.TextPart):
+                        texts.append(item.content)
+                    elif isinstance(item, _messages.ThinkingPart):
+                        reasoning_chunks.append(item.content)
+                    elif isinstance(item, _messages.ToolCallPart):
+                        tool_calls.append(self._map_tool_call(item))
+                    elif isinstance(item, (_messages.BuiltinToolCallPart, _messages.BuiltinToolReturnPart)):
+                        pass
+                    elif isinstance(item, _messages.FilePart):
+                        pass
+                    else:
+                        assert_never(item)
+
+                message_param = chat.ChatCompletionAssistantMessageParam(role="assistant")
+                message_param["content"] = "\n\n".join(texts) if texts else None
+                if tool_calls:
+                    message_param["tool_calls"] = tool_calls
+
+                if self._should_include_reasoning() or reasoning_chunks:
+                    if reasoning_chunks:
+                        message_param["reasoning_content"] = "\n\n".join(reasoning_chunks)
+                    elif tool_calls:
+                        # DeepSeek requires reasoning_content when tool calls are present.
+                        message_param["reasoning_content"] = ""
+
+                openai_messages.append(message_param)
+            else:
+                assert_never(message)
+
+        if instructions := self._get_instructions(messages):
+            openai_messages.insert(
+                0, chat.ChatCompletionSystemMessageParam(content=instructions, role="system")
+            )
+        return openai_messages
+
 
 
 def is_reasoning_model(model: str) -> bool:
@@ -650,6 +713,22 @@ async def create_agent(
                 http_client=http_client,
             )
             model_for_agent = GoogleModel(model_name=model_name, provider=google_provider)
+        elif _is_deepseek_model(provider, model_name):
+            # DeepSeek doesn't support tool_choice="required"; disable it via profile override.
+            from pydantic_ai.profiles.openai import OpenAIModelProfile
+            from pydantic_ai.providers import infer_provider
+
+            deepseek_provider = infer_provider("openai" if provider == "openai" else "deepseek")
+
+            def _deepseek_profile(name: str):
+                base_profile = deepseek_provider.model_profile(name)
+                return OpenAIModelProfile(openai_supports_tool_choice_required=False).update(base_profile)
+
+            model_for_agent = _DeepSeekChatModel(
+                model_name=model_name,
+                provider=deepseek_provider,
+                profile=_deepseek_profile,
+            )
 
         # Force text-mode structured output when Anthropic thinking is enabled.
         output_spec = _maybe_prompted_output(model, output_type)
