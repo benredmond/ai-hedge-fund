@@ -70,6 +70,8 @@ def _auto_fallback_models() -> List[str]:
         models.append("openai:deepseek-chat")
     if os.getenv("KIMI_API_KEY"):
         models.append("openai:kimi-k2-thinking")
+    if os.getenv("TOGETHER_API_KEY"):
+        models.append("together:moonshotai/Kimi-K2-Thinking")
     if os.getenv("ANTHROPIC_API_KEY"):
         models.append("anthropic:claude-3-5-sonnet-20241022")
     return models

@@ -1,5 +1,5 @@
 """
-Test DeepSeek and Kimi provider support.
+Test DeepSeek, Kimi, and Together provider support.
 
 These tests verify that the agent creation works correctly for cheaper
 alternative LLM providers that use OpenAI-compatible APIs.
@@ -99,6 +99,26 @@ async def test_kimi_k2_creates_agent():
     """Test that Kimi K2 model can create an agent successfully"""
     agent_ctx = await create_agent(
         model="openai:kimi-k2-0905-preview",
+        output_type=Strategy,
+        system_prompt="You are a trading strategy assistant.",
+        include_composer=False,
+        history_limit=5
+    )
+
+    async with agent_ctx as agent:
+        assert agent is not None
+        assert agent.output_type == Strategy
+
+
+@pytest.mark.skipif(
+    not os.getenv("TOGETHER_API_KEY"),
+    reason="TOGETHER_API_KEY not set"
+)
+@pytest.mark.asyncio
+async def test_together_kimi_k2_thinking_creates_agent():
+    """Test that Together Kimi K2 Thinking can create an agent successfully"""
+    agent_ctx = await create_agent(
+        model="together:moonshotai/Kimi-K2-Thinking",
         output_type=Strategy,
         system_prompt="You are a trading strategy assistant.",
         include_composer=False,

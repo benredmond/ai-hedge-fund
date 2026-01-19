@@ -30,6 +30,7 @@ DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "openai:gpt-4o")
 # Provider-specific base URLs for cheaper alternatives
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 KIMI_BASE_URL = "https://api.moonshot.ai/v1"
+TOGETHER_BASE_URL = "https://api.together.xyz/v1"
 ANTHROPIC_THINKING_BUDGET_TOKENS = 32000
 _ANTHROPIC_THINKING_MODEL_MARKERS = ("claude-opus-4-5",)
 _ANTHROPIC_THINKING_OUTPUT_TOKENS = {
@@ -570,6 +571,7 @@ async def create_agent(
     - Gemini
     - DeepSeek
     - Kimi
+    - Together
 
     Args:
         model: Model identifier (format: 'provider:model-name')
@@ -629,7 +631,22 @@ async def create_agent(
         model = f"{provider}:{model_name}"
 
     restore_env: Optional[dict[str, Optional[str]]] = None
-    if provider == "openai":
+    if provider == "together":
+        original_openai_key = os.getenv("OPENAI_API_KEY")
+        original_base_url = os.getenv("OPENAI_BASE_URL")
+        together_key = os.getenv("TOGETHER_API_KEY")
+        if not together_key:
+            raise ValueError(
+                "TOGETHER_API_KEY environment variable required for Together models"
+            )
+        # [PAT:LOCAL:OPENAI_COMPAT_ENV_SWITCH] ★★★☆☆ (2 uses, N/A success)
+        os.environ["OPENAI_API_KEY"] = together_key
+        os.environ["OPENAI_BASE_URL"] = TOGETHER_BASE_URL
+        restore_env = {
+            "OPENAI_API_KEY": original_openai_key,
+            "OPENAI_BASE_URL": original_base_url,
+        }
+    elif provider == "openai":
         original_openai_key = os.getenv("OPENAI_API_KEY")
         original_base_url = os.getenv("OPENAI_BASE_URL")
         # DeepSeek uses OpenAI-compatible API
@@ -663,7 +680,7 @@ async def create_agent(
         else:
             # Reset base URL if it was set for OpenAI-compatible providers.
             base_url = os.getenv("OPENAI_BASE_URL")
-            if base_url in {DEEPSEEK_BASE_URL, KIMI_BASE_URL}:
+            if base_url in {DEEPSEEK_BASE_URL, KIMI_BASE_URL, TOGETHER_BASE_URL}:
                 os.environ.pop("OPENAI_BASE_URL", None)
 
     stack: Optional[AsyncExitStack] = None
@@ -728,6 +745,14 @@ async def create_agent(
                 model_name=model_name,
                 provider=deepseek_provider,
                 profile=_deepseek_profile,
+            )
+        elif provider == "together":
+            from pydantic_ai.providers import infer_provider
+
+            together_provider = infer_provider("openai")
+            model_for_agent = OpenAIChatModel(
+                model_name=model_name,
+                provider=together_provider,
             )
 
         # Force text-mode structured output when Anthropic thinking is enabled.

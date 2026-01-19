@@ -46,6 +46,7 @@ pip install -r requirements.txt
 #   FRED_API_KEY=your_key_here
 #   GOOGLE_API_KEY=your_key_here  # Gemini (Google Generative Language API)
 #   DEEPSEEK_API_KEY=sk-...  # Recommended: 90% cheaper than GPT-4o
+#   TOGETHER_API_KEY=sk-...  # Together (Kimi K2 Thinking)
 #   DEFAULT_MODEL=openai:gpt-5.2  # Optional: LLM model (default: openai:gpt-4o)
 # Get FRED key at: https://fred.stlouisfed.org/docs/api/api_key.html
 # Get DeepSeek key at: https://platform.deepseek.com
@@ -63,6 +64,7 @@ pip install -r requirements.txt
 - **GOOGLE_API_KEY**: Google Gemini (requires `pydantic-ai-slim[google]`)
 - **DEEPSEEK_API_KEY**: DeepSeek ($0.56/$1.68 per M tokens, 90% cheaper, excellent quality) - Get key at https://platform.deepseek.com
 - **KIMI_API_KEY**: Kimi/Moonshot (~$0.50-1/$1.50-3 per M tokens, 85% cheaper) - Get key at https://platform.moonshot.ai
+- **TOGETHER_API_KEY**: Together (OpenAI-compatible) - Get key at https://docs.together.ai
 
 **Optional:**
 - **DEFAULT_MODEL**: LLM model identifier for strategy creation workflow. Default: `openai:gpt-4o`
@@ -74,6 +76,7 @@ pip install -r requirements.txt
   - DeepSeek: `openai:deepseek-chat` (V3.2), `openai:deepseek-reasoner` (V3.2 Thinking)
   - DeepSeek thinking is ON by default (set `DEEPSEEK_THINKING=0` to disable).
   - Kimi: `openai:kimi-k2-thinking` or `openai:kimi-k2-thinking-turbo` (reasoning models)
+  - Together: `together:moonshotai/Kimi-K2-Thinking`
   - Reasoning defaults to ON unless model matches the non-reasoning allowlist (gpt-4o, gpt-4.1, gpt-4-turbo, gpt-4, gpt-3.5, claude-3/2, moonshot-*, kimi-* non-thinking).
   - Used by `create_strategy_workflow()` when model parameter not specified
 - **COMPOSER_API_KEY**, **COMPOSER_API_SECRET**: Required for Composer backtesting and deployment

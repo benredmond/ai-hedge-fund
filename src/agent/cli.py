@@ -44,7 +44,7 @@ def load_env_vars():
     Required:
         - FRED_API_KEY: Federal Reserve Economic Data API key
         - At least one LLM provider key (OPENAI_API_KEY, ANTHROPIC_API_KEY,
-          DEEPSEEK_API_KEY, or KIMI_API_KEY)
+          DEEPSEEK_API_KEY, KIMI_API_KEY, or TOGETHER_API_KEY)
         - COMPOSER_API_KEY: Composer trading platform API key
         - COMPOSER_API_SECRET: Composer trading platform API secret
 
@@ -60,9 +60,18 @@ def load_env_vars():
         missing_vars.append('FRED_API_KEY')
 
     # At least one LLM provider key required
-    llm_keys = ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'DEEPSEEK_API_KEY', 'KIMI_API_KEY']
+    llm_keys = [
+        'OPENAI_API_KEY',
+        'ANTHROPIC_API_KEY',
+        'DEEPSEEK_API_KEY',
+        'KIMI_API_KEY',
+        'TOGETHER_API_KEY',
+    ]
     if not any(os.getenv(key) for key in llm_keys):
-        missing_vars.append('OPENAI_API_KEY (or ANTHROPIC_API_KEY, DEEPSEEK_API_KEY, KIMI_API_KEY)')
+        missing_vars.append(
+            'OPENAI_API_KEY (or ANTHROPIC_API_KEY, DEEPSEEK_API_KEY, '
+            'KIMI_API_KEY, TOGETHER_API_KEY)'
+        )
 
     # Composer keys required for deployment
     if not os.getenv('COMPOSER_API_KEY'):
