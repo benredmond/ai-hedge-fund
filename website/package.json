@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "prebuild": "mkdir -p public/data && cp -r ../data/cohorts public/data/",
-    "predev": "mkdir -p public/data && cp -r ../data/cohorts public/data/",
+    "prebuild": "../scripts/sync-website-data.sh",
+    "predev": "../scripts/sync-website-data.sh",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
