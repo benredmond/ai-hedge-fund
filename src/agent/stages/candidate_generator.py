@@ -1,12 +1,12 @@
 """Generate 5 candidate strategies using AI via parallel prompts."""
 
-from typing import List, Dict, Literal, TypedDict
+from typing import List, Dict, Literal, TypedDict, Type, TypeVar
 import asyncio
 import json
 import os
 import re
 from dataclasses import dataclass
-from pydantic_ai import ModelSettings
+from pydantic_ai import ModelSettings, PromptedOutput
 from pydantic_ai.exceptions import ModelHTTPError
 from src.agent.strategy_creator import (
     create_agent,
@@ -15,6 +15,7 @@ from src.agent.strategy_creator import (
     is_reasoning_model,
     get_model_settings,
 )
+from src.agent.rate_limit import detect_provider
 from src.agent.models import Strategy, CandidateList, SingleStrategy, ConcentrationIntent
 
 
@@ -40,6 +41,26 @@ class QuotaExhaustedError(RuntimeError):
         super().__init__(
             f"Model quota exhausted for {model}. Failed variations: {variations}."
         )
+
+
+TOutput = TypeVar("TOutput")
+
+
+def _candidate_output_type_for_model(model: str, output_type: Type[TOutput]):
+    """Select output type for candidate generation (Gemini uses prompted JSON)."""
+    if detect_provider(model) == "gemini":
+        if isinstance(output_type, PromptedOutput):
+            return output_type
+        return PromptedOutput(output_type)
+    return output_type
+
+
+def _truncate_log_value(value: object, max_len: int = 2000) -> str:
+    """Return a safe, truncated string for logging large errors."""
+    text = value if isinstance(value, str) else repr(value)
+    if len(text) <= max_len:
+        return text
+    return text[:max_len] + "...(truncated)"
 
 
 # 5 distinct prompt variations to seed different reasoning paths
@@ -604,9 +625,10 @@ weights=[{"asset": "SPY", "weight": 0.6}, {"asset": "AGG", "weight": 0.4}]
         model_settings = get_model_settings(model, stage="candidate_generation")
 
         # Create agent with all tools available (but usage optional)
+        output_type = _candidate_output_type_for_model(model, CandidateList)
         agent_ctx = await create_agent(
             model=model,
-            output_type=CandidateList,  # Wrapper enforces exactly 5 via JSON schema
+            output_type=output_type,  # Wrapper enforces exactly 5 via JSON schema
             system_prompt=system_prompt,
             include_composer=False,  # Candidate generation uses FRED/yfinance only
             model_settings=model_settings
@@ -2359,9 +2381,10 @@ Remember: You are a {variation["emphasis"]} specialist. Your strategy should ref
 **Return a single Strategy object.**"""
 
         # Create agent with SingleStrategy output type
+        output_type = _candidate_output_type_for_model(model, SingleStrategy)
         agent_ctx = await create_agent(
             model=model,
-            output_type=SingleStrategy,
+            output_type=output_type,
             system_prompt=system_prompt,
             include_composer=False,
             model_settings=model_settings
@@ -2369,7 +2392,56 @@ Remember: You are a {variation["emphasis"]} specialist. Your strategy should ref
 
         async with agent_ctx as agent:
             print(f"  [{variation['name']}] Generating candidate...")
-            result = await agent.run(generate_prompt)
+            try:
+                result = await agent.run(generate_prompt)
+            except Exception as e:
+                provider = detect_provider(model)
+                print(f"\n[ERROR:CandidateGenerator:{variation['name']}] Model run failed")
+                print(f"  Provider: {provider}")
+                print(f"  Model: {model}")
+                if model_settings:
+                    print(f"  Model settings: {dict(model_settings)}")
+
+                schema = getattr(agent, "_output_schema", None)
+                if schema is not None:
+                    print(f"  Output mode: {getattr(schema, 'mode', None)}")
+                    print(f"  Allows text: {getattr(schema, 'allows_text', None)}")
+                    toolset = getattr(schema, "toolset", None)
+                    if toolset is not None:
+                        tool_defs = getattr(toolset, "_tool_defs", None) or []
+                        tool_names = [t.name for t in tool_defs if hasattr(t, "name")]
+                        print(f"  Output tools: {tool_names}")
+
+                print(f"  Exception: {_truncate_log_value(e)}")
+                print(f"  Exception type: {type(e).__name__}")
+
+                status_code = getattr(e, "status_code", None)
+                if status_code is not None:
+                    print(f"  HTTP status: {status_code}")
+                body = getattr(e, "body", None)
+                if body is not None:
+                    print(f"  HTTP body: {_truncate_log_value(body)}")
+
+                if getattr(e, "args", None):
+                    print(f"  Exception args: {_truncate_log_value(e.args)}")
+
+                cause = getattr(e, "__cause__", None)
+                if cause is not None:
+                    print(f"  Cause type: {type(cause).__name__}")
+                    print(f"  Cause: {_truncate_log_value(cause)}")
+                    tool_retry = getattr(cause, "tool_retry", None)
+                    if tool_retry is not None:
+                        try:
+                            print(f"  Retry feedback: {_truncate_log_value(tool_retry.model_response())}")
+                        except Exception as retry_err:
+                            print(f"  Retry feedback: <failed to render> {retry_err}")
+                    if hasattr(cause, "errors"):
+                        try:
+                            print(f"  Cause errors: {_truncate_log_value(cause.errors())}")
+                        except Exception as parse_err:
+                            print(f"  Cause errors: <failed to extract> {parse_err}")
+
+                raise
 
             # Extract and log reasoning if available
             extract_and_log_reasoning(result, f"CandidateGenerator:{variation['name']}")
