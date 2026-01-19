@@ -1,0 +1,738 @@
+{
+  "metadata": {
+    "anchor_date": "2026-01-17T02:21:35.575266",
+    "data_cutoff": "2026-01-17T02:21:35.575266",
+    "generated_at": "2026-01-17T02:21:59.570408",
+    "version": "v2.0.0"
+  },
+  "regime_snapshot": {
+    "trend": {
+      "regime": "bull",
+      "SPY_vs_200d_ma": {
+        "current": 9.78,
+        "1m_ago": 8.44,
+        "3m_ago": 10.45,
+        "6m_ago": 7.97,
+        "12m_ago": 7.87
+      }
+    },
+    "volatility": {
+      "regime": "normal",
+      "VIX_current": {
+        "current": 15.86,
+        "1m_ago": 17.62,
+        "3m_ago": 20.78,
+        "6m_ago": 16.52,
+        "12m_ago": 15.97
+      },
+      "VIX_30d_avg": 15.37
+    },
+    "breadth": {
+      "sectors_above_50d_ma_pct": {
+        "current": 100.0,
+        "1m_ago": 72.73,
+        "3m_ago": 63.64,
+        "6m_ago": 90.91,
+        "12m_ago": 45.45
+      }
+    },
+    "sector_leadership": {
+      "leaders": [
+        ["XLB", 9.26],
+        ["XLI", 6.68],
+        ["XLP", 4.14]
+      ],
+      "laggards": [
+        ["XLK", -1.15],
+        ["XLU", -1.35],
+        ["XLC", -1.57]
+      ]
+    },
+    "dispersion": {
+      "sector_return_std_30d": 3.46,
+      "regime": "moderate"
+    },
+    "factor_regime": {
+      "value_vs_growth": {
+        "regime": "value_favored",
+        "spread_30d": 5.89
+      },
+      "momentum_premium_30d": {
+        "current": 2.28,
+        "1m_ago": -2.11,
+        "3m_ago": 0.79,
+        "6m_ago": -3.34,
+        "12m_ago": 2.03
+      },
+      "quality_premium_30d": {
+        "current": 0.98,
+        "1m_ago": 1.82,
+        "3m_ago": -0.44,
+        "6m_ago": -2.36,
+        "12m_ago": -1.86
+      },
+      "size_premium_30d": {
+        "current": 5.38,
+        "1m_ago": 3.42,
+        "3m_ago": -0.27,
+        "6m_ago": 1.75,
+        "12m_ago": -5.08
+      }
+    },
+    "intra_sector_divergence": {
+      "XLK": {
+        "top": [
+          ["MU", 60.11],
+          ["LRCX", 41.93],
+          ["AMAT", 21.37],
+          ["AMD", 7.34]
+        ],
+        "bottom": [
+          ["AAPL", -8.97],
+          ["ORCL", -10.61],
+          ["APP", -16.82],
+          ["INTU", -17.61]
+        ],
+        "spread_pct": 77.72,
+        "holdings_analyzed": 15
+      },
+      "XLF": {
+        "top": [
+          ["GS", 14.82],
+          ["SPGI", 9.93],
+          ["C", 9.51],
+          ["SCHW", 9.25]
+        ],
+        "bottom": [
+          ["BAC", -1.69],
+          ["BRK-B", -1.98],
+          ["WFC", -2.03],
+          ["PGR", -5.23]
+        ],
+        "spread_pct": 20.05,
+        "holdings_analyzed": 15
+      },
+      "XLE": {
+        "top": [
+          ["SLB", 22.59],
+          ["XOM", 10.88],
+          ["CVX", 9.19],
+          ["COP", 5.44]
+        ],
+        "bottom": [
+          ["WMB", -2.51],
+          ["EOG", -6.1],
+          ["MPC", -7.64],
+          ["EQT", -15.86]
+        ],
+        "spread_pct": 38.45,
+        "holdings_analyzed": 15
+      },
+      "XLV": {
+        "top": [
+          ["MRK", 8.79],
+          ["JNJ", 7.99],
+          ["TMO", 7.64],
+          ["DHR", 4.04]
+        ],
+        "bottom": [
+          ["MDT", -5.13],
+          ["ISRG", -5.91],
+          ["ABBV", -6.28],
+          ["BSX", -9.88]
+        ],
+        "spread_pct": 18.67,
+        "holdings_analyzed": 15
+      },
+      "XLI": {
+        "top": [
+          ["LMT", 29.91],
+          ["BA", 22.69],
+          ["RTX", 17.87],
+          ["HON", 14.13]
+        ],
+        "bottom": [
+          ["ADP", 1.05],
+          ["UNP", -2.72],
+          ["TT", -3.9],
+          ["UBER", -6.75]
+        ],
+        "spread_pct": 36.66,
+        "holdings_analyzed": 15
+      },
+      "XLP": {
+        "top": [
+          ["TGT", 21.5],
+          ["PM", 17.92],
+          ["CL", 8.92],
+          ["SYY", 8.09]
+        ],
+        "bottom": [
+          ["KO", -0.01],
+          ["PG", -0.57],
+          ["KDP", -3.3],
+          ["KMB", -4.21]
+        ],
+        "spread_pct": 25.71,
+        "holdings_analyzed": 15
+      },
+      "XLY": {
+        "top": [
+          ["LOW", 12.75],
+          ["MAR", 10.09],
+          ["HLT", 10.02],
+          ["SBUX", 9.4]
+        ],
+        "bottom": [
+          ["NKE", -1.99],
+          ["TSLA", -3.75],
+          ["ORLY", -4.83],
+          ["DASH", -7.17]
+        ],
+        "spread_pct": 19.92,
+        "holdings_analyzed": 15
+      },
+      "XLU": {
+        "top": [
+          ["ED", 7.89],
+          ["SRE", 3.5],
+          ["D", 3.31],
+          ["WEC", 2.17]
+        ],
+        "bottom": [
+          ["PEG", -0.88],
+          ["XEL", -2.03],
+          ["VST", -5.25],
+          ["CEG", -16.52]
+        ],
+        "spread_pct": 24.41,
+        "holdings_analyzed": 15
+      },
+      "XLRE": {
+        "top": [
+          ["EXR", 14.95],
+          ["EQIX", 10.42],
+          ["PSA", 7.41],
+          ["CBRE", 6.27]
+        ],
+        "bottom": [
+          ["SPG", 2.11],
+          ["VTR", -1.89],
+          ["CSGP", -4.18],
+          ["WELL", -6.13]
+        ],
+        "spread_pct": 21.08,
+        "holdings_analyzed": 15
+      },
+      "XLC": {
+        "top": [
+          ["WBD", 16.46],
+          ["OMC", 14.83],
+          ["CMCSA", 10.41],
+          ["DIS", 6.15]
+        ],
+        "bottom": [
+          ["META", -6.16],
+          ["T", -6.4],
+          ["TMUS", -10.43],
+          ["NFLX", -14.75]
+        ],
+        "spread_pct": 31.21,
+        "holdings_analyzed": 15
+      },
+      "XLB": {
+        "top": [
+          ["FCX", 31.94],
+          ["NEM", 25.79],
+          ["SW", 17.17],
+          ["IP", 10.78]
+        ],
+        "bottom": [
+          ["VMC", 4.2],
+          ["STLD", 3.56],
+          ["APD", 3.01],
+          ["CRH", 1.59]
+        ],
+        "spread_pct": 30.35,
+        "holdings_analyzed": 15
+      }
+    }
+  },
+  "macro_indicators": {
+    "interest_rates": {
+      "fed_funds_rate": {
+        "current": 3.64,
+        "1m_ago": 3.64,
+        "3m_ago": 4.11,
+        "6m_ago": 4.33,
+        "12m_ago": 4.33
+      },
+      "treasury_10y": {
+        "current": 4.17,
+        "1m_ago": 4.16,
+        "3m_ago": 4.02,
+        "6m_ago": 4.47,
+        "12m_ago": 4.61
+      },
+      "treasury_2y": {
+        "current": 3.56,
+        "1m_ago": 3.49,
+        "3m_ago": 3.46,
+        "6m_ago": 3.91,
+        "12m_ago": 4.27
+      },
+      "yield_curve_2s10s": {
+        "current": 0.61,
+        "1m_ago": 0.67,
+        "3m_ago": 0.56,
+        "6m_ago": 0.56,
+        "12m_ago": 0.34
+      }
+    },
+    "inflation": {
+      "cpi_yoy": {
+        "current": 2.65,
+        "1m_ago": 2.65,
+        "3m_ago": 2.71,
+        "6m_ago": 2.94,
+        "12m_ago": 2.81
+      },
+      "core_cpi_yoy": {
+        "current": 2.65,
+        "1m_ago": 2.65,
+        "3m_ago": 2.62,
+        "6m_ago": 3.11,
+        "12m_ago": 3.14
+      },
+      "tips_spread_10y": {
+        "current": 2.33,
+        "1m_ago": 2.24,
+        "3m_ago": 2.27,
+        "6m_ago": 2.43,
+        "12m_ago": 2.41
+      }
+    },
+    "employment": {
+      "unemployment_rate": {
+        "current": 4.4,
+        "1m_ago": 4.4,
+        "3m_ago": 4.5,
+        "6m_ago": 4.3,
+        "12m_ago": 4.2
+      },
+      "nonfarm_payrolls": {
+        "current": 159526.0,
+        "1m_ago": 159526.0,
+        "3m_ago": 159476.0,
+        "6m_ago": 159485.0,
+        "12m_ago": 159155.0
+      },
+      "wage_growth_yoy": {
+        "current": 3.76,
+        "1m_ago": 3.76,
+        "3m_ago": 3.62,
+        "6m_ago": 3.83,
+        "12m_ago": 3.94
+      },
+      "initial_claims_4wk_avg": {
+        "current": 198000.0,
+        "1m_ago": 215000.0,
+        "3m_ago": 232000.0,
+        "6m_ago": 217000.0,
+        "12m_ago": 222000.0
+      }
+    },
+    "manufacturing": {
+      "industrial_production_index": {
+        "current": 102.33,
+        "1m_ago": 102.33,
+        "3m_ago": 101.95,
+        "6m_ago": 101.59,
+        "12m_ago": 101.1
+      },
+      "housing_starts_thousands": {
+        "current": 1246.0,
+        "1m_ago": 1246.0,
+        "3m_ago": 1246.0,
+        "6m_ago": 1291.0,
+        "12m_ago": 1490.0
+      }
+    },
+    "consumer": {
+      "confidence_index": {
+        "current": 51.0,
+        "1m_ago": 51.0,
+        "3m_ago": 51.0,
+        "6m_ago": 58.2,
+        "12m_ago": 64.7
+      },
+      "retail_sales_yoy_pct": {
+        "current": 3.1,
+        "1m_ago": 3.1,
+        "3m_ago": 3.1,
+        "6m_ago": 4.73,
+        "12m_ago": 3.96
+      }
+    },
+    "credit_conditions": {
+      "investment_grade_spread_bps": {
+        "current": 97.0,
+        "1m_ago": 103.0,
+        "3m_ago": 101.0,
+        "6m_ago": 101.0,
+        "12m_ago": 102.0
+      },
+      "high_yield_spread_bps": {
+        "current": 271.0,
+        "1m_ago": 299.0,
+        "3m_ago": 304.0,
+        "6m_ago": 291.0,
+        "12m_ago": 264.0
+      }
+    },
+    "monetary_liquidity": {
+      "m2_supply_yoy_pct": {
+        "current": 4.27,
+        "1m_ago": 4.27,
+        "3m_ago": 4.27,
+        "6m_ago": 4.43,
+        "12m_ago": 3.37
+      },
+      "fed_balance_sheet_billions": {
+        "current": 6582.0,
+        "1m_ago": 6557.0,
+        "3m_ago": 6596.0,
+        "6m_ago": 6659.0,
+        "12m_ago": 6834.0
+      }
+    },
+    "recession_indicators": {
+      "sahm_rule_value": 0.35,
+      "nber_recession_binary": 0
+    },
+    "leading_indicators": {
+      "yield_curve_3m10y": {
+        "current": 0.57,
+        "1m_ago": 0.52,
+        "3m_ago": 0.02,
+        "6m_ago": 0.06,
+        "12m_ago": 0.27
+      },
+      "credit_spread_differential_bps": {
+        "current": 174.0,
+        "1m_ago": 196.0,
+        "3m_ago": 203.0,
+        "6m_ago": 190.0,
+        "12m_ago": 162.0
+      },
+      "lei_composite": {
+        "current": null,
+        "1m_ago": null,
+        "3m_ago": null,
+        "6m_ago": null,
+        "12m_ago": null
+      },
+      "building_permits_thousands": {
+        "current": 1412.0,
+        "1m_ago": 1412.0,
+        "3m_ago": 1412.0,
+        "6m_ago": 1330.0,
+        "12m_ago": 1454.0
+      },
+      "manufacturing_new_orders_millions": {
+        "current": 604792.0,
+        "1m_ago": 604792.0,
+        "3m_ago": 604792.0,
+        "6m_ago": 611464.0,
+        "12m_ago": 597337.0
+      }
+    },
+    "international": {
+      "dollar_index_30d_return": {
+        "current": 0.53,
+        "1m_ago": -1.85,
+        "3m_ago": 0.68,
+        "6m_ago": -0.52,
+        "12m_ago": 2.83
+      },
+      "emerging_markets_rel_return_30d": {
+        "current": 6.59,
+        "1m_ago": -1.77,
+        "3m_ago": 4.46,
+        "6m_ago": 2.39,
+        "12m_ago": -0.94
+      }
+    },
+    "commodities": {
+      "gold_return_30d": {
+        "current": 8.89,
+        "1m_ago": 10.2,
+        "3m_ago": 17.5,
+        "6m_ago": -0.43,
+        "12m_ago": 2.19
+      },
+      "oil_return_30d": {
+        "current": 1.4,
+        "1m_ago": -5.49,
+        "3m_ago": -6.4,
+        "6m_ago": 8.97,
+        "12m_ago": 12.98
+      }
+    }
+  },
+  "benchmark_performance": {
+    "SPY": {
+      "returns": {
+        "30d": 1.36,
+        "60d": 3.88,
+        "90d": 6.66,
+        "1y": 17.1
+      },
+      "volatility_annualized": {
+        "30d": 8.12,
+        "60d": 11.08,
+        "90d": 11.15
+      },
+      "sharpe_ratio": {
+        "30d": 2.04,
+        "60d": 2.13,
+        "90d": 2.42
+      },
+      "max_drawdown": {
+        "30d": -2.58,
+        "90d": -5.07
+      }
+    },
+    "QQQ": {
+      "returns": {
+        "30d": -0.14,
+        "60d": 2.74,
+        "90d": 7.25,
+        "1y": 19.68
+      },
+      "volatility_annualized": {
+        "30d": 12.25,
+        "60d": 16.26,
+        "90d": 15.77
+      },
+      "sharpe_ratio": {
+        "30d": -0.14,
+        "60d": 1.02,
+        "90d": 1.86
+      },
+      "max_drawdown": {
+        "30d": -4.33,
+        "90d": -7.88
+      }
+    },
+    "AGG": {
+      "returns": {
+        "30d": 0.24,
+        "60d": -0.18,
+        "90d": 0.92,
+        "1y": 7.35
+      },
+      "volatility_annualized": {
+        "30d": 2.58,
+        "60d": 2.87,
+        "90d": 2.85
+      },
+      "sharpe_ratio": {
+        "30d": 1.15,
+        "60d": -0.38,
+        "90d": 1.31
+      },
+      "max_drawdown": {
+        "30d": -0.36,
+        "90d": -1.06
+      }
+    },
+    "60_40": {
+      "returns": {
+        "30d": 0.91,
+        "60d": 2.26,
+        "90d": 4.36,
+        "1y": 13.2
+      },
+      "volatility_annualized": {
+        "30d": 4.98,
+        "60d": 6.75,
+        "90d": 6.79
+      },
+      "sharpe_ratio": {
+        "30d": 1.68,
+        "60d": 1.13,
+        "90d": 1.98
+      },
+      "max_drawdown": {
+        "30d": -1.69,
+        "90d": -3.47
+      }
+    },
+    "risk_parity": {
+      "returns": {
+        "30d": 0.8,
+        "60d": 1.85,
+        "90d": 3.79,
+        "1y": 12.23
+      },
+      "volatility_annualized": {
+        "30d": 5.35,
+        "60d": 6.97,
+        "90d": 7.0
+      },
+      "sharpe_ratio": {
+        "30d": 1.59,
+        "60d": 0.88,
+        "90d": 1.86
+      },
+      "max_drawdown": {
+        "30d": -1.47,
+        "90d": -3.07
+      },
+      "note": "Simplified approximation (equal-weight SPY/AGG)"
+    }
+  },
+  "recent_events": [
+    {
+      "date": "2025-12-16",
+      "headline": "November US payrolls +64,000 vs +50,000 est; unemployment rate 4.6%",
+      "category": "employment",
+      "market_impact": "SPY -0.2%, 2Y yield -5bps, DXY -0.1%",
+      "significance": "medium"
+    },
+    {
+      "date": "2025-12-17",
+      "headline": "Micron Q1 EPS $4.78 vs $3.96 est, revenue $13.64B vs $12.85B est",
+      "category": "earnings",
+      "market_impact": "MU +10.2%, SOX +2.6%, QQQ +1.4%",
+      "significance": "high"
+    },
+    {
+      "date": "2025-12-18",
+      "headline": "US CPI 2.7% YoY in November vs 3.1% est; core CPI 2.6% YoY",
+      "category": "inflation",
+      "market_impact": "S&P 500 E-minis +0.8%, 10Y yield -2.2bps to 4.13%, DXY -0.12% to 98.25",
+      "significance": "high"
+    },
+    {
+      "date": "2025-12-18",
+      "headline": "Nike Q2 revenue $12.43B vs $12.22B est, EPS $0.53 vs $0.38 est; China sales -17% YoY",
+      "category": "earnings",
+      "market_impact": "NKE -10.0%, XRT -1.9%",
+      "significance": "medium"
+    },
+    {
+      "date": "2025-12-18",
+      "headline": "FedEx Q2 EPS $4.82 vs $4.11 est, revenue $23.47B vs $22.79B est",
+      "category": "earnings",
+      "market_impact": "FDX +0.7%, IYT +0.5%",
+      "significance": "medium"
+    },
+    {
+      "date": "2025-12-19",
+      "headline": "Bank of Japan raises policy rate 25bps to 0.75%",
+      "category": "monetary_policy",
+      "market_impact": "Japan 10Y yield +13bps to 1.07%, USD/JPY +1.3% to 157.0",
+      "significance": "medium"
+    },
+    {
+      "date": "2025-12-23",
+      "headline": "BEA delays November PCE inflation release to Jan 22 during government shutdown",
+      "category": "inflation",
+      "market_impact": "SPY +0.4%",
+      "significance": "low"
+    },
+    {
+      "date": "2025-12-26",
+      "headline": "CME raises silver futures margin to $25,000/contract (Advisory 25-393)",
+      "category": "sector_specific",
+      "market_impact": "Silver -11% to $73.72 (2025-12-29)",
+      "significance": "high"
+    },
+    {
+      "date": "2025-12-30",
+      "headline": "Fed minutes: split views on 25bps rate cut to 3.50%-3.75% range",
+      "category": "monetary_policy",
+      "market_impact": "SPY -0.3%, 2Y yield +4bps, VIX +0.5 to 17.1",
+      "significance": "medium"
+    },
+    {
+      "date": "2026-01-02",
+      "headline": "Tesla Q4 deliveries 418,227 vs 434,487 est, down 15.6% YoY",
+      "category": "sector_specific",
+      "market_impact": "TSLA -3.5%, ARKK -2.0%",
+      "significance": "medium"
+    },
+    {
+      "date": "2026-01-03",
+      "headline": "U.S. military strike captures Venezuelan President Nicolas Maduro in Caracas",
+      "category": "geopolitical",
+      "market_impact": "S&P 500 +0.64% to 6,902.05 (2026-01-05), Brent +$1.01 to $61.76, WTI +$1.00 to $58.32, 10Y yield -2.4bps to 4.165%, gold futures +2.8% to $4,451.5, DXY -0.24% to 98.32",
+      "significance": "high"
+    },
+    {
+      "date": "2026-01-07",
+      "headline": "ADP private payrolls +41,000 in December vs +49,000 est",
+      "category": "employment",
+      "market_impact": "S&P 500 -0.3% to 6,920.93, 10Y yield -4.1bps to 4.137%, VIX 15.38",
+      "significance": "medium"
+    },
+    {
+      "date": "2026-01-08",
+      "headline": "U.S. President rules out further strikes on Iran; WTI -4.7% to $71.3",
+      "category": "geopolitical",
+      "market_impact": "AAL +3.2%, DAL +3.0%, Brent -4.5%",
+      "significance": "high"
+    },
+    {
+      "date": "2026-01-09",
+      "headline": "December nonfarm payrolls +50,000 vs +60,000 est; unemployment rate 4.4%",
+      "category": "employment",
+      "market_impact": "S&P 500 +0.65% to 6,966.28, Nasdaq +0.82% to 23,671.35, Dow +0.48% to 49,504.07, VIX 14.49",
+      "significance": "high"
+    },
+    {
+      "date": "2026-01-10",
+      "headline": "Trump calls for one-year 10% cap on credit card interest rates starting Jan 20",
+      "category": "regulation",
+      "market_impact": "JPM -2.5%, BAC -1.6%, C -3.7%, WFC -1.5% (early trading 2026-01-12); SYF/BFH/COF -8% to -11%; V -1.8%, MA -1.8%, AXP -3.8%",
+      "significance": "high"
+    },
+    {
+      "date": "2026-01-11",
+      "headline": "Fed Chair Powell issues video statement on DOJ investigation",
+      "category": "monetary_policy",
+      "market_impact": "10Y yield +3bps (2026-01-12)",
+      "significance": "high"
+    },
+    {
+      "date": "2026-01-13",
+      "headline": "JPMorgan Q4 EPS $2.52 vs $2.48 est, revenue $45.8B vs $45.7B est; IB fees $2.5B",
+      "category": "earnings",
+      "market_impact": "JPM -4.2%, S&P 500 financials -1.8%",
+      "significance": "high"
+    },
+    {
+      "date": "2026-01-14",
+      "headline": "US PPI (Nov delayed) 3.0% YoY vs 2.7% est; core ex-trade 3.5%",
+      "category": "inflation",
+      "market_impact": "S&P 500 -0.53% to 6,926.60, Nasdaq -1.00% to 23,471.75, 10Y yield 4.15%, VIX 16.75",
+      "significance": "high"
+    },
+    {
+      "date": "2026-01-14",
+      "headline": "Wells Fargo Q4 EPS $1.65, revenue $21.5B; shares -4.6%",
+      "category": "earnings",
+      "market_impact": "WFC -4.6%, S&P 500 -0.53% to 6,926.60",
+      "significance": "high"
+    },
+    {
+      "date": "2026-01-14",
+      "headline": "Citigroup Q4 EPS $1.81, revenue $19.9B; shares -3.3%",
+      "category": "earnings",
+      "market_impact": "C -3.3%, XLF -0.6%",
+      "significance": "high"
+    }
+  ]
+}
