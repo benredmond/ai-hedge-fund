@@ -56,6 +56,7 @@ async function fetchTickerPrices(
         // User-Agent required to avoid 403
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
       },
+      cache: 'no-store',
     });
 
     if (!response.ok) {

@@ -60,10 +60,6 @@ function getProviderLogo(model: string): string | null {
   return null;
 }
 
-function truncate(str: string, maxLength: number): string {
-  return str.length > maxLength ? str.slice(0, maxLength - 1) + '…' : str;
-}
-
 function formatPercent(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
 }

@@ -61,6 +61,7 @@ export async function listAccounts(): Promise<string[]> {
   try {
     const response = await fetch(`${COMPOSER_API_URL}/api/v0.1/accounts/list`, {
       headers: getAuthHeaders(credentials),
+      cache: 'no-store',
     });
 
     if (!response.ok) {
@@ -120,6 +121,7 @@ export async function fetchSymphonyPerformance(
 
     const response = await fetch(url, {
       headers: getAuthHeaders(credentials),
+      cache: 'no-store',
     });
 
     if (!response.ok) {
