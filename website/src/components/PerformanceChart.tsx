@@ -87,7 +87,7 @@ export function PerformanceChart({ performances }: PerformanceChartProps) {
   for (const daily of firstPerf.data.daily) {
     dateMap.set(daily.date, {
       date: daily.date,
-      displayDate: new Date(daily.date).toLocaleDateString('en-US', {
+      displayDate: new Date(daily.date + 'T12:00:00').toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
       }),
