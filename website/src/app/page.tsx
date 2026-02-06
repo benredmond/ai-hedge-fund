@@ -9,22 +9,8 @@ import { MarketContext } from "../components/MarketContext";
 import { Leaderboard } from "../components/Leaderboard";
 import { PerformanceChart } from "../components/PerformanceChart";
 import { Tooltip } from "../components/Tooltip";
-import type { WorkflowResult } from "../lib/types";
 
-function calculateScore(result: WorkflowResult): number {
-  if (result.scorecards.length === 0) return 0;
-  return (
-    result.scorecards.reduce((sum, sc) => {
-      const total =
-        sc.thesis_quality +
-        sc.edge_economics +
-        sc.risk_framework +
-        sc.regime_awareness +
-        sc.strategic_coherence;
-      return sum + total / 5;
-    }, 0) / result.scorecards.length
-  );
-}
+export const dynamic = 'force-dynamic';
 
 export default async function Home() {
   const cohortIds = await listCohorts();
@@ -49,15 +35,20 @@ export default async function Home() {
     activeCohort.strategies,
   );
 
-  // Sort strategies by score to determine winner (same logic as Leaderboard)
-  const sortedStrategies = [...activeCohort.strategies]
-    .map((s, i) => ({ result: s, index: i, score: calculateScore(s) }))
-    .sort((a, b) => b.score - a.score);
-
-  const winnerKey =
-    sortedStrategies.length > 0
-      ? getStrategyKey(sortedStrategies[0].result, sortedStrategies[0].index)
-      : null;
+  // Determine winner by highest cumulative return (consistent with Leaderboard)
+  let winnerKey: string | null = null;
+  let bestReturn = -Infinity;
+  for (let i = 0; i < activeCohort.strategies.length; i++) {
+    const key = getStrategyKey(activeCohort.strategies[i], i);
+    const perf = performanceMap.get(key);
+    if (perf && perf.daily.length > 0) {
+      const cumReturn = perf.daily[perf.daily.length - 1].cumulative_return;
+      if (cumReturn > bestReturn) {
+        bestReturn = cumReturn;
+        winnerKey = key;
+      }
+    }
+  }
 
   // Transform for chart
   const performances = activeCohort.strategies

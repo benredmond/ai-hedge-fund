@@ -23,19 +23,12 @@ function calculateScore(result: WorkflowResult): number {
 }
 
 export function Leaderboard({ strategies, performanceMap }: Props) {
-  // Sort strategies by score to determine winner
-  const sortedStrategies = useMemo(() => {
-    return [...strategies]
-      .map((s, originalIndex) => ({ result: s, score: calculateScore(s), originalIndex }))
-      .sort((a, b) => b.score - a.score);
-  }, [strategies]);
-
   // Calculate performance metrics for each strategy
   const metricsMap = useMemo(() => {
     const map = new Map<number, { return: number; alpha: number; sharpe: number; maxDrawdown: number }>();
     if (!performanceMap) return map;
 
-    sortedStrategies.forEach(({ result, originalIndex }) => {
+    strategies.forEach((result, originalIndex) => {
       const key = getStrategyKey(result, originalIndex);
       const perf = performanceMap.get(key);
       if (perf && perf.daily.length > 0) {
@@ -79,7 +72,18 @@ export function Leaderboard({ strategies, performanceMap }: Props) {
     });
 
     return map;
-  }, [sortedStrategies, performanceMap]);
+  }, [strategies, performanceMap]);
+
+  // Sort by cumulative return (descending), fall back to scorecard score
+  const sortedStrategies = useMemo(() => {
+    return [...strategies]
+      .map((s, originalIndex) => ({ result: s, score: calculateScore(s), originalIndex }))
+      .sort((a, b) => {
+        const aReturn = metricsMap.get(a.originalIndex)?.return ?? -Infinity;
+        const bReturn = metricsMap.get(b.originalIndex)?.return ?? -Infinity;
+        return bReturn - aReturn;
+      });
+  }, [strategies, metricsMap]);
 
   // Winner is the first (highest score) - expand by default
   const winnerIndex = sortedStrategies.length > 0 ? 0 : null;
