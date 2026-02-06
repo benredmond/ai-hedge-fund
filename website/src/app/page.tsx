@@ -11,6 +11,7 @@ import { PerformanceChart } from "../components/PerformanceChart";
 import { Tooltip } from "../components/Tooltip";
 
 export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
 
 export default async function Home() {
   const cohortIds = await listCohorts();
