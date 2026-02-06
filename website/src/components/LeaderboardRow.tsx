@@ -11,6 +11,11 @@ interface Metrics {
   maxDrawdown: number;
 }
 
+interface BenchmarkInfo {
+  ticker: string;
+  description: string;
+}
+
 interface LeaderboardRowProps {
   result: WorkflowResult;
   rank: number;
@@ -21,6 +26,7 @@ interface LeaderboardRowProps {
   onToggleDetail: () => void;
   metrics?: Metrics;
   isMobile: boolean;
+  benchmark?: BenchmarkInfo;
 }
 
 function formatPercent(value: number): string {
@@ -218,7 +224,57 @@ export function LeaderboardRow({
   onToggleDetail,
   metrics,
   isMobile,
+  benchmark,
 }: LeaderboardRowProps) {
+  // Benchmark rows: simplified rendering
+  if (benchmark) {
+    if (isMobile) {
+      return (
+        <div className="border border-dashed border-border rounded-lg opacity-60">
+          <div className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="font-mono text-sm text-muted">&mdash;</span>
+              <span className="font-mono text-sm text-muted">{benchmark.ticker}</span>
+            </div>
+            <p className="font-sans text-sm text-muted mb-3">{benchmark.description}</p>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-sm">
+              {metrics ? (
+                <>
+                  <span className={metrics.return >= 0 ? 'text-vermillion' : 'text-negative'}>
+                    {formatPercent(metrics.return)}
+                  </span>
+                  <span className="text-muted">Sharpe {formatSharpe(metrics.sharpe)}</span>
+                  <span className="text-muted">DD {formatPercent(metrics.maxDrawdown)}</span>
+                </>
+              ) : (
+                <span className="text-muted">Performance pending</span>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <tr className="border-b border-dashed border-border last:border-b-0">
+        <td className="px-4 py-3 font-mono text-sm text-muted w-12">&mdash;</td>
+        <td className="px-4 py-3 font-mono text-sm text-muted">{benchmark.ticker}</td>
+        <td className="px-4 py-3 font-sans text-sm text-muted">{benchmark.description}</td>
+        <td className="px-4 py-3"></td>
+        <td className={`px-4 py-3 text-right font-mono text-sm ${metrics && metrics.return >= 0 ? 'text-vermillion' : metrics ? 'text-negative' : 'text-muted'}`}>
+          {metrics ? formatPercent(metrics.return) : '—'}
+        </td>
+        <td className="px-4 py-3 text-right font-mono text-sm text-muted">&mdash;</td>
+        <td className="px-4 py-3 text-right font-mono text-sm text-muted">
+          {metrics ? formatSharpe(metrics.sharpe) : '—'}
+        </td>
+        <td className="px-4 py-3 text-right font-mono text-sm text-negative">
+          {metrics ? formatPercent(metrics.maxDrawdown) : '—'}
+        </td>
+      </tr>
+    );
+  }
+
   const modelName = formatModelName(result.model || 'Unknown');
   const providerLogo = getProviderLogo(result.model || '');
   const summary = getSummary(result);
